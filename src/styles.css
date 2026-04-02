@@ -1,0 +1,866 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap");
+
+:root {
+  font-family: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC",
+    sans-serif;
+  color: #0f172a;
+  background-color: #f8fafc;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+}
+
+body {
+  margin: 0;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.app-sider {
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+}
+
+.app-sider .ant-menu {
+  background: transparent;
+}
+
+.app-sider .ant-menu-item-selected {
+  background: rgba(22, 163, 74, 0.12) !important;
+  color: #16a34a !important;
+  border-radius: 8px;
+}
+
+.app-sider .ant-menu-submenu-title {
+  color: #475569;
+}
+
+.sider-logo {
+  padding: 20px 20px 12px;
+}
+
+.sider-logo h5 {
+  color: #1f2937;
+}
+
+.sider-sub {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.app-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+}
+
+.app-content {
+  padding: var(--space-24);
+}
+
+.page-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: var(--space-24);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.page-subtitle {
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.primary-btn {
+  background: #0369a1;
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-8);
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background: #035c8d;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-16);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.ghost-btn {
+  border-radius: var(--radius-8) !important;
+  height: 36px;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+  background: #ffffff !important;
+}
+
+.schedule-picker {
+  width: 100%;
+}
+
+/* 接种排期选择器 - 芯片式 */
+.schedule-dates-picker {
+  width: 100%;
+}
+
+.schedule-dates-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.schedule-dates-card:hover {
+  border-color: #cbd5e1;
+}
+
+.schedule-dates-card:focus-within {
+  border-color: #0369a1;
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.12);
+}
+
+.schedule-dates-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+  align-items: center;
+}
+
+.schedule-dates-empty {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.schedule-date-chip {
+  margin: 0 !important;
+  padding: 4px 10px !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.schedule-date-chip .anticon-close {
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+.schedule-dates-add-btn {
+  align-self: flex-start;
+  border-style: dashed !important;
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+  border-radius: 8px !important;
+}
+
+.schedule-dates-add-btn:hover {
+  border-color: #0369a1 !important;
+  color: #0369a1 !important;
+}
+
+.schedule-dates-popover {
+  padding: 4px 0 0;
+}
+
+.schedule-dates-popover .ant-picker-calendar {
+  width: 280px;
+}
+
+.schedule-dates-popover .ant-picker-calendar-mini {
+  font-size: 12px;
+}
+
+.ant-btn-primary {
+  background: #0369a1 !important;
+  border-color: #0369a1 !important;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-8);
+}
+
+.ant-btn-primary:hover {
+  background: #035c8d !important;
+  border-color: #035c8d !important;
+}
+
+.ant-btn-default {
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-8);
+}
+
+.ant-btn-sm {
+  height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 7px !important;
+}
+
+.ant-btn-lg {
+  height: 40px !important;
+  padding: 0 20px !important;
+  border-radius: 10px !important;
+}
+
+.ant-tabs-nav {
+  margin-bottom: var(--space-16);
+}
+
+.ant-tabs-tab {
+  padding: 8px 12px !important;
+  font-weight: 600;
+  color: #475569 !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #0369a1 !important;
+}
+
+.ant-tabs-ink-bar {
+  background: #0369a1 !important;
+}
+
+.ant-input-affix-wrapper,
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--radius-8) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+
+.ant-input-affix-wrapper:focus,
+.ant-input:focus,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  border-color: #0369a1 !important;
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.12) !important;
+}
+
+.icon-btn {
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+}
+
+.icon-btn .anticon {
+  font-size: 16px;
+}
+
+.schedule-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-12);
+}
+
+.table-toolbar .ant-input-affix-wrapper {
+  height: 36px;
+  border-radius: 10px;
+}
+
+.table-toolbar .ant-btn {
+  height: 36px;
+  border-radius: 10px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: var(--space-12);
+  align-items: center;
+  margin-bottom: var(--space-16);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-16);
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-16);
+  margin-top: var(--space-12);
+}
+
+.preview-value {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.confirm-card {
+  border: 1px solid #edf1f7;
+  border-radius: 14px;
+  padding: var(--space-16);
+  margin-bottom: var(--space-16);
+  background: #ffffff;
+}
+
+.confirm-title {
+  font-weight: 600;
+  margin-bottom: var(--space-12);
+}
+
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: var(--space-12) var(--space-16);
+}
+
+.confirm-left {
+  display: flex;
+  gap: var(--space-12);
+  align-items: center;
+}
+
+.confirm-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-main {
+  font-weight: 600;
+}
+
+.confirm-sub {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.confirm-count {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.expanded-panel {
+  background: #f8fafc;
+  padding: var(--space-16);
+  border-radius: var(--radius-12);
+  border: 1px dashed #e2e8f0;
+}
+
+.expanded-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-12);
+}
+
+.expanded-header.compact {
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.expanded-title {
+  font-weight: 600;
+  color: #475569;
+}
+
+.expanded-subhead {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+  background: #f1f5f9;
+  color: #64748b;
+  border-radius: var(--radius-8);
+  padding: var(--space-8) var(--space-12);
+  font-size: 12px;
+  margin-bottom: var(--space-12);
+}
+
+.category-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-16);
+  background: #f8fafc;
+  border-radius: var(--radius-12);
+  padding: var(--space-12) var(--space-16);
+  margin-bottom: var(--space-12);
+}
+
+.meta-value {
+  margin-top: 6px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.icon-btn {
+  color: #64748b;
+}
+
+.icon-btn:hover {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.icon-btn.danger {
+  color: #ef4444;
+}
+
+.icon-btn.danger:hover {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.empty-card {
+  height: 220px;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px dashed #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #94a3b8;
+}
+
+.empty-illustration {
+  width: 84px;
+  height: 60px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef2f7 0%, #f8fafc 100%);
+  border: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.empty-illustration::after {
+  content: "";
+  position: absolute;
+  width: 36px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid #cbd5f5;
+  left: 24px;
+  top: 18px;
+  background: #ffffff;
+}
+
+.empty-text {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.compact-modal .ant-modal-content {
+  border-radius: 16px;
+}
+
+.compact-modal .ant-modal-header {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.compact-modal .ant-modal-body {
+  padding-top: 12px;
+}
+
+.compact-modal .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.compact-modal .ant-btn {
+  border-radius: 8px;
+  height: 34px;
+  padding: 0 16px;
+}
+
+.section-card {
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: var(--space-16);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* 普免 / 跟批计划列表：统一表格观感 */
+.vaccine-plan-table .ant-table-thead > tr > th {
+  font-weight: 600;
+  background: #fafafa;
+}
+.vaccine-plan-table .ant-table-cell {
+  vertical-align: middle;
+}
+.vaccine-plan-table .ant-table-tbody > tr > td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.plan-type-select {
+  padding: 12px 8px;
+}
+
+.type-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  width: 640px;
+  background: #ffffff;
+}
+
+.type-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.type-desc {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.form-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.form-actions.form-actions-split {
+  justify-content: space-between;
+}
+
+.confirm-panel {
+  padding: 8px 4px 0;
+}
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rule-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+/* 豁免规则（Fluent 风：中性灰、清晰左右分栏、右侧控件铺满） */
+.exemption-rule-row {
+  position: relative;
+  padding: 0;
+  background: #faf9f8;
+  border: 1px solid #edebe9;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0.5px 1.5px rgba(0, 0, 0, 0.04);
+}
+
+.exemption-rule-delete.ant-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 32px;
+  min-width: 32px !important;
+  height: 32px;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.exemption-rule-delete.ant-btn:hover,
+.exemption-rule-delete.ant-btn:focus {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.exemption-rule-content {
+  display: flex;
+  flex-direction: column;
+  padding-right: 40px;
+}
+
+.exemption-step-block {
+  padding: 18px 20px 20px;
+  background: #ffffff;
+  border-top: 1px solid #edebe9;
+}
+
+.exemption-step-block:first-of-type {
+  border-top: none;
+}
+
+.exemption-step-row {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(260px, 420px) 1fr;
+  column-gap: 28px;
+  row-gap: 12px;
+}
+
+.exemption-step-row--label-only .exemption-step-label-col {
+  grid-column: 1 / -1;
+  max-width: none;
+}
+
+.exemption-step-label-col {
+  min-width: 0;
+}
+
+.exemption-step-field-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.exemption-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.exemption-step-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.exemption-step-title-row {
+  font-size: 14px;
+  font-weight: 600;
+  color: #323130;
+  line-height: 20px;
+}
+
+.exemption-req {
+  color: #a4262c;
+  margin-left: 2px;
+}
+
+.exemption-step-index {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0078d4;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 24px;
+  text-align: center;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 120, 212, 0.25);
+}
+
+.exemption-step-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #605e5c;
+}
+
+.exemption-step-body {
+  width: 100%;
+}
+
+.exemption-step-body .exemption-rule-select.ant-select {
+  width: 100%;
+  max-width: none;
+}
+
+.exemption-step-inline-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  row-gap: 8px;
+  width: 100%;
+}
+
+.exemption-step-foot-tip {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #605e5c;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.exemption-step-foot-tip--solo {
+  margin-top: 0;
+}
+
+@media (max-width: 768px) {
+  .exemption-step-row:not(.exemption-step-row--label-only) {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+
+  .exemption-step-label-col {
+    max-width: none;
+  }
+
+  .exemption-step-field-col {
+    width: 100%;
+  }
+}
+
+.exemption-rule-row .ant-form-item {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.exemption-rule-row .ant-input-number .ant-input-number-input {
+  min-width: 72px;
+}
+
+/* 跟批免疫：下发接种任务时间（不要复用豁免规则卡片样式，避免布局冲突） */
+.dispatch-rule-row {
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #edebe9;
+  border-radius: 6px;
+}
+
+.dispatch-rule-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dispatch-rule-remove.ant-btn {
+  padding: 0 6px !important;
+  height: 28px;
+}
+
+/* 日龄豁免 - 与生产状态布局一致，标签+输入框 */
+.exemption-age-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.exemption-age-label {
+  font-size: 14px;
+  color: #475569;
+  min-width: 40px;
+}
+
+/* 豁免规则时间段：开始 至 结束 天 */
+.exemption-days-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exemption-days-sep {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.exemption-days-unit {
+  color: #64748b;
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+/* 豁免规则整体区块 */
+.exemptions-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exemptions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exemptions-add-btn {
+  align-self: flex-start;
+  border-style: dashed !important;
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+  border-radius: 8px !important;
+  height: 36px;
+  padding: 0 16px !important;
+}
+
+.exemptions-add-btn:hover {
+  border-color: #0369a1 !important;
+  color: #0369a1 !important;
+}
+
+/* 时间关系固定文案：开始前/结束后，仅展示不可选 */
+.exemption-fixed-text {
+  padding: 0 8px;
+  font-size: 14px;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 6px;
+  line-height: 32px;
+}
+
+.ant-card {
+  border-radius: 18px;
+}
+
+.ant-table-thead > tr > th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-weight: 600;
+}
+
+.ant-table-tbody > tr > td {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: #f1f5f9 !important;
+}
