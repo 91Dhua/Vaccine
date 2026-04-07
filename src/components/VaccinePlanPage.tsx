@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Alert,
@@ -11,6 +11,7 @@ import {
   Form,
   Input,
   InputNumber,
+  message,
   Modal,
   Popover,
   Radio,
@@ -25,7 +26,13 @@ import {
   Tooltip,
   Typography
 } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  CalendarOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  QuestionCircleOutlined
+} from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import {
   baselineEvents,
@@ -35,11 +42,17 @@ import {
   vaccines
 } from "../mockData";
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 type PlanType = "MASS" | "ROUTINE";
 
-type PigRuleField = "PIG_TYPE" | "AGE_YEARS" | "PARITY" | "BREED";
+type PigRuleField =
+  | "PIG_TYPE"
+  | "AGE_YEARS"
+  | "WEIGHT_KG"
+  | "PARITY"
+  | "BREED"
+  | "PIG_SOURCE";
 type PigRuleOperator =
   | "IN"
   | "NOT_IN"
@@ -58,12 +71,24 @@ type PigRuleCondition = {
 const PIG_RULE_FIELD_OPTIONS = [
   { label: "猪只类型", value: "PIG_TYPE" },
   { label: "猪只日龄", value: "AGE_YEARS" },
+  { label: "体重区间", value: "WEIGHT_KG" },
   { label: "胎次", value: "PARITY" },
-  { label: "品种", value: "BREED" }
+  { label: "品种", value: "BREED" },
+  { label: "猪只来源", value: "PIG_SOURCE" }
 ];
 
+/** 猪只来源：自繁 / 购入或外转入场 */
+const PIG_SOURCE_OPTIONS = [
+  { label: "自繁", value: "SELF_BRED" },
+  { label: "购入/外转", value: "PURCHASED_OR_TRANSFER" }
+];
+
+function pigSourceLabel(v: string) {
+  return PIG_SOURCE_OPTIONS.find((o) => o.value === v)?.label || v;
+}
+
 function getOperatorOptions(field: PigRuleField) {
-  if (field === "PIG_TYPE" || field === "BREED") {
+  if (field === "PIG_TYPE" || field === "BREED" || field === "PIG_SOURCE") {
     return [
       { label: "包含", value: "IN" },
       { label: "不包含", value: "NOT_IN" }
@@ -109,6 +134,17 @@ function estimateCoverage(conditions: PigRuleCondition[]) {
       if (c.operator === "BETWEEN" && Array.isArray(c.value)) {
         base = Math.round(base * 0.65);
       }
+    }
+    if (c.field === "WEIGHT_KG") {
+      if (c.operator === "BETWEEN" && Array.isArray(c.value)) {
+        base = Math.round(base * 0.75);
+      } else if (typeof c.value === "number") {
+        base = Math.round(base * Math.min(0.92, 0.45 + c.value / 300));
+      }
+    }
+    if (c.field === "PIG_SOURCE") {
+      const cnt = Array.isArray(c.value) ? c.value.length : c.value ? 1 : 0;
+      if (cnt >= 1) base = Math.round(base * 0.88);
     }
   }
   return Math.max(0, Math.min(base, 999999));
@@ -259,6 +295,22 @@ function summarizePigRuleConditions(conditions: PigRuleCondition[], logic?: stri
       const vals = Array.isArray(c.value) ? c.value.filter(Boolean) : c.value ? [c.value] : [];
       if (vals.length > 0) {
         tags.push(`品种 ${toOpLabel(c.operator)} ${vals.join("、")}`);
+      }
+    }
+    if (c.field === "WEIGHT_KG") {
+      if (c.operator === "BETWEEN" && Array.isArray(c.value)) {
+        const a = c.value?.[0];
+        const b = c.value?.[1];
+        if (a != null && b != null) tags.push(`体重 ${a}~${b} kg`);
+      } else if (c.value != null && c.value !== "") {
+        tags.push(`体重 ${toOpLabel(c.operator)} ${c.value} kg`);
+      }
+    }
+    if (c.field === "PIG_SOURCE") {
+      const raw = Array.isArray(c.value) ? c.value.filter(Boolean) : c.value ? [c.value] : [];
+      const vals = raw.map((x) => pigSourceLabel(String(x)));
+      if (vals.length > 0) {
+        tags.push(`来源 ${toOpLabel(c.operator)} ${vals.join("、")}`);
       }
     }
   }
@@ -446,6 +498,21 @@ function PigRuleBuilder({
                         style={{ minWidth: 280 }}
                       />
                     </Form.Item>
+                  ) : f === "PIG_SOURCE" ? (
+                    <Form.Item
+                      {...field}
+                      name={[field.name, "value"]}
+                      rules={[{ required: true, message: "请选择猪只来源" }]}
+                      noStyle
+                    >
+                      <Select
+                        mode="multiple"
+                        allowClear
+                        options={PIG_SOURCE_OPTIONS}
+                        placeholder="选择来源"
+                        style={{ minWidth: 280 }}
+                      />
+                    </Form.Item>
                   ) : op === "BETWEEN" ? (
                     <Space>
                       <Form.Item
@@ -466,6 +533,7 @@ function PigRuleBuilder({
                         <InputNumber min={0} placeholder="最大" style={{ width: 140 }} />
                       </Form.Item>
                       {f === "AGE_YEARS" && <Text type="secondary">天</Text>}
+                      {f === "WEIGHT_KG" && <Text type="secondary">kg</Text>}
                     </Space>
                   ) : (
                     <Space>
@@ -478,6 +546,7 @@ function PigRuleBuilder({
                         <InputNumber min={0} placeholder="数值" style={{ width: 180 }} />
                       </Form.Item>
                       {f === "AGE_YEARS" && <Text type="secondary">天</Text>}
+                      {f === "WEIGHT_KG" && <Text type="secondary">kg</Text>}
                     </Space>
                   );
 
@@ -632,16 +701,36 @@ const STATUS_OPTIONS = [
 const EXEMPTION_RULE_TYPE_OPTIONS = [
   { label: "预计生产任务开始前", value: "PRE_START" },
   { label: "实际生产任务结束后", value: "POST_END" },
-  { label: "即将转舍", value: "PRE_TRANSFER" },
+  { label: "转舍后", value: "POST_TRANSFER" },
+  { label: "入厂后", value: "POST_ENTRY" },
   { label: "生产状态", value: "STATUS" },
-  { label: "健康状态异常", value: "HEALTH_ABNORMAL" },
-  { label: "日龄", value: "AGE" }
+  { label: "疾病", value: "DISEASE" },
+  { label: "症状", value: "SYMPTOM" }
 ];
 
-/** 跟批免疫豁免规则触发类型：不需要「生产状态」 */
-const EXEMPTION_RULE_TYPE_OPTIONS_ROUTINE = EXEMPTION_RULE_TYPE_OPTIONS.filter(
-  (o) => o.value !== "STATUS"
-);
+/** 跟批免疫豁免规则触发类型：以转舍/入厂和疾病症状为主 */
+const EXEMPTION_RULE_TYPE_OPTIONS_ROUTINE = [
+  { label: "转舍后", value: "POST_TRANSFER" },
+  { label: "入厂后", value: "POST_ENTRY" },
+  { label: "疾病", value: "DISEASE" },
+  { label: "症状", value: "SYMPTOM" }
+];
+
+const SYMPTOM_GROUPS = [
+  { title: "生殖系统", items: ["乳腺炎", "阴茎异常", "直肠脱出", "外阴肿胀", "阴道感染", "子宫脱垂"] },
+  { title: "常见症状", items: ["虚弱", "食欲不振", "生长缓慢", "粘膜苍白", "异常运动", "姿势异常", "震颤"] },
+  { title: "四肢", items: ["异常站姿", "关节肿胀", "跛行", "蹄过长", "蹄壳脱落", "蹄部水疱"] },
+  { title: "眼睛", items: ["发红", "分泌物", "肿胀"] },
+  { title: "皮肤", items: ["皮疹", "溃疡", "疥癣", "肿胀", "疤痕", "颜色变化"] }
+];
+
+const DISEASE_GROUPS = [
+  { title: "呼吸系统疾病", items: ["猪繁殖与呼吸综合征", "猪流感", "猪支原体肺炎", "巴氏杆菌病", "包涵体鼻炎"] },
+  { title: "胃肠道疾病", items: ["传染性胃肠炎", "轮状病毒感染", "增生性肠炎", "沙门氏菌病", "猪痢疾"] },
+  { title: "繁殖与新生仔猪疾病", items: ["乳房炎-子宫炎-无乳综合征", "布鲁氏菌病", "伪狂犬病", "木乃伊胎"] },
+  { title: "全身性疾病", items: ["非洲猪瘟", "败血症", "猪圆环病毒相关疾病", "放线菌病"] },
+  { title: "营养与代谢疾病", items: ["维生素缺乏症", "贫血", "骨软骨病", "佝偻病"] }
+];
 
 /**
  * 第二步下拉选项：选择「预计生产任务开始前 / 实际生产任务结束后 / 生产状态」后出现。
@@ -663,27 +752,30 @@ function formatMassExemptionRuleLine(r: {
   statusType?: string;
   daysStart?: number;
   daysEnd?: number;
+  conditionItems?: string[];
 }): string {
   const label =
     r.rule === "PRE_START"
       ? "预计生产任务开始前"
       : r.rule === "POST_END"
         ? "实际生产任务结束后"
+        : r.rule === "POST_TRANSFER"
+          ? "转舍后"
+          : r.rule === "POST_ENTRY"
+            ? "入厂后"
         : r.rule === "STATUS"
           ? "生产状态"
-          : r.rule === "PRE_TRANSFER"
-            ? "即将转舍"
-            : r.rule === "HEALTH_ABNORMAL"
-              ? "健康状态异常"
-              : r.rule === "AGE"
-                ? "日龄"
-                : String(r.rule ?? "");
+          : r.rule === "DISEASE"
+            ? "疾病"
+            : r.rule === "SYMPTOM"
+              ? "症状"
+            : r.rule === "AGE"
+              ? "日龄"
+              : String(r.rule ?? "");
   const daysStr = `${r.daysStart ?? 0}-${r.daysEnd ?? 0} 天`;
-  if (r.rule === "HEALTH_ABNORMAL") {
-    return label;
-  }
-  if (r.rule === "PRE_TRANSFER") {
-    return `${label} ${daysStr} 免打`;
+  if (r.rule === "DISEASE" || r.rule === "SYMPTOM") {
+    const items = Array.isArray(r.conditionItems) ? r.conditionItems.filter(Boolean) : [];
+    return items.length > 0 ? `${label}（${items.join("、")}）` : label;
   }
   if (r.rule === "STATUS") {
     return `${label} ${r.statusType || "-"} ${daysStr} 免打`;
@@ -691,6 +783,9 @@ function formatMassExemptionRuleLine(r: {
   if (r.rule === "PRE_START" || r.rule === "POST_END") {
     const rel = r.rule === "PRE_START" ? "开始前" : "结束后";
     return `${label} ${r.taskType || "-"} ${rel} ${daysStr} 免打`;
+  }
+  if (r.rule === "POST_TRANSFER" || r.rule === "POST_ENTRY" || r.rule === "AGE") {
+    return `${label} ${daysStr} 免打`;
   }
   return `${label} ${daysStr} 免打`;
 }
@@ -714,36 +809,127 @@ function MassExemptionStep({
   children?: ReactNode;
 }) {
   const hasField = children != null;
-  const showFieldCol = hasField || Boolean(tip);
+  const showFieldCol = hasField;
 
   return (
     <div className="exemption-step-block">
       <div className={`exemption-step-row${showFieldCol ? "" : " exemption-step-row--label-only"}`}>
         <div className="exemption-step-label-col">
           <div className="exemption-step-head">
-            <span className="exemption-step-index">{step}</span>
             <div className="exemption-step-head-main">
               <div className="exemption-step-title-row">
                 {title}
                 {required ? <span className="exemption-req">*</span> : null}
               </div>
-              {hint ? <div className="exemption-step-hint">{hint}</div> : null}
             </div>
           </div>
         </div>
         {showFieldCol ? (
           <div className="exemption-step-field-col">
             {hasField ? <div className="exemption-step-body">{children}</div> : null}
-            {tip ? (
-              <div className={`exemption-step-foot-tip${hasField ? "" : " exemption-step-foot-tip--solo"}`}>
-                <span aria-hidden>ℹ️</span>
-                <span>{tip}</span>
-              </div>
-            ) : null}
           </div>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ExemptionConditionModal({
+  open,
+  title,
+  groups,
+  value,
+  onOk,
+  onCancel
+}: {
+  open: boolean;
+  title: string;
+  groups: { title: string; items: string[] }[];
+  value: string[];
+  onOk: (vals: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(value || []);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setSelected(Array.isArray(value) ? value : []);
+      setKeyword("");
+    }
+  }, [open, value]);
+
+  const toggle = (item: string) => {
+    setSelected((prev) => (prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]));
+  };
+
+  const filteredGroups = groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((x) => !keyword.trim() || x.includes(keyword.trim()))
+    }))
+    .filter((g) => g.items.length > 0);
+
+  return (
+    <Modal
+      title={title}
+      open={open}
+      onCancel={onCancel}
+      onOk={() => onOk(selected)}
+      okText="确认"
+      cancelText="取消"
+      width={760}
+      destroyOnClose
+      className="exemption-condition-modal"
+    >
+      <Input
+        allowClear
+        placeholder={`搜索${title}`}
+        value={keyword}
+        onChange={(e) => setKeyword(e.target.value)}
+        style={{ marginBottom: 12 }}
+      />
+      <div className="exemption-condition-groups">
+        {filteredGroups.map((group) => (
+          <div key={group.title} className="exemption-condition-group">
+            <div className="exemption-condition-group-title">{group.title}</div>
+            <div className="exemption-condition-tags">
+              {group.items.map((item) => {
+                const active = selected.includes(item);
+                return (
+                  <Button
+                    key={item}
+                    size="small"
+                    type={active ? "primary" : "default"}
+                    className={`exemption-condition-tag${active ? " is-active" : ""}`}
+                    onClick={() => toggle(item)}
+                  >
+                    {item}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+/** 豁免规则表单项标签旁「?」气泡：补充配置示例 */
+const EXEMPTION_RULES_TOOLTIP =
+  "可设置免打时间段，例如：发情 5–7 天、分娩前 5–7 天、患病中等。";
+
+const EXEMPTION_RULES_EXTRA = "豁免期内自动跳过接种，待状态恢复后系统自动安排补打。";
+
+function exemptionRulesFormLabel() {
+  return (
+    <span className="exemption-rules-form-label">
+      豁免规则
+      <Tooltip title={EXEMPTION_RULES_TOOLTIP}>
+        <QuestionCircleOutlined className="exemption-rules-help-icon" aria-label="豁免规则说明" />
+      </Tooltip>
+    </span>
   );
 }
 
@@ -760,18 +946,22 @@ function ExemptionRuleRow({
   ruleTypeOptions?: { label: string; value: string }[];
 }) {
   const rule = Form.useWatch(["exemptions", field.name, "rule"], form);
+  const conditionItems =
+    (Form.useWatch(["exemptions", field.name, "conditionItems"], form) as string[] | undefined) || [];
+  const [conditionModalOpen, setConditionModalOpen] = useState(false);
 
   const handleRuleChange = () => {
-    ["taskType", "statusType", "daysStart", "daysEnd"].forEach((key) => {
+    ["taskType", "statusType", "daysStart", "daysEnd", "conditionItems"].forEach((key) => {
       form.setFieldValue(["exemptions", field.name, key], undefined);
     });
   };
 
   const needsSecondStep =
     rule === "PRE_START" || rule === "POST_END" || rule === "STATUS";
-  /** 即将转舍 / 日龄：第二步配置起止日龄或天数区间 */
-  const needsTransferTimeRange = rule === "PRE_TRANSFER";
+  /** 转舍后 / 入厂后 / 日龄：第二步配置起止日龄或天数区间 */
+  const needsTransferTimeRange = rule === "POST_TRANSFER" || rule === "POST_ENTRY";
   const needsAgeRange = rule === "AGE";
+  const needsConditionPicker = rule === "DISEASE" || rule === "SYMPTOM";
 
   const daysRangeInputs = (
     <span className="exemption-days-range">
@@ -920,14 +1110,6 @@ function ExemptionRuleRow({
           </MassExemptionStep>
         )}
 
-        {rule === "HEALTH_ABNORMAL" && (
-          <MassExemptionStep
-            step={2}
-            title="说明"
-            hint="健康状态异常时由系统自动判定免打范围，无需填写天数。"
-          />
-        )}
-
         {needsTransferTimeRange && (
           <MassExemptionStep
             step={2}
@@ -951,12 +1133,434 @@ function ExemptionRuleRow({
             <div className="exemption-step-inline-controls">{ageRangeInputs}</div>
           </MassExemptionStep>
         )}
+        {needsConditionPicker && (
+          <MassExemptionStep step={2} title={rule === "DISEASE" ? "疾病筛选" : "症状筛选"} required>
+            <div className="exemption-condition-picker">
+              <Form.Item
+                {...field}
+                name={[field.name, "conditionItems"]}
+                className="exemption-condition-field"
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (Array.isArray(value) && value.length > 0) return Promise.resolve();
+                      return Promise.reject(new Error(`请至少选择一个${rule === "DISEASE" ? "疾病" : "症状"}`));
+                    }
+                  }
+                ]}
+                style={{ marginBottom: 4 }}
+              >
+                <span className="exemption-condition-field-anchor" aria-hidden />
+              </Form.Item>
+              <div className="exemption-condition-picker-toolbar">
+                <Button
+                  type="default"
+                  className="exemption-condition-select-btn"
+                  onClick={() => setConditionModalOpen(true)}
+                >
+                  选择{rule === "DISEASE" ? "疾病" : "症状"}
+                </Button>
+                <span className="exemption-condition-picker-count">
+                  已选 {conditionItems.length} 项
+                </span>
+              </div>
+              {conditionItems.length > 0 && (
+                <div className="exemption-condition-selected">
+                  {conditionItems.map((item) => (
+                    <Tag
+                      key={item}
+                      closable
+                      className="exemption-condition-chip"
+                      onClose={(e) => {
+                        e.preventDefault();
+                        form.setFieldValue(
+                          ["exemptions", field.name, "conditionItems"],
+                          conditionItems.filter((x) => x !== item)
+                        );
+                      }}
+                    >
+                      {item}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+            </div>
+          </MassExemptionStep>
+        )}
       </div>
+      <ExemptionConditionModal
+        open={conditionModalOpen}
+        title={rule === "DISEASE" ? "添加疾病" : "添加症状"}
+        groups={rule === "DISEASE" ? DISEASE_GROUPS : SYMPTOM_GROUPS}
+        value={conditionItems}
+        onCancel={() => setConditionModalOpen(false)}
+        onOk={(vals) => {
+          form.setFieldValue(["exemptions", field.name, "conditionItems"], vals);
+          setConditionModalOpen(false);
+        }}
+      />
     </div>
   );
 }
 
-/** 接种排期选择器：芯片式展示 + Popover 日期选择 */
+/** 普免排期 — 重复规则（用于年度 MM-DD 节点展开） */
+type ScheduleRecurrenceFrequency = "DAY" | "WEEK" | "MONTH" | "YEAR";
+
+type ScheduleRecurrenceRule = {
+  frequency: ScheduleRecurrenceFrequency;
+  interval: number;
+  /** 周重复：0–6，0=周日 */
+  byWeekday?: number[];
+  /** 月/年固定「几日」 */
+  byMonthDay?: number[];
+  /** 年重复：在哪些月份（1–12） */
+  byMonth?: number[];
+  /** 月/年：按号 或 第 N 个星期几 */
+  monthMode?: "date" | "relative";
+  /** 第几个（1–4 或 5=最后一个） */
+  bySetPos?: 1 | 2 | 3 | 4 | 5;
+  byDay?: number;
+};
+
+const SCHEDULE_RECURRENCE_MAX_DATES = 120;
+
+const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+
+function defaultScheduleRecurrence(): ScheduleRecurrenceRule {
+  return {
+    frequency: "WEEK",
+    interval: 1,
+    byWeekday: [1],
+    monthMode: "date",
+    byMonthDay: [1],
+    byMonth: [1],
+    bySetPos: 1,
+    byDay: 1
+  };
+}
+
+/** 普免快捷重复：每月 / 每季度 / 每年；CUSTOM 表示弹窗高级规则 */
+type ScheduleRepeatPreset = "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM";
+
+type ScheduleRepeatEndMode = "never" | "on_date";
+
+function presetToRule(preset: ScheduleRepeatPreset, anchor: Dayjs | undefined): ScheduleRecurrenceRule {
+  const day = anchor?.date() ?? 1;
+  const month = anchor ? anchor.month() + 1 : 1;
+  const base = { monthMode: "date" as const, bySetPos: 1 as const, byDay: 1 };
+  switch (preset) {
+    case "MONTHLY":
+      return { ...base, frequency: "MONTH", interval: 1, byMonthDay: [day], byMonth: [1] };
+    case "QUARTERLY":
+      return { ...base, frequency: "MONTH", interval: 3, byMonthDay: [day], byMonth: [1] };
+    case "YEARLY":
+      return { ...base, frequency: "YEAR", interval: 1, byMonthDay: [day], byMonth: [month] };
+    default:
+      return defaultScheduleRecurrence();
+  }
+}
+
+/** 自首次接种日起，到结束日为止（可跨年） */
+function expandFromAnchorUntilEnd(rule: ScheduleRecurrenceRule, anchor: Dayjs, endDate: Dayjs): Dayjs[] {
+  const start = anchor.startOf("day");
+  const end = endDate.endOf("day");
+  if (end.isBefore(start, "day")) return [];
+  const out: Dayjs[] = [];
+  for (let y = start.year(); y <= end.year() && out.length < SCHEDULE_RECURRENCE_MAX_DATES; y++) {
+    const chunk = expandScheduleRecurrenceFromStart(rule, anchor, y);
+    for (const d of chunk) {
+      if (!d.isBefore(start, "day") && !d.isAfter(end, "day")) out.push(d);
+    }
+  }
+  return dedupeSortDates(out).slice(0, SCHEDULE_RECURRENCE_MAX_DATES);
+}
+
+function parseScheduleEndDate(raw: unknown): Dayjs | undefined {
+  if (raw == null || raw === "") return undefined;
+  if (dayjs.isDayjs(raw)) return raw.isValid() ? raw : undefined;
+  const x = dayjs(raw as string | number | Date);
+  return x.isValid() ? x : undefined;
+}
+
+function expandMassPlanScheduleDates(
+  rule: ScheduleRecurrenceRule | null | undefined,
+  anchor: Dayjs | undefined,
+  endMode: ScheduleRepeatEndMode | undefined,
+  endDate: unknown,
+  calendarYear: number
+): Dayjs[] {
+  if (!rule || !anchor) return [];
+  if (endMode === "on_date") {
+    const ed = parseScheduleEndDate(endDate);
+    if (ed) return expandFromAnchorUntilEnd(rule, anchor, ed);
+  }
+  return expandScheduleRecurrenceFromStart(rule, anchor, calendarYear);
+}
+
+function nthWeekdayOfMonth(
+  year: number,
+  month: number,
+  pos: number,
+  weekday: number
+): Dayjs | null {
+  if (pos === 5) {
+    let d = dayjs(`${year}-${String(month).padStart(2, "0")}-01`).endOf("month");
+    while (d.day() !== weekday) d = d.subtract(1, "day");
+    return d;
+  }
+  let d = dayjs(`${year}-${String(month).padStart(2, "0")}-01`);
+  while (d.day() !== weekday) d = d.add(1, "day");
+  d = d.add(pos - 1, "week");
+  if (d.month() + 1 !== month) return null;
+  return d;
+}
+
+function dedupeSortDates(arr: Dayjs[]): Dayjs[] {
+  const seen = new Set<string>();
+  const out: Dayjs[] = [];
+  for (const d of [...arr].sort((a, b) => a.valueOf() - b.valueOf())) {
+    const k = d.format("MM-DD");
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(d);
+    }
+  }
+  return out;
+}
+
+/** 将重复规则展开为指定公历年内的接种节点（MM-DD 循环展示） */
+function expandScheduleRecurrence(
+  rule: ScheduleRecurrenceRule | null | undefined,
+  year: number
+): Dayjs[] {
+  if (!rule || !rule.interval || rule.interval < 1) return [];
+  const y = year;
+
+  switch (rule.frequency) {
+    case "DAY": {
+      const out: Dayjs[] = [];
+      let d = dayjs(`${y}-01-01`);
+      const end = dayjs(`${y}-12-31`);
+      const step = rule.interval;
+      while ((d.isBefore(end) || d.isSame(end, "day")) && out.length < SCHEDULE_RECURRENCE_MAX_DATES) {
+        out.push(d);
+        d = d.add(step, "day");
+      }
+      return dedupeSortDates(out);
+    }
+    case "WEEK": {
+      const weekdays =
+        rule.byWeekday && rule.byWeekday.length > 0
+          ? [...new Set(rule.byWeekday)].sort((a, b) => a - b)
+          : [1];
+      const interval = rule.interval;
+      const out: Dayjs[] = [];
+      for (const wd of weekdays) {
+        let d = dayjs(`${y}-01-01`);
+        while (d.day() !== wd) d = d.add(1, "day");
+        let weekIdx = 0;
+        while (d.year() === y && out.length < SCHEDULE_RECURRENCE_MAX_DATES) {
+          if (weekIdx % interval === 0) out.push(d);
+          d = d.add(7, "day");
+          weekIdx++;
+        }
+      }
+      return dedupeSortDates(out).slice(0, SCHEDULE_RECURRENCE_MAX_DATES);
+    }
+    case "MONTH": {
+      const interval = rule.interval;
+      const mode = rule.monthMode || "date";
+      const out: Dayjs[] = [];
+      if (mode === "date") {
+        const days = rule.byMonthDay?.length ? rule.byMonthDay : [1];
+        for (let m = 0; m < 12; m += interval) {
+          const base = dayjs(`${y}-${String(m + 1).padStart(2, "0")}-01`);
+          if (base.year() !== y) continue;
+          for (const md of days) {
+            const dim = base.daysInMonth();
+            const dd = Math.min(md, dim);
+            out.push(base.date(dd));
+          }
+        }
+      } else {
+        const pos = rule.bySetPos || 1;
+        const wday = rule.byDay ?? 1;
+        for (let m = 0; m < 12; m += interval) {
+          const dt = nthWeekdayOfMonth(y, m + 1, pos, wday);
+          if (dt) out.push(dt);
+        }
+      }
+      return dedupeSortDates(out).slice(0, SCHEDULE_RECURRENCE_MAX_DATES);
+    }
+    case "YEAR": {
+      const months = rule.byMonth?.length ? [...new Set(rule.byMonth)].sort((a, b) => a - b) : [1];
+      const out: Dayjs[] = [];
+      const mode = rule.monthMode || "date";
+      for (const month of months) {
+        if (mode === "date") {
+          const days = rule.byMonthDay?.length ? rule.byMonthDay : [1];
+          const base = dayjs(`${y}-${String(month).padStart(2, "0")}-01`);
+          if (base.year() !== y) continue;
+          for (const md of days) {
+            const dim = base.daysInMonth();
+            const dd = Math.min(md, dim);
+            out.push(base.date(dd));
+          }
+        } else {
+          const pos = rule.bySetPos || 1;
+          const wday = rule.byDay ?? 1;
+          const dt = nthWeekdayOfMonth(y, month, pos, wday);
+          if (dt) out.push(dt);
+        }
+      }
+      return dedupeSortDates(out).slice(0, SCHEDULE_RECURRENCE_MAX_DATES);
+    }
+    default:
+      return [];
+  }
+}
+
+/** 将用户选的首次接种日对齐到「本年度」公历年（日历可能点到其他年份，仍按本年度 MM-DD 参与排期） */
+function alignStartToPlanYear(start: Dayjs, planYear: number): Dayjs {
+  const s = start.startOf("day");
+  return s.year() === planYear ? s : s.year(planYear).startOf("day");
+}
+
+/** 以首次接种日期为锚点，生成本年度接种时间点（含首次） */
+function expandScheduleRecurrenceFromStart(
+  rule: ScheduleRecurrenceRule | null | undefined,
+  start: Dayjs,
+  year: number
+): Dayjs[] {
+  if (!rule || !rule.interval || rule.interval < 1) return [];
+  const y = year;
+  const startDay = alignStartToPlanYear(start, y);
+  const yearEnd = dayjs(`${y}-12-31`).endOf("day");
+
+  const out: Dayjs[] = [];
+
+  const pushIfInRange = (d: Dayjs | null) => {
+    if (!d) return;
+    const day = d.startOf("day");
+    if (day.isBefore(startDay, "day")) return;
+    if (day.isAfter(yearEnd, "day")) return;
+    out.push(day);
+  };
+
+  if (rule.frequency === "DAY") {
+    let d = startDay;
+    while ((d.isBefore(yearEnd) || d.isSame(yearEnd, "day")) && out.length < SCHEDULE_RECURRENCE_MAX_DATES) {
+      out.push(d);
+      d = d.add(rule.interval, "day");
+    }
+    return dedupeSortDates(out);
+  }
+
+  if (rule.frequency === "WEEK") {
+    const weekdays =
+      rule.byWeekday && rule.byWeekday.length > 0
+        ? [...new Set(rule.byWeekday)].sort((a, b) => a - b)
+        : [startDay.day()];
+    const stepWeeks = rule.interval;
+
+    for (const wd of weekdays) {
+      let d = startDay;
+      while (d.day() !== wd) d = d.add(1, "day");
+      while ((d.isBefore(yearEnd) || d.isSame(yearEnd, "day")) && out.length < SCHEDULE_RECURRENCE_MAX_DATES) {
+        out.push(d);
+        d = d.add(stepWeeks * 7, "day");
+      }
+    }
+    return dedupeSortDates(out);
+  }
+
+  if (rule.frequency === "MONTH") {
+    const interval = rule.interval;
+    const mode = rule.monthMode || "date";
+    const startMonthIndex = startDay.month(); // 0-11
+    if (mode === "date") {
+      const days = rule.byMonthDay?.length ? rule.byMonthDay : [startDay.date()];
+      for (let m = startMonthIndex; m < 12 && out.length < SCHEDULE_RECURRENCE_MAX_DATES; m += interval) {
+        const base = dayjs(`${y}-${String(m + 1).padStart(2, "0")}-01`);
+        for (const md of days) {
+          const dd = Math.min(Math.max(1, md), base.daysInMonth());
+          pushIfInRange(base.date(dd));
+        }
+      }
+    } else {
+      const pos = rule.bySetPos || 1;
+      const wday = rule.byDay ?? startDay.day();
+      for (let m = startMonthIndex; m < 12 && out.length < SCHEDULE_RECURRENCE_MAX_DATES; m += interval) {
+        pushIfInRange(nthWeekdayOfMonth(y, m + 1, pos, wday));
+      }
+    }
+    return dedupeSortDates(out);
+  }
+
+  if (rule.frequency === "YEAR") {
+    const mode = rule.monthMode || "date";
+    const months = rule.byMonth?.length ? [...new Set(rule.byMonth)].sort((a, b) => a - b) : [startDay.month() + 1];
+    if (mode === "date") {
+      const days = rule.byMonthDay?.length ? rule.byMonthDay : [startDay.date()];
+      for (const month of months) {
+        const base = dayjs(`${y}-${String(month).padStart(2, "0")}-01`);
+        for (const md of days) {
+          const dd = Math.min(Math.max(1, md), base.daysInMonth());
+          pushIfInRange(base.date(dd));
+        }
+      }
+    } else {
+      const pos = rule.bySetPos || 1;
+      const wday = rule.byDay ?? startDay.day();
+      for (const month of months) {
+        pushIfInRange(nthWeekdayOfMonth(y, month, pos, wday));
+      }
+    }
+    return dedupeSortDates(out);
+  }
+
+  return [];
+}
+
+function describeScheduleRecurrence(rule: ScheduleRecurrenceRule | null | undefined): string {
+  if (!rule || !rule.interval) return "";
+  const { frequency, interval } = rule;
+  const unit =
+    frequency === "DAY"
+      ? "天"
+      : frequency === "WEEK"
+        ? "周"
+        : frequency === "MONTH"
+          ? "个月"
+          : "年";
+  let head = "";
+  if (frequency === "DAY") head = `每 ${interval} 天重复一次`;
+  else if (frequency === "WEEK") {
+    const days =
+      rule.byWeekday && rule.byWeekday.length
+        ? rule.byWeekday
+            .slice()
+            .sort((a, b) => a - b)
+            .map((d) => `周${WEEKDAY_LABELS[d]}`)
+            .join("、")
+        : "";
+    head = `每 ${interval} 周${days ? ` · ${days}` : ""}`;
+  } else if (frequency === "MONTH") {
+    head =
+      (rule.monthMode || "date") === "date"
+        ? `每 ${interval} 个月 · 每月 ${(rule.byMonthDay || [1]).join("、")} 日`
+        : `每 ${interval} 个月 · ${rule.bySetPos === 5 ? "最后一个" : `第 ${rule.bySetPos} 个`}星期${WEEKDAY_LABELS[rule.byDay ?? 1]}`;
+  } else {
+    const mo = (rule.byMonth || [1]).map((m) => `${m} 月`).join("、");
+    head =
+      (rule.monthMode || "date") === "date"
+        ? `每 ${interval} 年 · ${mo} · ${(rule.byMonthDay || [1]).join("、")} 日`
+        : `每 ${interval} 年 · ${mo} · ${rule.bySetPos === 5 ? "最后一个" : `第 ${rule.bySetPos} 个`}星期${WEEKDAY_LABELS[rule.byDay ?? 1]}`;
+  }
+  return head;
+}
+
+/** 首次接种日期选择器：单日期 + Popover 日历 */
 function ScheduleDatesPicker({
   value = [],
   onChange
@@ -965,45 +1569,44 @@ function ScheduleDatesPicker({
   onChange?: (val: Dayjs[]) => void;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const dates = Array.isArray(value) ? value.filter((d) => d && dayjs.isDayjs(d)) : [];
-  const sortedDates = [...dates].sort((a, b) => a.month() * 31 + a.date() - (b.month() * 31 + b.date()));
+  const dates = Array.isArray(value)
+    ? value.map((d) => coerceDayjs(d)).filter((d): d is Dayjs => !!d)
+    : [];
+  const singleDate = dates[0];
 
-  const handleAdd = (d: Dayjs | null) => {
+  const handleSelect = (d: Dayjs | null) => {
     if (!d) return;
-    const key = d.format("MM-DD");
-    if (dates.some((x) => x.format("MM-DD") === key)) return;
-    onChange?.([...dates, d]);
+    const picked = dayjs(d.valueOf());
+    if (picked.startOf("day").isBefore(dayjs().startOf("day"))) return;
+    onChange?.([picked]);
     setPopoverOpen(false);
   };
 
-  const handleRemove = (idx: number) => {
-    const next = dates.filter((_, i) => i !== idx);
-    onChange?.(next);
+  const handleClear = () => {
+    onChange?.([]);
   };
+
+  const disabledDate = (current: Dayjs) =>
+    current.startOf("day").isBefore(dayjs().startOf("day"));
 
   return (
     <div className="schedule-dates-picker">
       <div className="schedule-dates-card">
         <div className="schedule-dates-chips">
-          {sortedDates.length === 0 ? (
-            <span className="schedule-dates-empty">暂无接种日期</span>
+          {!singleDate ? (
+            <span className="schedule-dates-empty">请选择首次接种日期</span>
           ) : (
-            sortedDates.map((d, idx) => {
-              const originalIdx = dates.findIndex((x) => x.format("MM-DD") === d.format("MM-DD"));
-              return (
-                <Tag
-                  key={d.format("MM-DD")}
-                  closable
-                  onClose={(e) => {
-                    e.preventDefault();
-                    handleRemove(originalIdx);
-                  }}
-                  className="schedule-date-chip"
-                >
-                  {d.format("MM-DD")}
-                </Tag>
-              );
-            })
+            <Tag
+              key={singleDate.format("MM-DD")}
+              closable
+              onClose={(e) => {
+                e.preventDefault();
+                handleClear();
+              }}
+              className="schedule-date-chip"
+            >
+              {singleDate.format("MM-DD")}
+            </Tag>
           )}
         </div>
         <Popover
@@ -1013,28 +1616,587 @@ function ScheduleDatesPicker({
           content={
             <div className="schedule-dates-popover">
               <Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
-                点击日历中的日期添加
+                仅可选择今天及之后的日期
               </Text>
               <Calendar
                 fullscreen={false}
-                onSelect={(d) => handleAdd(d)}
+                defaultValue={dayjs()}
+                disabledDate={disabledDate}
+                onSelect={(d) => handleSelect(d)}
               />
             </div>
           }
         >
           <Button type="dashed" icon={<PlusOutlined />} className="schedule-dates-add-btn">
-            添加日期
+            选择日期
           </Button>
         </Popover>
       </div>
-      {sortedDates.length > 12 && (
-        <Alert
-          type="warning"
-          showIcon
-          message="建议核对防疫强度"
-          style={{ marginTop: 8 }}
-        />
-      )}
+    </div>
+  );
+}
+
+function ScheduleRecurrenceModal({
+  open,
+  initialRule,
+  anchorDate,
+  onOk,
+  onCancel
+}: {
+  open: boolean;
+  initialRule: ScheduleRecurrenceRule;
+  /** 与配置页一致：有则按「自首次接种日」展开；无则提示为公历年初参考 */
+  anchorDate?: Dayjs | null;
+  onOk: (rule: ScheduleRecurrenceRule) => void;
+  onCancel: () => void;
+}) {
+  const [rule, setRule] = useState<ScheduleRecurrenceRule>(initialRule);
+
+  useEffect(() => {
+    if (open) setRule({ ...initialRule });
+  }, [open, initialRule]);
+
+  const summary = useMemo(() => {
+    const y = dayjs().year();
+    const desc = describeScheduleRecurrence(rule);
+    let preview: string;
+
+    if (anchorDate && anchorDate.isValid()) {
+      const sample = expandScheduleRecurrenceFromStart(rule, anchorDate, y);
+      if (sample.length > 0) {
+        preview = `与配置页相同，自首次接种日起本年度共 ${sample.length} 个节点：${sample
+          .slice(0, 8)
+          .map((d) => d.format("MM-DD"))
+          .join("、")}${sample.length > 8 ? "…" : ""}`;
+      } else {
+        preview = `与配置页相同：自首次接种日（${anchorDate.format("YYYY-MM-DD")}）起，本年度内无符合规则的节点（0 次）。请调整规则或首次接种日期。`;
+      }
+    } else {
+      const sample = expandScheduleRecurrence(rule, y);
+      preview =
+        sample.length > 0
+          ? `未选首次接种日时，以下为按公历年初参考（选日期后将按首次接种日重算，可能与下表不同）：本年度参考 ${sample.length} 个节点：${sample
+              .slice(0, 8)
+              .map((d) => d.format("MM-DD"))
+              .join("、")}${sample.length > 8 ? "…" : ""}`
+          : "当前规则在本年度（按年初参考）未生成日期，请检查选项。";
+    }
+    return { desc, preview };
+  }, [rule, anchorDate]);
+
+  const setFreq = (frequency: ScheduleRecurrenceFrequency) => {
+    setRule((r) => {
+      const next = { ...r, frequency };
+      if (frequency === "WEEK" && (!next.byWeekday || next.byWeekday.length === 0)) {
+        next.byWeekday = [1];
+      }
+      if (frequency === "MONTH" || frequency === "YEAR") {
+        if (!next.monthMode) next.monthMode = "date";
+        if (frequency === "YEAR" && (!next.byMonth || next.byMonth.length === 0)) next.byMonth = [1];
+        if ((next.monthMode === "date" || frequency === "MONTH") && (!next.byMonthDay || next.byMonthDay.length === 0))
+          next.byMonthDay = [1];
+      }
+      return next;
+    });
+  };
+
+  return (
+    <Modal
+      title={
+        <Space>
+          <CalendarOutlined />
+          <span>自定义重复</span>
+        </Space>
+      }
+      open={open}
+      onCancel={onCancel}
+      onOk={() => {
+        if (rule.frequency === "WEEK" && (!rule.byWeekday || rule.byWeekday.length === 0)) {
+          message.warning("请至少选择一个星期");
+          return;
+        }
+        if (rule.frequency === "YEAR" && (!rule.byMonth || rule.byMonth.length === 0)) {
+          message.warning("请至少选择一个月份");
+          return;
+        }
+        const mode = rule.monthMode || "date";
+        if (
+          (rule.frequency === "MONTH" || rule.frequency === "YEAR") &&
+          mode === "date" &&
+          (!rule.byMonthDay || rule.byMonthDay.length === 0)
+        ) {
+          message.warning("请至少选择一个日期");
+          return;
+        }
+        onOk(rule);
+      }}
+      width={520}
+      className="schedule-recurrence-modal"
+      okText="确定"
+      cancelText="取消"
+      destroyOnClose
+    >
+      <div className="schedule-recurrence-modal-body">
+        <div className="schedule-recurrence-row">
+          <Text>频率</Text>
+          <Select
+            value={rule.frequency}
+            onChange={(v) => setFreq(v as ScheduleRecurrenceFrequency)}
+            style={{ width: 160 }}
+            options={[
+              { label: "天", value: "DAY" },
+              { label: "周", value: "WEEK" },
+              { label: "月", value: "MONTH" },
+              { label: "年", value: "YEAR" }
+            ]}
+          />
+        </div>
+        <div className="schedule-recurrence-row">
+          <Text>每</Text>
+          <InputNumber
+            min={1}
+            max={999}
+            value={rule.interval}
+            onChange={(v) => setRule((r) => ({ ...r, interval: v || 1 }))}
+          />
+          <Text type="secondary">
+            {rule.frequency === "DAY"
+              ? "天"
+              : rule.frequency === "WEEK"
+                ? "周"
+                : rule.frequency === "MONTH"
+                  ? "个月"
+                  : "年"}
+          </Text>
+        </div>
+
+        {rule.frequency === "WEEK" && (
+          <div className="schedule-recurrence-block">
+            <Text type="secondary" className="schedule-recurrence-label">
+              在每周的
+            </Text>
+            <Checkbox.Group
+              value={rule.byWeekday}
+              onChange={(vals) =>
+                setRule((r) => ({ ...r, byWeekday: vals as number[] }))
+              }
+            >
+              <Row gutter={[8, 8]}>
+                {WEEKDAY_LABELS.map((lb, i) => (
+                  <Col key={i}>
+                    <Checkbox value={i}>周{lb}</Checkbox>
+                  </Col>
+                ))}
+              </Row>
+            </Checkbox.Group>
+          </div>
+        )}
+
+        {(rule.frequency === "MONTH" || rule.frequency === "YEAR") && (
+          <>
+            {rule.frequency === "YEAR" && (
+              <div className="schedule-recurrence-block">
+                <Text type="secondary" className="schedule-recurrence-label">
+                  月份
+                </Text>
+                <Checkbox.Group
+                  value={rule.byMonth}
+                  onChange={(vals) =>
+                    setRule((r) => ({
+                      ...r,
+                      byMonth: (vals as number[]).length ? (vals as number[]) : [1]
+                    }))
+                  }
+                >
+                  <div className="schedule-recurrence-month-grid">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <Checkbox key={m} value={m} className="schedule-recurrence-month-cell">
+                        {m} 月
+                      </Checkbox>
+                    ))}
+                  </div>
+                </Checkbox.Group>
+              </div>
+            )}
+            <div className="schedule-recurrence-row">
+              <Text>日期方式</Text>
+              <Radio.Group
+                value={rule.monthMode || "date"}
+                onChange={(e) =>
+                  setRule((r) => ({ ...r, monthMode: e.target.value }))
+                }
+              >
+                <Radio value="date">每月几号</Radio>
+                <Radio value="relative">第 N 个星期几</Radio>
+              </Radio.Group>
+            </div>
+            {(rule.monthMode || "date") === "date" ? (
+              <div className="schedule-recurrence-block">
+                <Text type="secondary" className="schedule-recurrence-label">
+                  日期（可多选）
+                </Text>
+                <Checkbox.Group
+                  value={rule.byMonthDay}
+                  onChange={(vals) =>
+                    setRule((r) => ({
+                      ...r,
+                      byMonthDay: (vals as number[]).length ? (vals as number[]) : [1]
+                    }))
+                  }
+                >
+                  <div className="schedule-recurrence-day-grid">
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <Checkbox key={d} value={d} className="schedule-recurrence-day-cell">
+                        {d}
+                      </Checkbox>
+                    ))}
+                  </div>
+                </Checkbox.Group>
+              </div>
+            ) : (
+              <div className="schedule-recurrence-row schedule-recurrence-row-wrap">
+                <Space wrap>
+                  <Select
+                    value={rule.bySetPos || 1}
+                    onChange={(v) =>
+                      setRule((r) => ({ ...r, bySetPos: v as 1 | 2 | 3 | 4 | 5 }))
+                    }
+                    style={{ width: 140 }}
+                    options={[
+                      { label: "第一个", value: 1 },
+                      { label: "第二个", value: 2 },
+                      { label: "第三个", value: 3 },
+                      { label: "第四个", value: 4 },
+                      { label: "最后一个", value: 5 }
+                    ]}
+                  />
+                  <Select
+                    value={rule.byDay ?? 1}
+                    onChange={(v) => setRule((r) => ({ ...r, byDay: v }))}
+                    style={{ width: 120 }}
+                    options={WEEKDAY_LABELS.map((lb, i) => ({
+                      label: `星期${lb}`,
+                      value: i
+                    }))}
+                  />
+                </Space>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="schedule-recurrence-summary">
+          <Text type="secondary">{summary.desc}</Text>
+          <Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8, fontSize: 12 }}>
+            {summary.preview}
+          </Paragraph>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** 表单里可能是 Dayjs、ISO 字符串等，统一为可计算的 Dayjs */
+function coerceDayjs(d: unknown): Dayjs | undefined {
+  if (d == null || d === "") return undefined;
+  if (dayjs.isDayjs(d)) return d.isValid() ? d : undefined;
+  if (typeof d === "object" && d !== null && typeof (d as { valueOf?: () => unknown }).valueOf === "function") {
+    const n = (d as { valueOf: () => unknown }).valueOf();
+    if (typeof n === "number" && Number.isFinite(n)) {
+      const x = dayjs(n);
+      return x.isValid() ? x : undefined;
+    }
+  }
+  const x = dayjs(d as string | number | Date);
+  return x.isValid() ? x : undefined;
+}
+
+/** 与当前表单字段 scheduleDates 对应的最早执行日（首次接种锚点）。Form.Item 会覆盖子组件 onChange，不能依赖单独字段同步首次日期。 */
+function anchorFromScheduleDates(value: unknown): Dayjs | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const valid = value.map(coerceDayjs).filter((d): d is Dayjs => !!d);
+  if (!valid.length) return undefined;
+  return [...valid].sort((a, b) => a.valueOf() - b.valueOf())[0];
+}
+
+function scheduleDatesArrayEqual(a: Dayjs[] | undefined, b: Dayjs[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  const key = (xs: Dayjs[]) =>
+    xs
+      .map(coerceDayjs)
+      .filter((d): d is Dayjs => !!d)
+      .map((d) => d.format("YYYY-MM-DD"))
+      .sort()
+      .join("\0");
+  return key(a) === key(b);
+}
+
+/** 快捷频率：CUSTOM 时不选中任何一项，与高级自定义一致 */
+function ScheduleRepeatPresetRadio({
+  value,
+  onChange,
+  ...rest
+}: {
+  value?: ScheduleRepeatPreset;
+  onChange?: React.ComponentProps<typeof Radio.Group>["onChange"];
+}) {
+  const display = value === "CUSTOM" ? undefined : value;
+  return (
+    <Radio.Group
+      {...rest}
+      optionType="button"
+      buttonStyle="solid"
+      className="mass-schedule-preset-radios"
+      value={display}
+      onChange={onChange}
+    >
+      <Radio.Button value="MONTHLY">每月</Radio.Button>
+      <Radio.Button value="QUARTERLY">每季度</Radio.Button>
+      <Radio.Button value="YEARLY">每年</Radio.Button>
+    </Radio.Group>
+  );
+}
+
+/** 接种排期：是否重复 + 自定义规则 + 芯片展示
+ *  排期字段嵌套在无 name 的 Form.Item 下时，useWatch 可能不触发重渲染；且 setFieldValue 不会走 onValuesChange。
+ *  由父级传入 scheduleFieldsTick + bump，与 getFieldValue 组合保证预览与展开同步。 */
+function MassScheduleDatesSection({
+  scheduleFieldsTick,
+  bumpScheduleFields
+}: {
+  scheduleFieldsTick: number;
+  bumpScheduleFields: () => void;
+}) {
+  const form = Form.useFormInstance();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const year = dayjs().year();
+
+  const repeatEnabled = form.getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
+  const recurrence = form.getFieldValue("scheduleRecurrence") as
+    | ScheduleRecurrenceRule
+    | null
+    | undefined;
+
+  const anchorDate = useMemo(() => {
+    void scheduleFieldsTick;
+    return anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
+  }, [scheduleFieldsTick, form]);
+
+  useEffect(() => {
+    void scheduleFieldsTick;
+    const re = form.getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
+    if (!re) return;
+    const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
+    const preset = form.getFieldValue("scheduleRepeatPreset") as ScheduleRepeatPreset | undefined;
+    let rec = form.getFieldValue("scheduleRecurrence") as ScheduleRecurrenceRule | null | undefined;
+
+    if (preset && preset !== "CUSTOM" && anchor) {
+      const nextRule = presetToRule(preset, anchor);
+      if (JSON.stringify(rec) !== JSON.stringify(nextRule)) {
+        form.setFieldValue("scheduleRecurrence", nextRule);
+        bumpScheduleFields();
+        return;
+      }
+      rec = nextRule;
+    }
+
+    if (!rec || !anchor) return;
+    const endMode = form.getFieldValue("scheduleRepeatEndMode") as ScheduleRepeatEndMode | undefined;
+    const endDate = form.getFieldValue("scheduleRepeatEndDate");
+    const next = expandMassPlanScheduleDates(rec, anchor, endMode, endDate, year);
+    if (!next.length) return;
+    const cur = form.getFieldValue("scheduleDates") as Dayjs[] | undefined;
+    if (scheduleDatesArrayEqual(cur, next)) return;
+    form.setFieldValue("scheduleDates", next);
+    bumpScheduleFields();
+  }, [scheduleFieldsTick, year, form, bumpScheduleFields]);
+
+  const ruleForModal =
+    (form.getFieldValue("scheduleRecurrence") as ScheduleRecurrenceRule | null | undefined) ||
+    defaultScheduleRecurrence();
+  const generated = useMemo(() => {
+    void scheduleFieldsTick;
+    const re = form.getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
+    const rec = form.getFieldValue("scheduleRecurrence") as ScheduleRecurrenceRule | null | undefined;
+    const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
+    if (!re || !rec || !anchor) return [];
+    const endMode = form.getFieldValue("scheduleRepeatEndMode") as ScheduleRepeatEndMode | undefined;
+    const endDate = form.getFieldValue("scheduleRepeatEndDate");
+    return expandMassPlanScheduleDates(rec, anchor, endMode, endDate, year);
+  }, [scheduleFieldsTick, year, form]);
+  const afterFirstPreview = useMemo(() => {
+    void scheduleFieldsTick;
+    const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
+    if (!anchor) return [];
+    const firstKey = anchor.format("YYYY-MM-DD");
+    return generated.filter((d) => d.format("YYYY-MM-DD") !== firstKey).slice(0, 6);
+  }, [generated, scheduleFieldsTick, form]);
+
+  const presetField = form.getFieldValue("scheduleRepeatPreset") as ScheduleRepeatPreset | undefined;
+  const endModeField = form.getFieldValue("scheduleRepeatEndMode") as ScheduleRepeatEndMode | undefined;
+  const endDateParsed = parseScheduleEndDate(form.getFieldValue("scheduleRepeatEndDate"));
+  const planCountPhrase =
+    endModeField === "on_date" && endDateParsed
+      ? `计划共 ${generated.length} 次（截至 ${endDateParsed.format("YYYY-MM-DD")}）`
+      : `本年度计划执行 ${generated.length} 次`;
+
+  const endDateMin = useMemo(() => {
+    const t = dayjs().startOf("day");
+    const a = anchorDate?.startOf("day");
+    if (!a) return t;
+    return a.isAfter(t) ? a : t;
+  }, [anchorDate]);
+
+  return (
+    <div className="mass-schedule-dates-section">
+      <Form.Item
+        name="scheduleDates"
+        noStyle
+        rules={[
+          {
+            validator: (_, value) => {
+              if (!Array.isArray(value) || !value.some((d: Dayjs | undefined) => !!coerceDayjs(d))) {
+                return Promise.reject(new Error("请至少选择一个执行日期"));
+              }
+              const first = anchorFromScheduleDates(value);
+              if (!first) return Promise.reject(new Error("请至少选择一个执行日期"));
+              if (first.startOf("day").isBefore(dayjs().startOf("day"))) {
+                return Promise.reject(new Error("首次接种日期不能早于今天"));
+              }
+              return Promise.resolve();
+            }
+          }
+        ]}
+      >
+        <ScheduleDatesPicker />
+      </Form.Item>
+      <div className="mass-schedule-repeat-toolbar">
+        <div className="mass-schedule-repeat-row">
+          <span className="mass-schedule-repeat-label">是否重复</span>
+          <Form.Item name="scheduleRepeatEnabled" valuePropName="checked" noStyle>
+            <Switch
+              onChange={(checked) => {
+                if (checked) {
+                  form.setFieldValue("scheduleRepeatPreset", "MONTHLY");
+                  const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
+                  form.setFieldValue("scheduleRecurrence", presetToRule("MONTHLY", anchor));
+                  bumpScheduleFields();
+                }
+              }}
+            />
+          </Form.Item>
+        </div>
+        {repeatEnabled && (
+          <div className="mass-schedule-repeat-options">
+            <div className="mass-schedule-preset-row">
+              <Text type="secondary" className="mass-schedule-preset-label">
+                重复频率
+              </Text>
+              <Space wrap align="center">
+                <Form.Item
+                  name="scheduleRepeatPreset"
+                  noStyle
+                  getValueFromEvent={(e) => (e as { target: { value: ScheduleRepeatPreset } }).target.value}
+                >
+                  <ScheduleRepeatPresetRadio />
+                </Form.Item>
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<CalendarOutlined />}
+                  className={
+                    presetField === "CUSTOM"
+                      ? "mass-schedule-custom-btn mass-schedule-custom-btn--active"
+                      : "mass-schedule-custom-btn"
+                  }
+                  onClick={() => setModalOpen(true)}
+                >
+                  高级自定义
+                </Button>
+              </Space>
+            </div>
+            {presetField === "CUSTOM" && recurrence && (
+              <div className="mass-schedule-advanced-rule-card">
+                <div className="mass-schedule-advanced-rule-card-head">
+                  <Text strong className="mass-schedule-advanced-rule-card-title">
+                    高级自定义规则
+                  </Text>
+                  <Tag bordered={false} color="processing">
+                    已生效
+                  </Tag>
+                </div>
+                <Paragraph type="secondary" className="mass-schedule-advanced-rule-card-body" style={{ marginBottom: 0 }}>
+                  {describeScheduleRecurrence(recurrence)}
+                </Paragraph>
+              </div>
+            )}
+            <Row gutter={[16, 12]}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="结束重复" name="scheduleRepeatEndMode">
+                  <Select
+                    placeholder="选择结束方式"
+                    options={[
+                      { label: "永不", value: "never" },
+                      { label: "于日期", value: "on_date" }
+                    ]}
+                    onChange={(v) => {
+                      if (v === "never") form.setFieldValue("scheduleRepeatEndDate", undefined);
+                      bumpScheduleFields();
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              {endModeField === "on_date" && (
+                <Col xs={24} sm={12}>
+                  <Form.Item
+                    label="结束日期"
+                    name="scheduleRepeatEndDate"
+                    rules={[{ required: true, message: "请选择结束日期" }]}
+                  >
+                    <DatePicker
+                      style={{ width: "100%" }}
+                      format="YYYY-MM-DD"
+                      disabledDate={(d) => d.startOf("day").isBefore(endDateMin)}
+                      onChange={() => bumpScheduleFields()}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
+            </Row>
+            {recurrence && presetField !== "CUSTOM" && (
+              <div className="mass-schedule-rule-summary">
+                <Text type="secondary">{describeScheduleRecurrence(recurrence)}</Text>
+              </div>
+            )}
+            {recurrence != null && anchorDate && (
+              <div className="mass-schedule-rule-summary">
+                <Text>
+                  首次接种定于 <Text code>[{anchorDate.format("YYYY-MM-DD")}]</Text>。
+                  {planCountPhrase}，后续接种时间点预览：
+                  {afterFirstPreview.length > 0
+                    ? ` ${afterFirstPreview.map((d) => d.format("MM-DD")).join("、")}${generated.length - 1 > afterFirstPreview.length ? " ..." : ""}`
+                    : " -"}
+                </Text>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <ScheduleRecurrenceModal
+        open={modalOpen}
+        initialRule={ruleForModal}
+        anchorDate={anchorDate}
+        onCancel={() => setModalOpen(false)}
+        onOk={(next) => {
+          form.setFieldsValue({
+            scheduleRecurrence: next,
+            scheduleRepeatPreset: "CUSTOM"
+          });
+          setModalOpen(false);
+          bumpScheduleFields();
+        }}
+      />
     </div>
   );
 }
@@ -1154,6 +2316,10 @@ function MassPlanForm({
   initialData?: any;
 }) {
   const [form] = Form.useForm();
+  const [scheduleFieldsTick, setScheduleFieldsTick] = useState(0);
+  const bumpScheduleFields = useCallback(() => {
+    setScheduleFieldsTick((n) => n + 1);
+  }, []);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [advancedApplied, setAdvancedApplied] = useState(false);
   const advancedAppliedRef = useRef(false);
@@ -1166,6 +2332,7 @@ function MassPlanForm({
     [pigRuleConditions, pigRuleLogic]
   );
   const lockedPigTypeValue = Form.useWatch("simplePigType", form);
+  const scheduleRepeatEnabledWatch = Form.useWatch("scheduleRepeatEnabled", form);
 
   useEffect(() => {
     advancedAppliedRef.current = advancedApplied;
@@ -1195,16 +2362,21 @@ function MassPlanForm({
         ],
         simplePigType: targetValue,
         scheduleDates,
+        scheduleRepeatEnabled: false,
+        scheduleRecurrence: null,
+        scheduleRepeatPreset: "MONTHLY",
+        scheduleRepeatEndMode: "never",
+        scheduleRepeatEndDate: undefined,
         vaccineId: vaccines.find((v) => v.name === initialData.vaccine)?.id,
         dosage: initialData.dosage,
-        dosageUnit: initialData.dosageUnit || "毫克",
-        remindDays: 3
+        dosageUnit: initialData.dosageUnit || "毫克"
       });
+      bumpScheduleFields();
       simplePigTypeCommittedRef.current = targetValue;
       setAdvancedApplied(false);
       advancedAppliedRef.current = false;
     }
-  }, [initialData, form]);
+  }, [initialData, form, bumpScheduleFields]);
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
@@ -1240,8 +2412,12 @@ function MassPlanForm({
         initialValues={{
           name: "",
           dosageUnit: "毫克",
-          remindDays: 3,
           scheduleDates: [],
+          scheduleRepeatEnabled: false,
+          scheduleRecurrence: null,
+          scheduleRepeatPreset: "MONTHLY",
+          scheduleRepeatEndMode: "never",
+          scheduleRepeatEndDate: undefined,
           pigRuleLogic: "AND",
           pigRuleConditions: [
             { field: "PIG_TYPE", operator: "IN", value: undefined },
@@ -1251,6 +2427,16 @@ function MassPlanForm({
           simplePigType: undefined
         }}
         onValuesChange={(changed) => {
+          if (
+            "scheduleDates" in changed ||
+            "scheduleRecurrence" in changed ||
+            "scheduleRepeatEnabled" in changed ||
+            "scheduleRepeatPreset" in changed ||
+            "scheduleRepeatEndMode" in changed ||
+            "scheduleRepeatEndDate" in changed
+          ) {
+            bumpScheduleFields();
+          }
           if (!("simplePigType" in changed)) return;
           if (revertingSimpleRef.current) {
             revertingSimpleRef.current = false;
@@ -1268,7 +2454,7 @@ function MassPlanForm({
           Modal.confirm({
             title: "确认改用简单选择？",
             content:
-              "您已启用高级选猪规则。若继续修改常用目标猪群，高级规则中的年龄、胎次等条件将全部清空，仅保留本次选择的猪只类型，且无法恢复本次高级配置。是否确认？",
+              "您已启用高级选猪规则。若继续修改常用目标猪群，高级规则中的日龄、体重、胎次、品种、来源等条件将全部清空，仅保留本次选择的猪只类型，且无法恢复本次高级配置。是否确认？",
             okText: "确认切换",
             cancelText: "取消",
             onOk: () => {
@@ -1318,9 +2504,11 @@ function MassPlanForm({
                   placeholder="选择目标猪群（常用）"
                 />
               </Form.Item>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                此处仅展示常用猪群。如需多条件精准筛选，请点击右侧「高级设置」。
-              </Text>
+              {lockedPigTypeValue && !advancedApplied && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  如需多条件精准筛选，请点击右侧「高级设置」。
+                </Text>
+              )}
               {advancedApplied && (
                 <div style={{ marginTop: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1364,7 +2552,7 @@ function MassPlanForm({
                       onClick={() => {
                         Modal.confirm({
                           title: "取消使用高级设置？",
-                          content: "取消后将清空日龄、胎次等高级条件，仅保留当前选择的猪只类型。",
+                          content: "取消后将清空日龄、体重、胎次、品种、来源等高级条件，仅保留当前选择的猪只类型。",
                           okText: "取消高级设置",
                           cancelText: "保留",
                           onOk: () => {
@@ -1385,7 +2573,7 @@ function MassPlanForm({
                 </div>
               )}
             </div>
-            {!advancedApplied && (
+            {lockedPigTypeValue && !advancedApplied && (
               <div>
                 <Button
                   disabled={!lockedPigTypeValue}
@@ -1506,36 +2694,20 @@ function MassPlanForm({
           </Col>
         </Row>
         <Form.Item
-          name="scheduleDates"
-          label="接种排期 (年度循环)"
+          label="首次接种日期"
           required
-          rules={[
-            {
-              validator: (_, value) => {
-                const valid =
-                  Array.isArray(value) &&
-                  value.some((d: Dayjs | undefined) => d && dayjs.isDayjs(d));
-                if (!valid) return Promise.reject(new Error("请至少选择一个执行日期"));
-                return Promise.resolve();
-              }
-            }
-          ]}
-          extra="点击「添加日期」从日历中选择，选定的日期将作为每年的固定防疫节点。"
+          extra={
+            scheduleRepeatEnabledWatch
+              ? undefined
+              : "请先选择首次接种日期，开启重复后可按规则生成后续节点。"
+          }
         >
-          <ScheduleDatesPicker />
+          <MassScheduleDatesSection
+            scheduleFieldsTick={scheduleFieldsTick}
+            bumpScheduleFields={bumpScheduleFields}
+          />
         </Form.Item>
-        <Form.Item
-          name="remindDays"
-          label="任务下发前多久提醒我"
-          extra="填写天数，如填 3 表示接种任务下发前 3 天提醒您"
-          rules={[{ required: true, message: "请填写提醒天数" }]}
-        >
-          <InputNumber min={1} addonAfter="天" placeholder="天数" />
-        </Form.Item>
-        <Form.Item
-          label="豁免规则"
-          extra="设置免打时间段，如发情 5-7 天、分娩前 5-7 天、日龄 30-45 天等，系统将在此时间段内不安排该猪只接种；过了豁免期后会自动安排补打。"
-        >
+        <Form.Item label={exemptionRulesFormLabel()} extra={EXEMPTION_RULES_EXTRA}>
           <Form.List name="exemptions">
             {(fields, { add, remove }) => (
               <div className="exemptions-block">
@@ -1546,7 +2718,6 @@ function MassPlanForm({
                       field={field}
                       form={form}
                       onRemove={() => remove(field.name)}
-                      ruleTypeOptions={EXEMPTION_RULE_TYPE_OPTIONS_ROUTINE}
                     />
                   ))}
                 </div>
@@ -1708,7 +2879,6 @@ function RoutinePlanForm({
         vaccineId: vacc?.id,
         dosage: vacc?.defaultDosage ?? 1,
         dosageUnit: "毫克",
-        remindDays: 3,
         exemptions: Array.isArray(initialData.exemptions) ? initialData.exemptions : []
       });
       if (vacc) setSelectedVaccine(vacc);
@@ -1806,7 +2976,7 @@ function RoutinePlanForm({
           Modal.confirm({
             title: "确认改用简单选择？",
             content:
-              "您已启用高级选猪规则。若继续修改常用目标猪群，高级规则中的年龄、胎次等条件将全部清空，仅保留本次选择的猪只类型，且无法恢复本次高级配置。是否确认？",
+              "您已启用高级选猪规则。若继续修改常用目标猪群，高级规则中的日龄、体重、胎次、品种、来源等条件将全部清空，仅保留本次选择的猪只类型，且无法恢复本次高级配置。是否确认？",
             okText: "确认切换",
             cancelText: "取消",
             onOk: () => {
@@ -1878,9 +3048,11 @@ function RoutinePlanForm({
                   placeholder="选择目标猪群（常用）"
                 />
               </Form.Item>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                此处仅展示常用猪群。如需多条件精准筛选，请点击右侧「高级设置」。
-              </Text>
+              {lockedPigTypeValue && !advancedApplied && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  如需多条件精准筛选，请点击右侧「高级设置」。
+                </Text>
+              )}
               {advancedApplied && (
                 <div style={{ marginTop: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1920,7 +3092,7 @@ function RoutinePlanForm({
                       onClick={() => {
                         Modal.confirm({
                           title: "取消使用高级设置？",
-                          content: "取消后将清空日龄、胎次等高级条件，仅保留当前选择的猪只类型。",
+                          content: "取消后将清空日龄、体重、胎次、品种、来源等高级条件，仅保留当前选择的猪只类型。",
                           okText: "取消高级设置",
                           cancelText: "保留",
                           onOk: () => {
@@ -1941,7 +3113,7 @@ function RoutinePlanForm({
                 </div>
               )}
             </div>
-            {!advancedApplied && (
+            {lockedPigTypeValue && !advancedApplied && (
               <div>
                 <Button
                   disabled={!lockedPigTypeValue}
@@ -2018,12 +3190,6 @@ function RoutinePlanForm({
             />
           </Modal>
         </Form.Item>
-        <Alert
-          type="info"
-          showIcon
-          message="系统将根据触发规则与生产节点自动计算下发时间。"
-          style={{ marginBottom: 16 }}
-        />
         <Row gutter={12}>
           <Col xs={24} md={14}>
             <Form.Item
@@ -2259,18 +3425,7 @@ function RoutinePlanForm({
             )}
           </Form.List>
         </Form.Item>
-        <Form.Item
-          name="remindDays"
-          label="任务下发前多久提醒我"
-          extra="填写天数，如填 3 表示接种任务下发前 3 天提醒您"
-          rules={[{ required: true, message: "请填写提醒天数" }]}
-        >
-          <InputNumber min={1} addonAfter="天" placeholder="天数" />
-        </Form.Item>
-        <Form.Item
-          label="豁免规则"
-          extra="设置免打时间段，如发情 5-7 天、分娩前 5-7 天、日龄 30-45 天等，系统将在此时间段内不安排该猪只接种；过了豁免期后会自动安排补打。"
-        >
+        <Form.Item label={exemptionRulesFormLabel()} extra={EXEMPTION_RULES_EXTRA}>
           <Form.List name="exemptions">
             {(fields, { add, remove }) => (
               <div className="exemptions-block">
@@ -2281,6 +3436,7 @@ function RoutinePlanForm({
                       field={field}
                       form={form}
                       onRemove={() => remove(field.name)}
+                      ruleTypeOptions={EXEMPTION_RULE_TYPE_OPTIONS_ROUTINE}
                     />
                   ))}
                 </div>
@@ -2645,10 +3801,6 @@ export function VaccinePlanPage() {
               </div>
             </div>
             <div>
-              <Text type="secondary">下发前提醒</Text>
-              <div className="preview-value">任务下发前 {draft?.remindDays} 天提醒</div>
-            </div>
-            <div>
               <Text type="secondary">豁免规则</Text>
               <div className="preview-value">
                 {(draft?.exemptions || []).length > 0
@@ -2806,10 +3958,6 @@ export function VaccinePlanPage() {
               <div className="preview-value">
                 {draft?.dosage} {draft?.dosageUnit}
               </div>
-            </div>
-            <div>
-              <Text type="secondary">下发前提醒</Text>
-              <div className="preview-value">任务下发前 {draft?.remindDays} 天提醒</div>
             </div>
           </div>
           <div className="form-actions">

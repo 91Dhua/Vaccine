@@ -127,7 +127,8 @@ body {
 
 .schedule-dates-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 12px;
   padding: 16px;
   background: #f8fafc;
@@ -151,6 +152,7 @@ body {
   gap: 8px;
   min-height: 36px;
   align-items: center;
+  flex: 1;
 }
 
 .schedule-dates-empty {
@@ -174,7 +176,6 @@ body {
 }
 
 .schedule-dates-add-btn {
-  align-self: flex-start;
   border-style: dashed !important;
   border-color: #cbd5e1 !important;
   color: #64748b !important;
@@ -196,6 +197,165 @@ body {
 
 .schedule-dates-popover .ant-picker-calendar-mini {
   font-size: 12px;
+}
+
+/* 普免排期 — 重复规则 */
+.mass-schedule-dates-section {
+  width: 100%;
+}
+
+.mass-schedule-repeat-toolbar {
+  margin-bottom: 12px;
+}
+
+.mass-schedule-repeat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mass-schedule-repeat-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mass-schedule-preset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mass-schedule-preset-label {
+  display: block;
+  font-size: 13px;
+}
+
+.mass-schedule-preset-radios .ant-radio-button-wrapper {
+  border-radius: 8px !important;
+}
+
+/* 高级自定义按钮：选中态用浅蓝，避免 primary 过重 */
+.mass-schedule-custom-btn.mass-schedule-custom-btn--active.ant-btn-default {
+  color: #0c4a6e;
+  background: #e8f4fc;
+  border-color: #93c5fd;
+}
+
+.mass-schedule-custom-btn.mass-schedule-custom-btn--active.ant-btn-default:hover {
+  color: #075985;
+  background: #dbeafe;
+  border-color: #7dd3fc;
+}
+
+.mass-schedule-repeat-label {
+  color: #334155;
+  font-size: 14px;
+}
+
+.mass-schedule-repeat-hint {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mass-schedule-rule-summary {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* 高级自定义：标题 + 规则正文一体化，避免与上方 Tag、下方摘要割裂 */
+.mass-schedule-advanced-rule-card {
+  margin-bottom: 4px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #f0f9ff 0%, #f8fafc 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.mass-schedule-advanced-rule-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0f2fe;
+}
+
+.mass-schedule-advanced-rule-card-title {
+  font-size: 13px;
+  color: #0c4a6e;
+  letter-spacing: 0.02em;
+}
+
+.mass-schedule-advanced-rule-card-body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #334155 !important;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-row-wrap {
+  align-items: flex-start;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 12px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-month-cell {
+  margin: 0;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-day-cell {
+  margin: 0;
+  font-size: 12px;
+}
+
+.schedule-recurrence-modal .schedule-recurrence-summary {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 .ant-btn-primary {
@@ -624,7 +784,6 @@ body {
 .exemption-step-block {
   padding: 18px 20px 20px;
   background: #ffffff;
-  border-top: 1px solid #edebe9;
 }
 
 .exemption-step-block:first-of-type {
@@ -660,7 +819,7 @@ body {
 .exemption-step-head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 0;
 }
 
 .exemption-step-head-main {
@@ -694,13 +853,6 @@ body {
   box-shadow: 0 1px 2px rgba(0, 120, 212, 0.25);
 }
 
-.exemption-step-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #605e5c;
-}
-
 .exemption-step-body {
   width: 100%;
 }
@@ -718,19 +870,6 @@ body {
   gap: 10px;
   row-gap: 8px;
   width: 100%;
-}
-
-.exemption-step-foot-tip {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #605e5c;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.exemption-step-foot-tip--solo {
-  margin-top: 0;
 }
 
 @media (max-width: 768px) {
@@ -755,6 +894,114 @@ body {
 
 .exemption-rule-row .ant-input-number .ant-input-number-input {
   min-width: 72px;
+}
+
+.exemption-condition-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.exemption-condition-field .ant-form-item-control-input {
+  min-height: 0;
+}
+
+.exemption-condition-field .ant-form-item-control-input-content {
+  line-height: 0;
+}
+
+.exemption-condition-field-anchor {
+  display: block;
+  height: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+.exemption-condition-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.exemption-condition-select-btn.ant-btn {
+  border-radius: 8px !important;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  background: #ffffff !important;
+}
+
+.exemption-condition-select-btn.ant-btn:hover {
+  border-color: #0369a1 !important;
+  color: #0369a1 !important;
+}
+
+.exemption-condition-picker-count {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.exemption-condition-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exemption-condition-chip {
+  margin: 0 !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  border-radius: 999px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.exemption-condition-chip .anticon-close {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.exemption-condition-chip .anticon-close:hover {
+  color: #64748b;
+}
+
+.exemption-condition-modal .ant-modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.exemption-condition-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.exemption-condition-group-title {
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.exemption-condition-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exemption-condition-tag {
+  border-radius: 999px !important;
+  height: 28px;
+  padding: 0 12px;
 }
 
 /* 跟批免疫：下发接种任务时间（不要复用豁免规则卡片样式，避免布局冲突） */
@@ -806,6 +1053,24 @@ body {
   color: #64748b;
   font-size: 14px;
   margin-left: 2px;
+}
+
+/* 豁免规则表单项：标题旁 ? 提示 */
+.exemption-rules-form-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exemption-rules-help-icon {
+  font-size: 14px;
+  color: #94a3b8;
+  cursor: help;
+  vertical-align: -0.125em;
+}
+
+.exemption-rules-help-icon:hover {
+  color: #64748b;
 }
 
 /* 豁免规则整体区块 */

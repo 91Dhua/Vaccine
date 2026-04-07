@@ -74,14 +74,29 @@ export type VaccineCategory = {
   vaccineId: string;
   nameCn: string;
   nameEn: string;
+  /** 推荐参考类型：日龄或生产状态，用于下发时间提示 */
   referenceType?: "日龄" | "生产状态";
+  /** 生产状态参考时的类型 */
   statusType?: string;
+  /** 日龄或状态参考的建议区间 */
   minValue?: number;
   maxValue?: number;
   brands: {
     id: string;
     brandNameCn: string;
     brandNameEn: string;
+    /** 剂型 */
+    dosageForm?: "活疫苗（冻干苗）" | "油佐剂灭活疫苗" | "水佐剂灭活疫苗";
+    /** 单次使用剂量，描述型字段，例如“2 ml/头” */
+    standardDosage?: string;
+    /** 免疫有效期，描述型字段，例如“6 个月” */
+    durationOfImmunity?: string;
+    /** 休药期（天） */
+    withdrawalPeriodDays?: number;
+    /** 接种途径，可多选 */
+    administrationRoutes?: ("IM" | "SC" | "滴鼻" | "饮水" | "喷雾")[];
+    /** 疫苗类型 */
+    targetPathogen?: "病毒性" | "细菌性" | "寄生虫";
   }[];
 };
 
@@ -98,12 +113,24 @@ export const vaccineCatalog: VaccineCategory[] = [
       {
         id: "brand-001",
         brandNameCn: "佰特生物",
-        brandNameEn: "Biotech"
+        brandNameEn: "Biotech",
+        dosageForm: "油佐剂灭活疫苗",
+        standardDosage: "2 ml/头",
+        durationOfImmunity: "6 个月",
+        withdrawalPeriodDays: 35,
+        administrationRoutes: ["IM"],
+        targetPathogen: "病毒性"
       },
       {
         id: "brand-002",
         brandNameCn: "牧安",
-        brandNameEn: "MuAn"
+        brandNameEn: "MuAn",
+        dosageForm: "油佐剂灭活疫苗",
+        standardDosage: "2 ml/头",
+        durationOfImmunity: "4 个月",
+        withdrawalPeriodDays: 28,
+        administrationRoutes: ["IM"],
+        targetPathogen: "病毒性"
       }
     ]
   },
@@ -120,7 +147,13 @@ export const vaccineCatalog: VaccineCategory[] = [
       {
         id: "brand-003",
         brandNameCn: "百利",
-        brandNameEn: "Baili"
+        brandNameEn: "Baili",
+        dosageForm: "活疫苗（冻干苗）",
+        standardDosage: "1 ml/头",
+        durationOfImmunity: "3 个月",
+        withdrawalPeriodDays: 21,
+        administrationRoutes: ["IM", "SC"],
+        targetPathogen: "病毒性"
       }
     ]
   }

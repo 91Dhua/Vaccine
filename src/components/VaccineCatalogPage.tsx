@@ -3,6 +3,7 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
@@ -68,7 +69,13 @@ export function VaccineCatalogPage() {
                 {
                   id: `brand-${Date.now()}`,
                   brandNameCn: values.brandNameCn,
-                  brandNameEn: values.brandNameEn
+                  brandNameEn: values.brandNameEn,
+                  dosageForm: values.dosageForm,
+                  standardDosage: values.standardDosage,
+                  durationOfImmunity: values.durationOfImmunity,
+                  withdrawalPeriodDays: values.withdrawalPeriodDays,
+                  administrationRoutes: values.administrationRoutes,
+                  targetPathogen: values.targetPathogen
                 }
               ]
             }
@@ -110,7 +117,13 @@ export function VaccineCatalogPage() {
                   ? {
                       ...brand,
                       brandNameCn: values.brandNameCn,
-                      brandNameEn: values.brandNameEn
+                      brandNameEn: values.brandNameEn,
+                      dosageForm: values.dosageForm,
+                      standardDosage: values.standardDosage,
+                      durationOfImmunity: values.durationOfImmunity,
+                      withdrawalPeriodDays: values.withdrawalPeriodDays,
+                      administrationRoutes: values.administrationRoutes,
+                      targetPathogen: values.targetPathogen
                     }
                   : brand
               )
@@ -219,6 +232,48 @@ export function VaccineCatalogPage() {
                     columns={[
                       { title: "品牌名称(中文)", dataIndex: "brandNameCn" },
                       { title: "品牌名称(英文)", dataIndex: "brandNameEn" },
+                      {
+                        title: "剂型",
+                        dataIndex: "dosageForm",
+                        width: 140
+                      },
+                      {
+                        title: "单次剂量",
+                        dataIndex: "standardDosage",
+                        width: 120
+                      },
+                      {
+                        title: "免疫有效期",
+                        dataIndex: "durationOfImmunity",
+                        width: 140
+                      },
+                      {
+                        title: "休药期(天)",
+                        dataIndex: "withdrawalPeriodDays",
+                        width: 110
+                      },
+                      {
+                        title: "接种途径",
+                        dataIndex: "administrationRoutes",
+                        width: 140,
+                        render: (value?: string[]) =>
+                          Array.isArray(value) && value.length > 0
+                            ? value
+                                .map((v) =>
+                                  v === "IM"
+                                    ? "肌肉注射(IM)"
+                                    : v === "SC"
+                                      ? "皮下注射(SC)"
+                                      : v
+                                )
+                                .join("、")
+                            : "-"
+                      },
+                      {
+                        title: "疫苗类型",
+                        dataIndex: "targetPathogen",
+                        width: 100
+                      },
                       {
                         title: "操作",
                         dataIndex: "actions",
@@ -335,6 +390,68 @@ export function VaccineCatalogPage() {
           >
             <Input />
           </Form.Item>
+          <Form.Item
+            name="dosageForm"
+            label="剂型"
+            rules={[{ required: true, message: "请选择剂型" }]}
+          >
+            <Select
+              options={[
+                { label: "活疫苗（冻干苗）", value: "活疫苗（冻干苗）" },
+                { label: "油佐剂灭活疫苗", value: "油佐剂灭活疫苗" },
+                { label: "水佐剂灭活疫苗", value: "水佐剂灭活疫苗" }
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="standardDosage"
+            label="单次使用剂量"
+            extra="如：2 ml/头"
+          >
+            <Input placeholder="如 2 ml/头" />
+          </Form.Item>
+          <Form.Item
+            name="durationOfImmunity"
+            label="免疫有效期"
+            extra="如：6 个月；用于系统计算下次加强免疫时间"
+          >
+            <Input placeholder="如 6 个月" />
+          </Form.Item>
+          <Form.Item
+            name="withdrawalPeriodDays"
+            label="休药期(天)"
+            extra="用于出栏前豁免与预警"
+          >
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="administrationRoutes"
+            label="接种途径"
+          >
+            <Select
+              mode="multiple"
+              placeholder="可多选"
+              options={[
+                { label: "肌肉注射(IM)", value: "IM" },
+                { label: "皮下注射(SC)", value: "SC" },
+                { label: "滴鼻", value: "滴鼻" },
+                { label: "饮水", value: "饮水" },
+                { label: "喷雾", value: "喷雾" }
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="targetPathogen"
+            label="疫苗类型"
+          >
+            <Select
+              options={[
+                { label: "病毒性", value: "病毒性" },
+                { label: "细菌性", value: "细菌性" },
+                { label: "寄生虫", value: "寄生虫" }
+              ]}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -392,6 +509,68 @@ export function VaccineCatalogPage() {
             rules={[{ required: true, message: "请输入英文品牌名" }]}
           >
             <Input />
+          </Form.Item>
+          <Form.Item
+            name="dosageForm"
+            label="剂型"
+            rules={[{ required: true, message: "请选择剂型" }]}
+          >
+            <Select
+              options={[
+                { label: "活疫苗（冻干苗）", value: "活疫苗（冻干苗）" },
+                { label: "油佐剂灭活疫苗", value: "油佐剂灭活疫苗" },
+                { label: "水佐剂灭活疫苗", value: "水佐剂灭活疫苗" }
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="standardDosage"
+            label="单次使用剂量"
+            extra="如：2 ml/头"
+          >
+            <Input placeholder="如 2 ml/头" />
+          </Form.Item>
+          <Form.Item
+            name="durationOfImmunity"
+            label="免疫有效期"
+            extra="如：6 个月；用于系统计算下次加强免疫时间"
+          >
+            <Input placeholder="如 6 个月" />
+          </Form.Item>
+          <Form.Item
+            name="withdrawalPeriodDays"
+            label="休药期(天)"
+            extra="用于出栏前豁免与预警"
+          >
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="administrationRoutes"
+            label="接种途径"
+          >
+            <Select
+              mode="multiple"
+              placeholder="可多选"
+              options={[
+                { label: "肌肉注射(IM)", value: "IM" },
+                { label: "皮下注射(SC)", value: "SC" },
+                { label: "滴鼻", value: "滴鼻" },
+                { label: "饮水", value: "饮水" },
+                { label: "喷雾", value: "喷雾" }
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="targetPathogen"
+            label="疫苗类型"
+          >
+            <Select
+              options={[
+                { label: "病毒性", value: "病毒性" },
+                { label: "细菌性", value: "细菌性" },
+                { label: "寄生虫", value: "寄生虫" }
+              ]}
+            />
           </Form.Item>
         </Form>
       </Modal>
