@@ -74,6 +74,8 @@ export type VaccineCategory = {
   vaccineId: string;
   nameCn: string;
   nameEn: string;
+  /** 免疫复核目标抗体（实验室检测项目），计划配置中只读展示 */
+  targetAntibody: string;
   /** 推荐参考类型：日龄或生产状态，用于下发时间提示 */
   referenceType?: "日龄" | "生产状态";
   /** 生产状态参考时的类型 */
@@ -93,6 +95,8 @@ export type VaccineCategory = {
     durationOfImmunity?: string;
     /** 休药期（天） */
     withdrawalPeriodDays?: number;
+    /** 免疫间隔期（天）：至少间隔多少天后才能接种下一针/其他疫苗 */
+    immuneIntervalDays?: number;
     /** 接种途径，可多选 */
     administrationRoutes?: ("IM" | "SC" | "滴鼻" | "饮水" | "喷雾")[];
     /** 疫苗类型 */
@@ -106,6 +110,7 @@ export const vaccineCatalog: VaccineCategory[] = [
     vaccineId: "VAC-001",
     nameCn: "非瘟灭活疫苗",
     nameEn: "ASF Inactivated Vaccine",
+    targetAntibody: "非洲猪瘟病毒抗体",
     referenceType: "日龄",
     minValue: 45,
     maxValue: 90,
@@ -118,6 +123,7 @@ export const vaccineCatalog: VaccineCategory[] = [
         standardDosage: "2 ml/头",
         durationOfImmunity: "6 个月",
         withdrawalPeriodDays: 35,
+        immuneIntervalDays: 7,
         administrationRoutes: ["IM"],
         targetPathogen: "病毒性"
       },
@@ -129,6 +135,7 @@ export const vaccineCatalog: VaccineCategory[] = [
         standardDosage: "2 ml/头",
         durationOfImmunity: "4 个月",
         withdrawalPeriodDays: 28,
+        immuneIntervalDays: 7,
         administrationRoutes: ["IM"],
         targetPathogen: "病毒性"
       }
@@ -139,6 +146,7 @@ export const vaccineCatalog: VaccineCategory[] = [
     vaccineId: "VAC-002",
     nameCn: "蓝耳二联疫苗",
     nameEn: "PRRS Bivalent Vaccine",
+    targetAntibody: "猪繁殖与呼吸综合征病毒抗体",
     referenceType: "生产状态",
     statusType: "妊娠期",
     minValue: 15,
@@ -152,7 +160,32 @@ export const vaccineCatalog: VaccineCategory[] = [
         standardDosage: "1 ml/头",
         durationOfImmunity: "3 个月",
         withdrawalPeriodDays: 21,
+        immuneIntervalDays: 7,
         administrationRoutes: ["IM", "SC"],
+        targetPathogen: "病毒性"
+      }
+    ]
+  },
+  {
+    id: "vac-003",
+    vaccineId: "VAC-003",
+    nameCn: "伪狂犬疫苗",
+    nameEn: "Pseudorabies Vaccine",
+    targetAntibody: "伪狂犬病毒 gE 抗体",
+    referenceType: "日龄",
+    minValue: 60,
+    maxValue: 120,
+    brands: [
+      {
+        id: "brand-004",
+        brandNameCn: "百利",
+        brandNameEn: "Baili",
+        dosageForm: "活疫苗（冻干苗）",
+        standardDosage: "1.5 ml/头",
+        durationOfImmunity: "6 个月",
+        withdrawalPeriodDays: 21,
+        immuneIntervalDays: 7,
+        administrationRoutes: ["IM"],
         targetPathogen: "病毒性"
       }
     ]

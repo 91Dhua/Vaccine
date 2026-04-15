@@ -4,7 +4,6 @@ import {
   Card,
   DatePicker,
   Form,
-  Input,
   InputNumber,
   Select,
   Space,
@@ -14,6 +13,7 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import { vaccineCatalog, vaccines } from "../mockData";
+import { resolveTaskVaccinePresentation } from "../mobileVaccinationUtils";
 
 const { Title, Text } = Typography;
 
@@ -54,6 +54,13 @@ export function VaccineTaskWizard({
       })) || [];
 
   if (step === "preview") {
+    const brandLine = String(payload?.brand ?? "").trim();
+    const brandForResolve = brandLine && brandLine !== "-" ? brandLine : "";
+    const pres = resolveTaskVaccinePresentation(
+      String(payload?.vaccineName ?? "").trim(),
+      brandForResolve
+    );
+
     return (
       <div>
         <div className="page-header">
@@ -88,13 +95,12 @@ export function VaccineTaskWizard({
           </div>
 
           <div className="confirm-card">
-            <div className="confirm-title">处方备注（选填）</div>
-            <Input.TextArea placeholder="请输入处方备注" rows={4} />
-          </div>
-
-          <div className="confirm-card">
             <div className="confirm-title">接种信息</div>
             <div className="preview-grid">
+              <div>
+                <Text type="secondary">任务编号</Text>
+                <div className="preview-value">提交后由系统自动分配（如 VT-…）</div>
+              </div>
               <div>
                 <Text type="secondary">接种日期</Text>
                 <div className="preview-value">{payload?.date}</div>
@@ -106,6 +112,14 @@ export function VaccineTaskWizard({
               <div>
                 <Text type="secondary">品牌</Text>
                 <div className="preview-value">{payload?.brand}</div>
+              </div>
+              <div>
+                <Text type="secondary">剂型</Text>
+                <div className="preview-value">{pres.dosageForm ?? "—"}</div>
+              </div>
+              <div>
+                <Text type="secondary">接种途径</Text>
+                <div className="preview-value">{pres.administrationRoute ?? "—"}</div>
               </div>
               <div>
                 <Text type="secondary">剂量</Text>
@@ -121,8 +135,8 @@ export function VaccineTaskWizard({
                 <Text type="secondary">间隔</Text>
                 <div className="preview-value">
                   {payload?.multiDose
-                    ? `${payload?.intervalValue || "-"} ${payload?.intervalUnit || ""}`
-                    : "无"}
+                    ? `${payload?.intervalValue ?? "—"} ${payload?.intervalUnit ?? ""}`.trim()
+                    : "—"}
                 </div>
               </div>
             </div>

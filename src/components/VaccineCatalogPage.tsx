@@ -49,6 +49,7 @@ export function VaccineCatalogPage() {
       vaccineId: `VAC-${Date.now()}`,
       nameCn: values.nameCn,
       nameEn: values.nameEn,
+      targetAntibody: values.targetAntibody,
       brands: []
     };
     setCatalog((prev) => [newItem, ...prev]);
@@ -74,6 +75,7 @@ export function VaccineCatalogPage() {
                   standardDosage: values.standardDosage,
                   durationOfImmunity: values.durationOfImmunity,
                   withdrawalPeriodDays: values.withdrawalPeriodDays,
+                  immuneIntervalDays: values.immuneIntervalDays,
                   administrationRoutes: values.administrationRoutes,
                   targetPathogen: values.targetPathogen
                 }
@@ -95,7 +97,8 @@ export function VaccineCatalogPage() {
           ? {
               ...item,
               nameCn: values.nameCn,
-              nameEn: values.nameEn
+              nameEn: values.nameEn,
+              targetAntibody: values.targetAntibody
             }
           : item
       )
@@ -122,6 +125,7 @@ export function VaccineCatalogPage() {
                       standardDosage: values.standardDosage,
                       durationOfImmunity: values.durationOfImmunity,
                       withdrawalPeriodDays: values.withdrawalPeriodDays,
+                      immuneIntervalDays: values.immuneIntervalDays,
                       administrationRoutes: values.administrationRoutes,
                       targetPathogen: values.targetPathogen
                     }
@@ -161,9 +165,22 @@ export function VaccineCatalogPage() {
             {
               title: "疫苗名称(中文)",
               dataIndex: "nameCn",
+              width: 200,
               render: (value) => <Text strong>{value}</Text>
             },
-            { title: "疫苗名称(英文)", dataIndex: "nameEn" },
+            { title: "疫苗名称(英文)", dataIndex: "nameEn", ellipsis: true },
+            {
+              title: "目标抗体",
+              dataIndex: "targetAntibody",
+              render: (value: string) =>
+                value ? (
+                  <Text type="secondary" ellipsis={{ tooltip: value }}>
+                    {value}
+                  </Text>
+                ) : (
+                  <Text type="secondary">—</Text>
+                )
+            },
             {
               title: "操作",
               width: 120,
@@ -177,7 +194,8 @@ export function VaccineCatalogPage() {
                       setSelectedVaccineId(record.id);
                       editVaccineForm.setFieldsValue({
                         nameCn: record.nameCn,
-                        nameEn: record.nameEn
+                        nameEn: record.nameEn,
+                        targetAntibody: record.targetAntibody
                       });
                       setEditVaccineOpen(true);
                     }}
@@ -253,6 +271,11 @@ export function VaccineCatalogPage() {
                         width: 110
                       },
                       {
+                        title: "免疫间隔期(天)",
+                        dataIndex: "immuneIntervalDays",
+                        width: 130
+                      },
+                      {
                         title: "接种途径",
                         dataIndex: "administrationRoutes",
                         width: 140,
@@ -289,7 +312,14 @@ export function VaccineCatalogPage() {
                                 setSelectedBrandId(brand.id);
                                 editBrandForm.setFieldsValue({
                                   brandNameCn: brand.brandNameCn,
-                                  brandNameEn: brand.brandNameEn
+                                  brandNameEn: brand.brandNameEn,
+                                  dosageForm: brand.dosageForm,
+                                  standardDosage: brand.standardDosage,
+                                  durationOfImmunity: brand.durationOfImmunity,
+                                  withdrawalPeriodDays: brand.withdrawalPeriodDays,
+                                  immuneIntervalDays: brand.immuneIntervalDays,
+                                  administrationRoutes: brand.administrationRoutes,
+                                  targetPathogen: brand.targetPathogen
                                 });
                                 setEditBrandOpen(true);
                               }}
@@ -339,7 +369,7 @@ export function VaccineCatalogPage() {
         onOk={handleAddVaccine}
         okText="添加"
         cancelText="取消"
-        width={420}
+        width={480}
         destroyOnClose
         className="compact-modal"
       >
@@ -357,6 +387,14 @@ export function VaccineCatalogPage() {
             rules={[{ required: true, message: "请输入英文名称" }]}
           >
             <Input />
+          </Form.Item>
+          <Form.Item
+            name="targetAntibody"
+            label="目标抗体"
+            rules={[{ required: true, message: "请输入目标抗体" }]}
+            extra="用于计划免疫复核中的检测项目展示，如：非洲猪瘟病毒抗体"
+          >
+            <Input placeholder="如：非洲猪瘟病毒抗体" />
           </Form.Item>
         </Form>
       </Modal>
@@ -425,6 +463,13 @@ export function VaccineCatalogPage() {
             <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item
+            name="immuneIntervalDays"
+            label="免疫间隔期(天)"
+            extra="接种后需间隔的最短天数，未达间隔期将提示延期接种"
+          >
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
             name="administrationRoutes"
             label="接种途径"
           >
@@ -462,7 +507,7 @@ export function VaccineCatalogPage() {
         onOk={handleEditVaccine}
         okText="保存"
         cancelText="取消"
-        width={420}
+        width={480}
         destroyOnClose
         className="compact-modal"
       >
@@ -480,6 +525,14 @@ export function VaccineCatalogPage() {
             rules={[{ required: true, message: "请输入英文名称" }]}
           >
             <Input />
+          </Form.Item>
+          <Form.Item
+            name="targetAntibody"
+            label="目标抗体"
+            rules={[{ required: true, message: "请输入目标抗体" }]}
+            extra="用于计划免疫复核中的检测项目展示"
+          >
+            <Input placeholder="如：非洲猪瘟病毒抗体" />
           </Form.Item>
         </Form>
       </Modal>
@@ -541,6 +594,13 @@ export function VaccineCatalogPage() {
             name="withdrawalPeriodDays"
             label="休药期(天)"
             extra="用于出栏前豁免与预警"
+          >
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="immuneIntervalDays"
+            label="免疫间隔期(天)"
+            extra="接种后需间隔的最短天数，未达间隔期将提示延期接种"
           >
             <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>

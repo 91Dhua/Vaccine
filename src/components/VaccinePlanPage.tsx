@@ -30,6 +30,8 @@ import {
   CalendarOutlined,
   DeleteOutlined,
   EditOutlined,
+  EyeOutlined,
+  LeftOutlined,
   PlusOutlined,
   QuestionCircleOutlined
 } from "@ant-design/icons";
@@ -41,6 +43,14 @@ import {
   vaccineCatalog,
   vaccines
 } from "../mockData";
+import {
+  PlanEffectTrackingSection,
+  PLAN_EFFECT_TRACKING_DEFAULTS,
+  buildEffectTrackingPayload,
+  formatEffectTrackingLine,
+  mergeEffectTrackingInitial,
+  type PlanEffectTrackingStored
+} from "../planEffectTracking";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -1328,6 +1338,135 @@ function dedupeSortDates(arr: Dayjs[]): Dayjs[] {
   return out;
 }
 
+/** 普免计划在某日的接种任务（列表聚合或表单预览） */
+type PlanDayMassTask = {
+  planId: string;
+  planName: string;
+  vaccine: string;
+  pigType?: string;
+  enabled: boolean;
+};
+
+function parseMassExecuteToDates(execute: string | undefined, year: number): Dayjs[] {
+  const raw = String(execute || "").trim();
+  if (!raw) return [];
+  const parts = raw.split("/").map((s) => s.trim()).filter(Boolean);
+  const out: Dayjs[] = [];
+  for (const md of parts) {
+    if (!/^\d{2}-\d{2}$/.test(md)) continue;
+    const d = dayjs(`${year}-${md}`);
+    if (d.isValid() && d.year() === year) out.push(d);
+  }
+  return dedupeSortDates(out);
+}
+
+function buildMassPlansYearIndex(plans: any[], year: number): Map<string, PlanDayMassTask[]> {
+  const map = new Map<string, PlanDayMassTask[]>();
+  for (const p of plans) {
+    const dates = parseMassExecuteToDates(p.execute, year);
+    const entry: PlanDayMassTask = {
+      planId: String(p.id ?? ""),
+      planName: String(p.name || "未命名计划"),
+      vaccine: String(p.vaccine || ""),
+      pigType: p.pigType ? String(p.pigType) : undefined,
+      enabled: p.enabled !== false
+    };
+    for (const d of dates) {
+      const k = d.format("YYYY-MM-DD");
+      const cur = map.get(k) || [];
+      if (!cur.some((x) => x.planId === entry.planId)) cur.push(entry);
+      map.set(k, cur);
+    }
+  }
+  for (const [k, arr] of map) {
+    arr.sort((a, b) => a.planName.localeCompare(b.planName, "zh-Hans-CN"));
+    map.set(k, arr);
+  }
+  return map;
+}
+
+/** 普免表单当前排期展开为「日期 → 任务」索引（与列表聚合结构一致） */
+function buildDraftMassDayMap(
+  getFieldValue: (name: string) => unknown,
+  scheduleYear: number,
+  draftPreviewMeta: { vaccineName: string; planName?: string },
+  generated: Dayjs[]
+): Map<string, PlanDayMassTask[]> {
+  const vaccineName = draftPreviewMeta.vaccineName.trim() || "接种任务";
+  const planName = draftPreviewMeta.planName?.trim() || "当前计划";
+  const dates: Dayjs[] = [];
+  const re = getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
+  if (re) {
+    dates.push(...generated);
+  } else {
+    const sd = getFieldValue("scheduleDates") as unknown[] | undefined;
+    for (const x of sd || []) {
+      const c = coerceDayjs(x);
+      if (c && c.year() === scheduleYear) dates.push(c);
+    }
+  }
+  const map = new Map<string, PlanDayMassTask[]>();
+  for (const d of dates) {
+    if (d.year() !== scheduleYear) continue;
+    const k = d.format("YYYY-MM-DD");
+    map.set(k, [
+      {
+        planId: "__draft__",
+        planName,
+        vaccine: vaccineName,
+        enabled: true
+      }
+    ]);
+  }
+  return map;
+}
+
+function accentHueFromId(id: string): number {
+  let h = 216;
+  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+function buildMonthWeekRows(year: number, month: number): (number | null)[][] {
+  const first = dayjs(`${year}-${String(month).padStart(2, "0")}-01`);
+  const dim = first.daysInMonth();
+  const startPad = (first.day() + 6) % 7;
+  const flat: (number | null)[] = [];
+  for (let i = 0; i < startPad; i++) flat.push(null);
+  for (let d = 1; d <= dim; d++) flat.push(d);
+  while (flat.length < 42) flat.push(null);
+  const rows: (number | null)[][] = [];
+  for (let r = 0; r < 6; r++) rows.push(flat.slice(r * 7, r * 7 + 7));
+  while (rows.length > 0 && rows[rows.length - 1].every((c) => c == null)) {
+    rows.pop();
+  }
+  return rows;
+}
+
+const ANNUAL_CAL_WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
+const CHINESE_WEEKDAY_SUN0 = ["日", "一", "二", "三", "四", "五", "六"];
+
+function formatPlanCalDayLabel(isoDate: string): string {
+  const d = dayjs(isoDate);
+  if (!d.isValid()) return isoDate;
+  return `${d.month() + 1}月${d.date()}日 周${CHINESE_WEEKDAY_SUN0[d.day()]}`;
+}
+
+const ANNUAL_CAL_MONTH_LABELS = [
+  "一月",
+  "二月",
+  "三月",
+  "四月",
+  "五月",
+  "六月",
+  "七月",
+  "八月",
+  "九月",
+  "十月",
+  "十一月",
+  "十二月"
+];
+
 /** 将重复规则展开为指定公历年内的接种节点（MM-DD 循环展示） */
 function expandScheduleRecurrence(
   rule: ScheduleRecurrenceRule | null | undefined,
@@ -1563,10 +1702,12 @@ function describeScheduleRecurrence(rule: ScheduleRecurrenceRule | null | undefi
 /** 首次接种日期选择器：单日期 + Popover 日历 */
 function ScheduleDatesPicker({
   value = [],
-  onChange
+  onChange,
+  disabled
 }: {
   value?: Dayjs[];
   onChange?: (val: Dayjs[]) => void;
+  disabled?: boolean;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const dates = Array.isArray(value)
@@ -1598,9 +1739,10 @@ function ScheduleDatesPicker({
           ) : (
             <Tag
               key={singleDate.format("MM-DD")}
-              closable
+              closable={!disabled}
               onClose={(e) => {
                 e.preventDefault();
+                if (disabled) return;
                 handleClear();
               }}
               className="schedule-date-chip"
@@ -1610,8 +1752,10 @@ function ScheduleDatesPicker({
           )}
         </div>
         <Popover
-          open={popoverOpen}
-          onOpenChange={setPopoverOpen}
+          open={disabled ? false : popoverOpen}
+          onOpenChange={(open) => {
+            if (!disabled) setPopoverOpen(open);
+          }}
           trigger="click"
           content={
             <div className="schedule-dates-popover">
@@ -1627,7 +1771,12 @@ function ScheduleDatesPicker({
             </div>
           }
         >
-          <Button type="dashed" icon={<PlusOutlined />} className="schedule-dates-add-btn">
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            className="schedule-dates-add-btn"
+            disabled={disabled}
+          >
             选择日期
           </Button>
         </Popover>
@@ -1957,20 +2106,242 @@ function ScheduleRepeatPresetRadio({
   );
 }
 
+function AnnualVaccinationYearView({
+  year,
+  dayMap,
+  headerRight,
+  footNote,
+  onOpenPlanReadonly
+}: {
+  year: number;
+  dayMap: Map<string, PlanDayMassTask[]>;
+  headerRight?: ReactNode;
+  footNote?: ReactNode;
+  onOpenPlanReadonly?: (planId: string) => void;
+}) {
+  const today = dayjs().format("YYYY-MM-DD");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const stats = useMemo(() => {
+    let days = 0;
+    let hits = 0;
+    for (const [, arr] of dayMap) {
+      days++;
+      hits += arr.length;
+    }
+    return { days, hits };
+  }, [dayMap]);
+
+  useEffect(() => {
+    setSelectedKey(null);
+  }, [year, dayMap]);
+
+  const selectedTasks = selectedKey ? dayMap.get(selectedKey) : undefined;
+
+  return (
+    <div className="plan-annual-cal plan-annual-cal--year-at-a-glance">
+      <div className="plan-annual-cal-head plan-annual-cal-head--dense">
+        <div className="plan-annual-cal-head-text">
+          <span className="plan-annual-cal-kicker-inline">Schedule</span>
+          <div className="plan-annual-cal-head-meta-row">
+            <span className="plan-annual-cal-meta-year">{year}</span>
+            <span className="plan-annual-cal-meta-chips" aria-label="统计">
+              <span className="plan-annual-cal-chip">
+                <span className="plan-annual-cal-chip-value">{stats.days}</span>
+                <span className="plan-annual-cal-chip-label">接种日</span>
+              </span>
+              <span className="plan-annual-cal-chip">
+                <span className="plan-annual-cal-chip-value">{stats.hits}</span>
+                <span className="plan-annual-cal-chip-label">节点</span>
+              </span>
+            </span>
+            <span className="plan-annual-cal-head-hint">点击日期 · 右侧查看任务</span>
+          </div>
+        </div>
+        {headerRight ? <div className="plan-annual-cal-head-right">{headerRight}</div> : null}
+      </div>
+
+      <div className="plan-annual-cal-shell">
+        <div className="plan-annual-cal-main">
+          <div className="plan-annual-cal-months plan-annual-cal-months--grid-3x4">
+            {ANNUAL_CAL_MONTH_LABELS.map((label, idx) => {
+              const month = idx + 1;
+              const rows = buildMonthWeekRows(year, month);
+              return (
+                <div key={month} className="plan-annual-cal-month plan-annual-cal-month--dense">
+                  <div className="plan-annual-cal-month-name">{label}</div>
+                  <div className="plan-annual-cal-wd-row" aria-hidden>
+                    {ANNUAL_CAL_WEEKDAY_LABELS.map((w) => (
+                      <div key={w} className="plan-annual-cal-wd">
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="plan-annual-cal-weeks plan-annual-cal-weeks--dense">
+                    {rows.map((row, ri) => (
+                      <div key={ri} className="plan-annual-cal-days-row">
+                        {row.map((dn, cellIdx) => {
+                          if (dn == null) {
+                            return (
+                              <div
+                                key={`e-${cellIdx}`}
+                                className="plan-annual-cal-cell plan-annual-cal-cell--empty"
+                              />
+                            );
+                          }
+                          const cellKey = `${year}-${String(month).padStart(2, "0")}-${String(dn).padStart(2, "0")}`;
+                          const items = dayMap.get(cellKey);
+                          const has = items && items.length > 0;
+                          const cellClass = [
+                            "plan-annual-cal-cell",
+                            has ? "plan-annual-cal-cell--has" : "",
+                            cellKey === today ? "plan-annual-cal-cell--today" : "",
+                            selectedKey === cellKey ? "plan-annual-cal-cell--selected" : ""
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
+
+                          return (
+                            <div key={cellKey} className="plan-annual-cal-cell-wrap">
+                              <button
+                                type="button"
+                                className="plan-annual-cal-cell-hit"
+                                onClick={() => setSelectedKey(cellKey)}
+                                aria-pressed={selectedKey === cellKey}
+                                aria-label={`${month}月${dn}日`}
+                              >
+                                <div className={cellClass}>
+                                  <div className="plan-annual-cal-cell-num">{dn}</div>
+                                  {has ? (
+                                    <div className="plan-annual-cal-cell-dots" aria-hidden>
+                                      {items.slice(0, 3).map((it) => (
+                                        <span
+                                          key={it.planId}
+                                          className={`plan-annual-cal-dot${it.enabled ? "" : " plan-annual-cal-dot--off"}`}
+                                          style={{
+                                            background: `hsl(${accentHueFromId(it.planId)} 56% 52%)`
+                                          }}
+                                        />
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="plan-annual-cal-sidebar" aria-live="polite">
+          {!selectedKey ? (
+            <div className="plan-annual-cal-detail plan-annual-cal-detail--empty">
+              <div className="plan-annual-cal-detail-illus" aria-hidden />
+              <div className="plan-annual-cal-detail-title">当日任务</div>
+              <Paragraph type="secondary" className="plan-annual-cal-detail-hint" style={{ marginBottom: 0 }}>
+                在左侧网格中点选日期，此处展示该日的普免接种任务与状态。
+              </Paragraph>
+            </div>
+          ) : (
+            <div className="plan-annual-cal-detail">
+              <div className="plan-annual-cal-detail-kicker">已选日期</div>
+              <div className="plan-annual-cal-detail-date">
+                {formatPlanCalDayLabel(selectedKey)}
+              </div>
+              <div className="plan-annual-cal-detail-date-sub">{selectedKey}</div>
+              {!selectedTasks || selectedTasks.length === 0 ? (
+                <Paragraph type="secondary" className="plan-annual-cal-detail-empty-msg" style={{ marginBottom: 0 }}>
+                  该日暂无普免排期。
+                </Paragraph>
+              ) : (
+                <ul className="plan-annual-cal-detail-list">
+                  {selectedTasks.map((it) => (
+                    <li key={it.planId} className="plan-annual-cal-detail-card">
+                      <div className="plan-annual-cal-detail-card-head">
+                        <span
+                          className="plan-annual-cal-detail-swatch"
+                          style={{
+                            background: `hsl(${accentHueFromId(it.planId)} 56% 52%)`
+                          }}
+                        />
+                        <span className="plan-annual-cal-detail-name">{it.planName}</span>
+                        <Tooltip title="在配置页查看（只读）">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="plan-annual-cal-detail-view-btn"
+                            icon={<EyeOutlined />}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onOpenPlanReadonly?.(it.planId);
+                            }}
+                            aria-label="在配置页查看计划"
+                          />
+                        </Tooltip>
+                        <span
+                          className={
+                            it.enabled
+                              ? "plan-annual-cal-status plan-annual-cal-status--on"
+                              : "plan-annual-cal-status plan-annual-cal-status--off"
+                          }
+                        >
+                          {it.enabled ? "启用" : "停用"}
+                        </span>
+                      </div>
+                      <div className="plan-annual-cal-detail-body">
+                        <div className="plan-annual-cal-detail-field">
+                          <span className="plan-annual-cal-detail-field-label">疫苗</span>
+                          <span className="plan-annual-cal-detail-field-value">{it.vaccine || "—"}</span>
+                        </div>
+                        {it.pigType ? (
+                          <div className="plan-annual-cal-detail-field">
+                            <span className="plan-annual-cal-detail-field-label">目标群体</span>
+                            <span className="plan-annual-cal-detail-field-value">{it.pigType}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </aside>
+      </div>
+      {footNote ? <div className="plan-annual-cal-foot">{footNote}</div> : null}
+    </div>
+  );
+}
+
 /** 接种排期：是否重复 + 自定义规则 + 芯片展示
  *  排期字段嵌套在无 name 的 Form.Item 下时，useWatch 可能不触发重渲染；且 setFieldValue 不会走 onValuesChange。
  *  由父级传入 scheduleFieldsTick + bump，与 getFieldValue 组合保证预览与展开同步。 */
 function MassScheduleDatesSection({
   scheduleFieldsTick,
-  bumpScheduleFields
+  bumpScheduleFields,
+  calendarYear: calendarYearProp,
+  draftPreviewMeta,
+  onOpenAnnualCalendar,
+  readOnly
 }: {
   scheduleFieldsTick: number;
   bumpScheduleFields: () => void;
+  calendarYear?: number;
+  draftPreviewMeta?: { vaccineName: string; planName?: string };
+  onOpenAnnualCalendar?: (payload: { year: number; dayMap: Map<string, PlanDayMassTask[]> }) => void;
+  readOnly?: boolean;
 }) {
   const form = Form.useFormInstance();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const year = dayjs().year();
+  const scheduleYear = calendarYearProp ?? dayjs().year();
 
   const repeatEnabled = form.getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
   const recurrence = form.getFieldValue("scheduleRecurrence") as
@@ -1985,6 +2356,7 @@ function MassScheduleDatesSection({
 
   useEffect(() => {
     void scheduleFieldsTick;
+    if (readOnly) return;
     const re = form.getFieldValue("scheduleRepeatEnabled") as boolean | undefined;
     if (!re) return;
     const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
@@ -2004,13 +2376,13 @@ function MassScheduleDatesSection({
     if (!rec || !anchor) return;
     const endMode = form.getFieldValue("scheduleRepeatEndMode") as ScheduleRepeatEndMode | undefined;
     const endDate = form.getFieldValue("scheduleRepeatEndDate");
-    const next = expandMassPlanScheduleDates(rec, anchor, endMode, endDate, year);
+    const next = expandMassPlanScheduleDates(rec, anchor, endMode, endDate, scheduleYear);
     if (!next.length) return;
     const cur = form.getFieldValue("scheduleDates") as Dayjs[] | undefined;
     if (scheduleDatesArrayEqual(cur, next)) return;
     form.setFieldValue("scheduleDates", next);
     bumpScheduleFields();
-  }, [scheduleFieldsTick, year, form, bumpScheduleFields]);
+  }, [scheduleFieldsTick, scheduleYear, form, bumpScheduleFields, readOnly]);
 
   const ruleForModal =
     (form.getFieldValue("scheduleRecurrence") as ScheduleRecurrenceRule | null | undefined) ||
@@ -2023,8 +2395,8 @@ function MassScheduleDatesSection({
     if (!re || !rec || !anchor) return [];
     const endMode = form.getFieldValue("scheduleRepeatEndMode") as ScheduleRepeatEndMode | undefined;
     const endDate = form.getFieldValue("scheduleRepeatEndDate");
-    return expandMassPlanScheduleDates(rec, anchor, endMode, endDate, year);
-  }, [scheduleFieldsTick, year, form]);
+    return expandMassPlanScheduleDates(rec, anchor, endMode, endDate, scheduleYear);
+  }, [scheduleFieldsTick, scheduleYear, form]);
   const afterFirstPreview = useMemo(() => {
     void scheduleFieldsTick;
     const anchor = anchorFromScheduleDates(form.getFieldValue("scheduleDates"));
@@ -2069,7 +2441,7 @@ function MassScheduleDatesSection({
           }
         ]}
       >
-        <ScheduleDatesPicker />
+        <ScheduleDatesPicker disabled={readOnly} />
       </Form.Item>
       <div className="mass-schedule-repeat-toolbar">
         <div className="mass-schedule-repeat-row">
@@ -2105,6 +2477,7 @@ function MassScheduleDatesSection({
                   type="default"
                   size="small"
                   icon={<CalendarOutlined />}
+                  disabled={readOnly}
                   className={
                     presetField === "CUSTOM"
                       ? "mass-schedule-custom-btn mass-schedule-custom-btn--active"
@@ -2197,6 +2570,31 @@ function MassScheduleDatesSection({
           bumpScheduleFields();
         }}
       />
+      {!readOnly && draftPreviewMeta && onOpenAnnualCalendar ? (
+        <div className="mass-schedule-annual-nav">
+          <Button
+            type="default"
+            icon={<CalendarOutlined />}
+            className="mass-schedule-annual-nav-btn"
+            onClick={() =>
+              onOpenAnnualCalendar({
+                year: scheduleYear,
+                dayMap: buildDraftMassDayMap(
+                  (n) => form.getFieldValue(n),
+                  scheduleYear,
+                  draftPreviewMeta,
+                  generated
+                )
+              })
+            }
+          >
+            在年度日历中查看
+          </Button>
+          <Text type="secondary" className="mass-schedule-annual-nav-hint">
+            跳转全屏日历，点击日期在右侧查看本表单下的排期任务。
+          </Text>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2240,7 +2638,16 @@ const massPlanList = [
     dosage: 1.5,
     dosageUnit: "毫克",
     exclusion: "无",
-    enabled: false
+    enabled: false,
+    effectTracking: {
+      effectTrackingEnabled: true,
+      targetAntibody: "伪狂犬病毒 gE 抗体",
+      samplingMethod: "EAR_VEIN",
+      sampleContainer: "BLOOD_TUBE",
+      samplingIntervalDays: 28,
+      samplingRatioPercent: 8,
+      qualificationThresholdPercent: 80
+    } satisfies PlanEffectTrackingStored
   },
   {
     id: "mass-004",
@@ -2269,7 +2676,16 @@ const routinePlanList = [
     dosageUnit: "毫克",
     enabled: true,
     workOrdersDispatched: true,
-    exclusion: "无"
+    exclusion: "无",
+    effectTracking: {
+      effectTrackingEnabled: true,
+      targetAntibody: "猪繁殖与呼吸综合征病毒抗体",
+      samplingMethod: "FRONT_VENA",
+      sampleContainer: "REAGENT_BAG_BLOOD",
+      samplingIntervalDays: 21,
+      samplingRatioPercent: 5,
+      qualificationThresholdPercent: 80
+    } satisfies PlanEffectTrackingStored
   },
   {
     id: "routine-002",
@@ -2287,6 +2703,56 @@ const routinePlanList = [
   }
 ];
 
+const VACCINATION_METHOD_OPTIONS = [
+  { label: "肌肉注射", value: "肌肉注射" },
+  { label: "皮下注射", value: "皮下注射" },
+  { label: "滴鼻", value: "滴鼻" },
+  { label: "饮水", value: "饮水" },
+  { label: "喷雾", value: "喷雾" }
+];
+
+const ROUTE_TO_METHOD_LABEL: Record<string, string> = {
+  IM: "肌肉注射",
+  SC: "皮下注射",
+  滴鼻: "滴鼻",
+  饮水: "饮水",
+  喷雾: "喷雾"
+};
+
+function parseBrandStandardDosage(standardDosage?: string): {
+  dosage?: number;
+  dosageUnit?: "毫克" | "毫升";
+} {
+  if (!standardDosage) return {};
+  const text = String(standardDosage);
+  const m = text.match(/(\d+(?:\.\d+)?)\s*(mg|ml|毫克|毫升)/i);
+  if (!m) return {};
+  const dosage = Number(m[1]);
+  if (!Number.isFinite(dosage)) return {};
+  const unitRaw = m[2].toLowerCase();
+  const dosageUnit = unitRaw === "mg" || unitRaw === "毫克" ? "毫克" : "毫升";
+  return { dosage, dosageUnit };
+}
+
+function resolveVaccineBrandAutofill(vaccineId?: string, brandName?: string): {
+  vaccinationMethod?: string;
+  dosage?: number;
+  dosageUnit?: "毫克" | "毫升";
+} {
+  if (!vaccineId || !brandName) return {};
+  const cat = vaccineCatalog.find((x) => x.vaccineId === vaccineId);
+  const brand = cat?.brands.find((b) => b.brandNameCn === brandName);
+  if (!brand) return {};
+  const route = brand.administrationRoutes?.[0];
+  const vaccinationMethod = route ? ROUTE_TO_METHOD_LABEL[route] || route : undefined;
+  const dosage = parseBrandStandardDosage(brand.standardDosage);
+  return {
+    vaccinationMethod,
+    dosage: dosage.dosage,
+    dosageUnit: dosage.dosageUnit
+  };
+}
+
 type RoutinePlanRow = {
   id: string;
   name?: string;
@@ -2295,6 +2761,8 @@ type RoutinePlanRow = {
   triggerRule: string;
   dispatchTime: string;
   vaccine: string;
+  vaccineBrand?: string;
+  vaccinationMethod?: string;
   dosage: number;
   dosageUnit: string;
   exclusion?: string;
@@ -2302,18 +2770,23 @@ type RoutinePlanRow = {
   enabled: boolean;
   workOrdersDispatched?: boolean;
   partialVaccinationProgress?: boolean;
+  effectTracking?: PlanEffectTrackingStored;
 };
 
 function MassPlanForm({
   onSubmit,
   onPreview,
   onBack,
-  initialData
+  initialData,
+  onOpenAnnualCalendar,
+  readOnly
 }: {
   onSubmit: (values: any) => void;
   onPreview: (values: any) => void;
   onBack?: () => void;
   initialData?: any;
+  onOpenAnnualCalendar?: (payload: { year: number; dayMap: Map<string, PlanDayMassTask[]> }) => void;
+  readOnly?: boolean;
 }) {
   const [form] = Form.useForm();
   const [scheduleFieldsTick, setScheduleFieldsTick] = useState(0);
@@ -2333,6 +2806,19 @@ function MassPlanForm({
   );
   const lockedPigTypeValue = Form.useWatch("simplePigType", form);
   const scheduleRepeatEnabledWatch = Form.useWatch("scheduleRepeatEnabled", form);
+  const vaccineIdWatch = Form.useWatch("vaccineId", form);
+  const planNameWatch = Form.useWatch("name", form);
+  const draftVaccineName = useMemo(
+    () => vaccines.find((v) => v.id === vaccineIdWatch)?.name || "",
+    [vaccineIdWatch]
+  );
+  const scheduleDraftPreviewMeta = useMemo(
+    () => ({
+      vaccineName: draftVaccineName,
+      planName: typeof planNameWatch === "string" ? planNameWatch : undefined
+    }),
+    [draftVaccineName, planNameWatch]
+  );
 
   useEffect(() => {
     advancedAppliedRef.current = advancedApplied;
@@ -2367,9 +2853,12 @@ function MassPlanForm({
         scheduleRepeatPreset: "MONTHLY",
         scheduleRepeatEndMode: "never",
         scheduleRepeatEndDate: undefined,
+        vaccineBrand: initialData.vaccineBrand,
+        vaccinationMethod: initialData.vaccinationMethod || "肌肉注射",
         vaccineId: vaccines.find((v) => v.name === initialData.vaccine)?.id,
         dosage: initialData.dosage,
-        dosageUnit: initialData.dosageUnit || "毫克"
+        dosageUnit: initialData.dosageUnit || "毫克",
+        ...mergeEffectTrackingInitial(initialData)
       });
       bumpScheduleFields();
       simplePigTypeCommittedRef.current = targetValue;
@@ -2406,11 +2895,23 @@ function MassPlanForm({
 
   return (
     <div>
+      {readOnly ? (
+        <Alert
+          type="info"
+          showIcon
+          className="mass-plan-readonly-banner"
+          message="只读查看：所有字段已锁定，无法修改或保存。"
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
       <Form
         form={form}
+        disabled={readOnly}
         layout="vertical"
         initialValues={{
           name: "",
+          vaccineBrand: undefined,
+          vaccinationMethod: "肌肉注射",
           dosageUnit: "毫克",
           scheduleDates: [],
           scheduleRepeatEnabled: false,
@@ -2424,9 +2925,11 @@ function MassPlanForm({
             { field: "AGE_YEARS", operator: "LTE", value: undefined },
             { field: "PARITY", operator: "LTE", value: undefined }
           ],
-          simplePigType: undefined
+          simplePigType: undefined,
+          ...PLAN_EFFECT_TRACKING_DEFAULTS
         }}
         onValuesChange={(changed) => {
+          if (readOnly) return;
           if (
             "scheduleDates" in changed ||
             "scheduleRecurrence" in changed ||
@@ -2530,7 +3033,7 @@ function MassPlanForm({
                     <Button
                       size="small"
                       type="link"
-                      disabled={!lockedPigTypeValue}
+                      disabled={readOnly || !lockedPigTypeValue}
                       onClick={() => {
                         if (lockedPigTypeValue) {
                           const next = ensurePigTypeCondition(
@@ -2549,6 +3052,7 @@ function MassPlanForm({
                       size="small"
                       type="link"
                       danger
+                      disabled={readOnly}
                       onClick={() => {
                         Modal.confirm({
                           title: "取消使用高级设置？",
@@ -2576,7 +3080,7 @@ function MassPlanForm({
             {lockedPigTypeValue && !advancedApplied && (
               <div>
                 <Button
-                  disabled={!lockedPigTypeValue}
+                  disabled={readOnly || !lockedPigTypeValue}
                   onClick={() => {
                     const locked = form.getFieldValue("simplePigType") as
                       | string
@@ -2619,13 +3123,14 @@ function MassPlanForm({
 
           <Modal
             title="高级设置（选猪规则）"
-            open={advancedOpen}
+            open={advancedOpen && !readOnly}
             onCancel={() => setAdvancedOpen(false)}
             okText="应用规则"
             cancelText="取消"
             width={860}
             destroyOnClose
             onOk={() => {
+              if (readOnly) return;
               const locked = form.getFieldValue("simplePigType") as
                 | string
                 | undefined;
@@ -2652,7 +3157,7 @@ function MassPlanForm({
           </Modal>
         </Form.Item>
         <Row gutter={12}>
-          <Col xs={24} md={14}>
+          <Col xs={24} md={6}>
             <Form.Item
               name="vaccineId"
               label="选择疫苗"
@@ -2663,10 +3168,61 @@ function MassPlanForm({
                   value: v.id,
                   label: v.name
                 }))}
+                onChange={() => {
+                  form.setFieldsValue({
+                    vaccineBrand: undefined
+                  });
+                }}
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={10}>
+          <Col xs={24} md={6}>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, cur) => prev.vaccineId !== cur.vaccineId}
+            >
+              {() => {
+                const vaccineId = form.getFieldValue("vaccineId") as string | undefined;
+                const brandOptions =
+                  vaccineCatalog
+                    .find((x) => x.vaccineId === vaccineId)
+                    ?.brands.map((b) => ({ label: b.brandNameCn, value: b.brandNameCn })) || [];
+                return (
+                  <Form.Item
+                    name="vaccineBrand"
+                    label="疫苗品牌"
+                    rules={[{ required: true, message: "请选择疫苗品牌" }]}
+                  >
+                    <Select
+                      disabled={!vaccineId}
+                      placeholder={vaccineId ? "请选择品牌" : "请先选择疫苗"}
+                      options={brandOptions}
+                      onChange={(brandName) => {
+                        const next = resolveVaccineBrandAutofill(vaccineId, brandName);
+                        form.setFieldsValue({
+                          ...(next.vaccinationMethod
+                            ? { vaccinationMethod: next.vaccinationMethod }
+                            : {}),
+                          ...(next.dosage != null ? { dosage: next.dosage } : {}),
+                          ...(next.dosageUnit ? { dosageUnit: next.dosageUnit } : {})
+                        });
+                      }}
+                    />
+                  </Form.Item>
+                );
+              }}
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={6}>
+            <Form.Item
+              name="vaccinationMethod"
+              label="接种方式"
+              rules={[{ required: true, message: "请选择接种方式" }]}
+            >
+              <Select options={VACCINATION_METHOD_OPTIONS} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={6}>
             <Form.Item label="剂量" required>
               <Space>
                 <Form.Item
@@ -2705,41 +3261,26 @@ function MassPlanForm({
           <MassScheduleDatesSection
             scheduleFieldsTick={scheduleFieldsTick}
             bumpScheduleFields={bumpScheduleFields}
+            calendarYear={dayjs().year()}
+            draftPreviewMeta={scheduleDraftPreviewMeta}
+            onOpenAnnualCalendar={onOpenAnnualCalendar}
+            readOnly={readOnly}
           />
         </Form.Item>
-        <Form.Item label={exemptionRulesFormLabel()} extra={EXEMPTION_RULES_EXTRA}>
-          <Form.List name="exemptions">
-            {(fields, { add, remove }) => (
-              <div className="exemptions-block">
-                <div className="exemptions-list">
-                  {fields.map((field) => (
-                    <ExemptionRuleRow
-                      key={field.key}
-                      field={field}
-                      form={form}
-                      onRemove={() => remove(field.name)}
-                    />
-                  ))}
-                </div>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={() => add()}
-                  className="exemptions-add-btn"
-                >
-                  添加
-                </Button>
-              </div>
-            )}
-          </Form.List>
-        </Form.Item>
+        <PlanEffectTrackingSection form={form} />
       </Form>
-      <div className="form-actions form-actions-split">
-        <Button onClick={onBack}>返回</Button>
-        <Button type="primary" onClick={handlePreview}>
-          下一步
-        </Button>
-      </div>
+      {readOnly ? (
+        <div className="form-actions">
+          <Button onClick={onBack}>返回</Button>
+        </div>
+      ) : (
+        <div className="form-actions form-actions-split">
+          <Button onClick={onBack}>返回</Button>
+          <Button type="primary" onClick={handlePreview}>
+            下一步
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2876,10 +3417,13 @@ function RoutinePlanForm({
         ],
         simplePigType: pigOpt?.value,
         dispatches,
+        vaccineBrand: initialData.vaccineBrand,
+        vaccinationMethod: initialData.vaccinationMethod || "肌肉注射",
         vaccineId: vacc?.id,
-        dosage: vacc?.defaultDosage ?? 1,
-        dosageUnit: "毫克",
-        exemptions: Array.isArray(initialData.exemptions) ? initialData.exemptions : []
+        dosage: initialData.dosage ?? vacc?.defaultDosage ?? 1,
+        dosageUnit: initialData.dosageUnit || "毫克",
+        exemptions: Array.isArray(initialData.exemptions) ? initialData.exemptions : [],
+        ...mergeEffectTrackingInitial(initialData)
       });
       if (vacc) setSelectedVaccine(vacc);
       simplePigTypeCommittedRef.current = pigOpt?.value;
@@ -2940,6 +3484,8 @@ function RoutinePlanForm({
         initialValues={{
           dosageUnit: "毫克",
           name: "",
+          vaccineBrand: undefined,
+          vaccinationMethod: "肌肉注射",
           productionLine: [],
           pigRuleLogic: "AND",
           pigRuleConditions: [
@@ -2956,7 +3502,8 @@ function RoutinePlanForm({
               statusType: undefined,
               offsetDays: undefined
             }
-          ]
+          ],
+          ...PLAN_EFFECT_TRACKING_DEFAULTS
         }}
         onValuesChange={(changed) => {
           if (!("simplePigType" in changed)) return;
@@ -3191,7 +3738,7 @@ function RoutinePlanForm({
           </Modal>
         </Form.Item>
         <Row gutter={12}>
-          <Col xs={24} md={14}>
+          <Col xs={24} md={6}>
             <Form.Item
               name="vaccineId"
               label="选择疫苗"
@@ -3202,13 +3749,62 @@ function RoutinePlanForm({
                   value: v.id,
                   label: v.name
                 }))}
-                onChange={(value) =>
-                  setSelectedVaccine(vaccines.find((v) => v.id === value) || null)
-                }
+                onChange={(value) => {
+                  setSelectedVaccine(vaccines.find((v) => v.id === value) || null);
+                  form.setFieldsValue({
+                    vaccineBrand: undefined
+                  });
+                }}
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={10}>
+          <Col xs={24} md={6}>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prev, cur) => prev.vaccineId !== cur.vaccineId}
+            >
+              {() => {
+                const vaccineId = form.getFieldValue("vaccineId") as string | undefined;
+                const brandOptions =
+                  vaccineCatalog
+                    .find((x) => x.vaccineId === vaccineId)
+                    ?.brands.map((b) => ({ label: b.brandNameCn, value: b.brandNameCn })) || [];
+                return (
+                  <Form.Item
+                    name="vaccineBrand"
+                    label="疫苗品牌"
+                    rules={[{ required: true, message: "请选择疫苗品牌" }]}
+                  >
+                    <Select
+                      disabled={!vaccineId}
+                      placeholder={vaccineId ? "请选择品牌" : "请先选择疫苗"}
+                      options={brandOptions}
+                      onChange={(brandName) => {
+                        const next = resolveVaccineBrandAutofill(vaccineId, brandName);
+                        form.setFieldsValue({
+                          ...(next.vaccinationMethod
+                            ? { vaccinationMethod: next.vaccinationMethod }
+                            : {}),
+                          ...(next.dosage != null ? { dosage: next.dosage } : {}),
+                          ...(next.dosageUnit ? { dosageUnit: next.dosageUnit } : {})
+                        });
+                      }}
+                    />
+                  </Form.Item>
+                );
+              }}
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={6}>
+            <Form.Item
+              name="vaccinationMethod"
+              label="接种方式"
+              rules={[{ required: true, message: "请选择接种方式" }]}
+            >
+              <Select options={VACCINATION_METHOD_OPTIONS} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={6}>
             <Form.Item label="剂量" required>
               <Space>
                 <Form.Item
@@ -3425,33 +4021,7 @@ function RoutinePlanForm({
             )}
           </Form.List>
         </Form.Item>
-        <Form.Item label={exemptionRulesFormLabel()} extra={EXEMPTION_RULES_EXTRA}>
-          <Form.List name="exemptions">
-            {(fields, { add, remove }) => (
-              <div className="exemptions-block">
-                <div className="exemptions-list">
-                  {fields.map((field) => (
-                    <ExemptionRuleRow
-                      key={field.key}
-                      field={field}
-                      form={form}
-                      onRemove={() => remove(field.name)}
-                      ruleTypeOptions={EXEMPTION_RULE_TYPE_OPTIONS_ROUTINE}
-                    />
-                  ))}
-                </div>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={() => add()}
-                  className="exemptions-add-btn"
-                >
-                  添加
-                </Button>
-              </div>
-            )}
-          </Form.List>
-        </Form.Item>
+        <PlanEffectTrackingSection form={form} />
         {selectedVaccine && (
           <Alert
             type="warning"
@@ -3473,19 +4043,54 @@ function RoutinePlanForm({
 export function VaccinePlanPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [planType, setPlanType] = useState<PlanType | null>(null);
-  const [mode, setMode] = useState<"list" | "config" | "preview">("list");
+  const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar">("list");
   const [draft, setDraft] = useState<any>(null);
-  const [massPlans, setMassPlans] = useState(massPlanList);
+  const [massPlans, setMassPlans] = useState<any[]>(massPlanList);
   const [routinePlans, setRoutinePlans] = useState<RoutinePlanRow[]>(routinePlanList);
+  const [annualCalYear, setAnnualCalYear] = useState(() => dayjs().year());
+  const [annualCalOverlay, setAnnualCalOverlay] = useState<{
+    year: number;
+    dayMap: Map<string, PlanDayMassTask[]>;
+  } | null>(null);
+  const [annualCalReturn, setAnnualCalReturn] = useState<"list" | "config">("list");
   const [planTab, setPlanTab] = useState<"mass" | "routine">("mass");
   const [massEditMode, setMassEditMode] = useState(false);
   const [routineEditMode, setRoutineEditMode] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [readonlyMassConfig, setReadonlyMassConfig] = useState(false);
+  const massConfigBackToAnnualCalRef = useRef(false);
+  const massCalEyePrevEditingIdRef = useRef<string | null>(null);
 
   const routinePlanDisplayName = (record: { name?: string; line?: string; vaccine?: string }) =>
     record.name?.trim() ||
     [record.line, record.vaccine].filter(Boolean).join(" · ") ||
     "该计划";
+
+  const annualDayMap = useMemo(
+    () => buildMassPlansYearIndex(massPlans, annualCalYear),
+    [massPlans, annualCalYear]
+  );
+
+  const annualEffectiveYear = annualCalOverlay?.year ?? annualCalYear;
+  const annualEffectiveDayMap = useMemo(() => {
+    if (annualCalOverlay) return annualCalOverlay.dayMap;
+    return annualDayMap;
+  }, [annualCalOverlay, annualDayMap]);
+
+  const exitAnnualCalendar = useCallback(() => {
+    setAnnualCalOverlay(null);
+    setMode(annualCalReturn);
+  }, [annualCalReturn]);
+
+  const annualYearOptions = useMemo(() => {
+    const base = dayjs().year();
+    const opts: { value: number; label: string }[] = [];
+    for (let dy = -2; dy <= 5; dy++) {
+      const y = base + dy;
+      opts.push({ value: y, label: `${y} 年` });
+    }
+    return opts;
+  }, []);
 
   const handleMassEnabledChange = (record: any, checked: boolean) => {
     if (checked) {
@@ -3498,7 +4103,7 @@ export function VaccinePlanPage() {
     if (record.workOrdersDispatched) {
       Modal.warning({
         title: "无法禁用",
-        content: `「${planName}」的接种任务已下发至执行端，当前无法直接禁用计划。如需中止，请先前往"任务列表"结束相关任务。`
+        content: `「${planName}」计划的接种任务已下发至执行端。禁用计划后，系统将不再生成新的接种任务，已下发至执行端的任务不受影响。`
       });
       return;
     }
@@ -3531,7 +4136,7 @@ export function VaccinePlanPage() {
     if (record.workOrdersDispatched) {
       Modal.warning({
         title: "无法禁用",
-        content: `「${planName}」的接种任务已下发至执行端，当前无法直接禁用计划。如需中止，请先前往"任务列表"结束相关任务。`
+        content: `「${planName}」计划的接种任务已下发至执行端。禁用计划后，系统将不再生成新的接种任务，已下发至执行端的任务不受影响。`
       });
       return;
     }
@@ -3564,6 +4169,17 @@ export function VaccinePlanPage() {
             <Text type="secondary">管理普免与跟批免疫 SOP 计划</Text>
           </div>
           <div className="header-actions">
+            <Button
+              className="ghost-btn"
+              icon={<CalendarOutlined />}
+              onClick={() => {
+                setAnnualCalReturn("list");
+                setAnnualCalOverlay(null);
+                setMode("annual-calendar");
+              }}
+            >
+              年度接种日历
+            </Button>
             <Button type="primary" onClick={() => setCreateOpen(true)}>
               创建疫苗计划
             </Button>
@@ -3600,7 +4216,7 @@ export function VaccinePlanPage() {
                     pagination={false}
                     size="middle"
                     className="vaccine-plan-table"
-                    scroll={{ x: 1100 }}
+                    scroll={{ x: 1320 }}
                     columns={[
                       { title: "计划名称", dataIndex: "name", ellipsis: true, width: 160 },
                       {
@@ -3611,6 +4227,19 @@ export function VaccinePlanPage() {
                       },
                       { title: "疫苗", dataIndex: "vaccine", ellipsis: true, width: 140 },
                       {
+                        title: "品牌",
+                        dataIndex: "vaccineBrand",
+                        ellipsis: true,
+                        width: 120,
+                        render: (v: string) => v || "-"
+                      },
+                      {
+                        title: "接种方式",
+                        dataIndex: "vaccinationMethod",
+                        width: 110,
+                        render: (v: string) => v || "-"
+                      },
+                      {
                         title: "剂量",
                         dataIndex: "dosage",
                         width: 100,
@@ -3618,7 +4247,14 @@ export function VaccinePlanPage() {
                           `${record.dosage} ${record.dosageUnit || ""}`.trim()
                       },
                       { title: "执行时间", dataIndex: "execute", ellipsis: true, width: 160 },
-                      { title: "豁免规则", dataIndex: "exclusion", ellipsis: true },
+                      {
+                        title: "效果追踪",
+                        key: "effectTracking",
+                        width: 220,
+                        ellipsis: true,
+                        render: (_: unknown, record: any) =>
+                          formatEffectTrackingLine(record.effectTracking)
+                      },
                       {
                         title: "启用",
                         dataIndex: "enabled",
@@ -3632,6 +4268,9 @@ export function VaccinePlanPage() {
                               icon={<EditOutlined />}
                               className="icon-btn"
                               onClick={() => {
+                                massCalEyePrevEditingIdRef.current = null;
+                                massConfigBackToAnnualCalRef.current = false;
+                                setReadonlyMassConfig(false);
                                 setEditingPlanId(record.id);
                                 setPlanType("MASS");
                                 setMode("config");
@@ -3660,10 +4299,18 @@ export function VaccinePlanPage() {
                     pagination={false}
                     size="middle"
                     className="vaccine-plan-table"
-                    scroll={{ x: 1100 }}
+                    scroll={{ x: 1320 }}
                     columns={[
                       { title: "计划名称", dataIndex: "name", ellipsis: true, width: 180 },
                       { title: "适用生产线", dataIndex: "line", ellipsis: true, width: 140 },
+                      {
+                        title: "效果追踪",
+                        key: "effectTracking",
+                        width: 220,
+                        ellipsis: true,
+                        render: (_: unknown, record: RoutinePlanRow) =>
+                          formatEffectTrackingLine(record.effectTracking)
+                      },
                       {
                         title: "目标免疫群体",
                         dataIndex: "pigType",
@@ -3672,6 +4319,19 @@ export function VaccinePlanPage() {
                       },
                       { title: "疫苗", dataIndex: "vaccine", ellipsis: true, width: 140 },
                       {
+                        title: "品牌",
+                        dataIndex: "vaccineBrand",
+                        ellipsis: true,
+                        width: 120,
+                        render: (v: string) => v || "-"
+                      },
+                      {
+                        title: "接种方式",
+                        dataIndex: "vaccinationMethod",
+                        width: 110,
+                        render: (v: string) => v || "-"
+                      },
+                      {
                         title: "剂量",
                         dataIndex: "dosage",
                         width: 100,
@@ -3679,7 +4339,6 @@ export function VaccinePlanPage() {
                           `${record.dosage ?? ""} ${record.dosageUnit || ""}`.trim()
                       },
                       { title: "执行时间", dataIndex: "dispatchTime", ellipsis: true },
-                      { title: "豁免规则", dataIndex: "exclusion", ellipsis: true },
                       {
                         title: "启用",
                         dataIndex: "enabled",
@@ -3716,12 +4375,77 @@ export function VaccinePlanPage() {
         </Card>
       )}
 
+      {mode === "annual-calendar" && (
+        <Card className="section-card plan-annual-cal-card plan-annual-cal-card--fit">
+          <div className="plan-annual-cal-page-toolbar plan-annual-cal-page-toolbar--premium">
+            <div className="plan-annual-cal-toolbar-main">
+              <Button
+                type="text"
+                className="plan-annual-cal-back-btn"
+                icon={<LeftOutlined />}
+                onClick={exitAnnualCalendar}
+              >
+                返回
+              </Button>
+              <div className="plan-annual-cal-toolbar-heading">
+                <span className="plan-annual-cal-toolbar-eyebrow">年度全景</span>
+                <Title level={5} className="plan-annual-cal-toolbar-title">
+                  普免接种日历
+                </Title>
+              </div>
+            </div>
+            {annualCalOverlay ? (
+              <span className="plan-annual-cal-preview-pill">表单预览</span>
+            ) : null}
+          </div>
+          <div className="plan-annual-cal-card-body-grow">
+            <AnnualVaccinationYearView
+              year={annualEffectiveYear}
+              dayMap={annualEffectiveDayMap}
+              onOpenPlanReadonly={(planId) => {
+                massCalEyePrevEditingIdRef.current = editingPlanId;
+                massConfigBackToAnnualCalRef.current = true;
+                setReadonlyMassConfig(true);
+                setEditingPlanId(planId);
+                setPlanType("MASS");
+                setMode("config");
+              }}
+              headerRight={
+                annualCalOverlay ? (
+                  <Text type="secondary">{annualEffectiveYear} 年</Text>
+                ) : (
+                  <Select
+                    size="small"
+                    value={annualCalYear}
+                    onChange={(v) => setAnnualCalYear(Number(v))}
+                    options={annualYearOptions}
+                    className="plan-annual-cal-year-select"
+                    popupMatchSelectWidth={false}
+                    aria-label="选择公历年"
+                  />
+                )
+              }
+              footNote={
+                <Text type="secondary" className="plan-annual-cal-foot-text">
+                  仅汇总「普免计划」中配置的固定日历排期；跟批免疫由生产事件触发，请见计划列表。
+                </Text>
+              }
+            />
+          </div>
+        </Card>
+      )}
+
       {mode === "config" && planType === "MASS" && (
         <Card className="section-card">
           <div className="page-title">
-            {editingPlanId ? "编辑普免计划" : "配置普免计划"}
+            {readonlyMassConfig
+              ? "查看普免计划"
+              : editingPlanId
+                ? "编辑普免计划"
+                : "配置普免计划"}
           </div>
           <MassPlanForm
+            readOnly={readonlyMassConfig}
             onSubmit={(values) => {
               console.log("Mass plan payload", values);
             }}
@@ -3730,8 +4454,25 @@ export function VaccinePlanPage() {
               setMode("preview");
             }}
             onBack={() => {
+              if (readonlyMassConfig && massConfigBackToAnnualCalRef.current) {
+                massConfigBackToAnnualCalRef.current = false;
+                const prevId = massCalEyePrevEditingIdRef.current;
+                massCalEyePrevEditingIdRef.current = null;
+                setReadonlyMassConfig(false);
+                setEditingPlanId(prevId);
+                setMode("annual-calendar");
+                return;
+              }
+              massCalEyePrevEditingIdRef.current = null;
+              massConfigBackToAnnualCalRef.current = false;
+              setReadonlyMassConfig(false);
               setMode("list");
               setEditingPlanId(null);
+            }}
+            onOpenAnnualCalendar={(payload) => {
+              setAnnualCalReturn("config");
+              setAnnualCalOverlay(payload);
+              setMode("annual-calendar");
             }}
             initialData={
               editingPlanId
@@ -3795,17 +4536,23 @@ export function VaccinePlanPage() {
               <div className="preview-value">{draft?.vaccineId}</div>
             </div>
             <div>
+              <Text type="secondary">疫苗品牌</Text>
+              <div className="preview-value">{draft?.vaccineBrand || "-"}</div>
+            </div>
+            <div>
+              <Text type="secondary">接种方式</Text>
+              <div className="preview-value">{draft?.vaccinationMethod || "-"}</div>
+            </div>
+            <div>
               <Text type="secondary">剂量</Text>
               <div className="preview-value">
                 {draft?.dosage} {draft?.dosageUnit}
               </div>
             </div>
             <div>
-              <Text type="secondary">豁免规则</Text>
+              <Text type="secondary">效果追踪</Text>
               <div className="preview-value">
-                {(draft?.exemptions || []).length > 0
-                  ? draft.exemptions.map((r: any) => formatMassExemptionRuleLine(r)).join("，")
-                  : "无"}
+                {formatEffectTrackingLine(buildEffectTrackingPayload(draft))}
               </div>
             </div>
           </div>
@@ -3831,15 +4578,13 @@ export function VaccinePlanPage() {
                       : (draft.scheduleDates || []).join("/"),
                     vaccine:
                       vaccines.find((v) => v.id === draft.vaccineId)?.name || "",
+                    vaccineBrand: draft.vaccineBrand || "",
+                    vaccinationMethod: draft.vaccinationMethod || "肌肉注射",
                     dosage: draft.dosage,
                     dosageUnit: draft.dosageUnit || "毫克",
-                    exclusion:
-                      (draft.exemptions || []).length > 0
-                        ? draft.exemptions
-                            .map((r: any) => formatMassExemptionRuleLine(r))
-                            .join("，")
-                        : "无",
-                    enabled: true
+                    exclusion: "后端强制规则",
+                    enabled: true,
+                    effectTracking: buildEffectTrackingPayload(draft)
                   };
                   if (editingPlanId) {
                     setMassPlans((prev) =>
@@ -3940,23 +4685,29 @@ export function VaccinePlanPage() {
               </div>
             </div>
             <div>
-              <Text type="secondary">豁免规则</Text>
-              <div className="preview-value">
-                {(draft?.exemptions || []).length > 0
-                  ? draft.exemptions.map((r: any) => formatMassExemptionRuleLine(r)).join("，")
-                  : "无"}
-              </div>
-            </div>
-            <div>
               <Text type="secondary">疫苗</Text>
               <div className="preview-value">
                 {vaccines.find((v) => v.id === draft?.vaccineId)?.name || draft?.vaccineId}
               </div>
             </div>
             <div>
+              <Text type="secondary">疫苗品牌</Text>
+              <div className="preview-value">{draft?.vaccineBrand || "-"}</div>
+            </div>
+            <div>
+              <Text type="secondary">接种方式</Text>
+              <div className="preview-value">{draft?.vaccinationMethod || "-"}</div>
+            </div>
+            <div>
               <Text type="secondary">剂量</Text>
               <div className="preview-value">
                 {draft?.dosage} {draft?.dosageUnit}
+              </div>
+            </div>
+            <div>
+              <Text type="secondary">效果追踪</Text>
+              <div className="preview-value">
+                {formatEffectTrackingLine(buildEffectTrackingPayload(draft))}
               </div>
             </div>
           </div>
@@ -4014,16 +4765,14 @@ export function VaccinePlanPage() {
                     triggerRule: triggerLabel,
                     dispatchTime,
                     vaccine: vacc?.name || "",
+                    vaccineBrand: draft.vaccineBrand || "",
+                    vaccinationMethod: draft.vaccinationMethod || "肌肉注射",
                     dosage: draft.dosage,
                     dosageUnit: draft.dosageUnit || "毫克",
-                    exclusion:
-                      (draft.exemptions || []).length > 0
-                        ? draft.exemptions
-                            .map((r: any) => formatMassExemptionRuleLine(r))
-                            .join("，")
-                        : "无",
-                    exemptions: draft.exemptions || [],
-                    enabled: true
+                    exclusion: "后端强制规则",
+                    exemptions: [],
+                    enabled: true,
+                    effectTracking: buildEffectTrackingPayload(draft)
                   };
                   if (editingPlanId) {
                     setRoutinePlans((prev) =>
@@ -4099,6 +4848,10 @@ export function VaccinePlanPage() {
               disabled={!planType}
               onClick={() => {
                 setCreateOpen(false);
+                massCalEyePrevEditingIdRef.current = null;
+                massConfigBackToAnnualCalRef.current = false;
+                setReadonlyMassConfig(false);
+                setEditingPlanId(null);
                 setMode("config");
               }}
             >
