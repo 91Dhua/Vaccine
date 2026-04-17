@@ -5,6 +5,7 @@ import { VaccineCatalogPage } from "./components/VaccineCatalogPage";
 import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
 import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
 import { VaccineTaskWizard } from "./components/VaccineTaskWizard";
+import { CullingMobilePage, CullingPlanPage, CullingTaskPage } from "./components/culling";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
 import { generateConsoleTaskId } from "./consoleTaskId";
@@ -119,7 +120,7 @@ export default function App() {
         <Menu
           mode="inline"
           selectedKeys={[activeKey]}
-          defaultOpenKeys={["immunity"]}
+          defaultOpenKeys={["immunity", "pig-culling"]}
           onClick={(info) => setActiveKey(info.key)}
           items={[
             {
@@ -129,6 +130,15 @@ export default function App() {
                 { key: "plan", label: "疫苗计划配置" },
                 { key: "task", label: "疫苗任务" },
                 { key: "mobile-vacc", label: "Mobile接种" }
+              ]
+            },
+            {
+              key: "pig-culling",
+              label: "猪只淘汰",
+              children: [
+                { key: "culling-plan", label: "淘汰&补充" },
+                { key: "culling-task", label: "淘汰任务" },
+                { key: "culling-mobile", label: "淘汰mobile" }
               ]
             },
             {
@@ -143,6 +153,12 @@ export default function App() {
         <Content className="app-content">
           {activeKey === "plan" ? (
             <VaccinePlanPage />
+          ) : activeKey === "culling-plan" ? (
+            <CullingPlanPage />
+          ) : activeKey === "culling-task" ? (
+            <CullingTaskPage />
+          ) : activeKey === "culling-mobile" ? (
+            <CullingMobilePage />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage

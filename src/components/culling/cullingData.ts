@@ -1,0 +1,113 @@
+import type { CullingReason, CullingSowRow } from "./types";
+
+export const batchCullingSows: CullingSowRow[] = [
+  {
+    id: "sow-1042",
+    sowTag: "S-1042",
+    parity: 3,
+    source: "Batch",
+    pen: "Farrowing · A12",
+    status: "Pregnant",
+    reason: "LOW_PERFORMANCE",
+    dystociaHistoryCount: 1,
+    averageLitterSize: 8.6,
+    teatCount: 12,
+    returnToEstrusCount: 1,
+    diseaseTags: ["体况恢复慢"],
+    isRecommended: true,
+    cullingPriorityScore: 82,
+    scoreReasons: ["上一胎断奶数低", "体况恢复慢", "连续生产表现低于批次均值"]
+  },
+  {
+    id: "sow-1087",
+    sowTag: "S-1087",
+    parity: 5,
+    source: "Batch",
+    pen: "Breeding · B08",
+    status: "Bred",
+    reason: "HIGH_PARITY",
+    dystociaHistoryCount: 2,
+    averageLitterSize: 9.4,
+    teatCount: 13,
+    returnToEstrusCount: 1,
+    diseaseTags: ["高胎龄"],
+    isRecommended: true,
+    cullingPriorityScore: 76,
+    scoreReasons: ["胎次偏高", "近两批次配种效率下降"]
+  },
+  {
+    id: "sow-1103",
+    sowTag: "S-1103",
+    parity: 1,
+    source: "Recommended",
+    pen: "Gestation · G21",
+    status: "In Estrus",
+    reason: "RETURN_TO_ESTRUS",
+    dystociaHistoryCount: 0,
+    averageLitterSize: 10.1,
+    teatCount: 14,
+    returnToEstrusCount: 3,
+    diseaseTags: ["返情频繁"],
+    isRecommended: true,
+    cullingPriorityScore: 88,
+    scoreReasons: ["连续返情", "空怀天数风险", "系统优先推荐"]
+  },
+  {
+    id: "sow-1156",
+    sowTag: "S-1156",
+    parity: 2,
+    source: "Batch",
+    pen: "Gestation · G09",
+    status: "Pregnant",
+    reason: "EMPTY_OR_NOT_PREGNANT",
+    dystociaHistoryCount: 0,
+    averageLitterSize: 11.2,
+    teatCount: 14,
+    returnToEstrusCount: 1,
+    diseaseTags: ["空怀观察"]
+  },
+  {
+    id: "sow-1201",
+    sowTag: "S-1201",
+    parity: 4,
+    source: "Batch",
+    pen: "Farrowing · C02",
+    status: "Lactating",
+    reason: "HEALTH_RISK",
+    dystociaHistoryCount: 1,
+    averageLitterSize: 9.1,
+    teatCount: 12,
+    returnToEstrusCount: 0,
+    diseaseTags: ["乳房炎", "治疗中"],
+    isRecommended: true,
+    cullingPriorityScore: 79,
+    scoreReasons: ["健康标签频繁", "治疗记录较多", "哺乳期恢复风险"]
+  },
+  {
+    id: "sow-1218",
+    sowTag: "S-1218",
+    parity: 6,
+    source: "Recommended",
+    pen: "Gestation · D17",
+    status: "Pregnant",
+    reason: "LEG_OR_FOOT",
+    dystociaHistoryCount: 2,
+    averageLitterSize: 8.9,
+    teatCount: 11,
+    returnToEstrusCount: 2,
+    diseaseTags: ["肢蹄问题"],
+    isRecommended: true,
+    cullingPriorityScore: 91,
+    scoreReasons: ["肢蹄问题", "胎次偏高", "移动能力风险"]
+  }
+];
+
+export const cullingReasonLabels: Record<CullingReason, string> = {
+  HIGH_PARITY: "高胎龄",
+  LOW_PERFORMANCE: "生产性能差",
+  RETURN_TO_ESTRUS: "连续返情",
+  EMPTY_OR_NOT_PREGNANT: "空怀/未孕",
+  HEALTH_RISK: "健康风险",
+  LEG_OR_FOOT: "肢蹄问题",
+  MANAGER_DECISION: "管理者指定"
+};

@@ -1,0 +1,122 @@
+.replacement-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.replacement-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px 24px;
+  border: 1px solid #dbe7dc;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.16), transparent 28%),
+    linear-gradient(135deg, #fbfef9 0%, #eef8ef 100%);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+}
+
+.replacement-hero h3 {
+  margin: 10px 0 6px;
+}
+
+.replacement-card {
+  border-radius: 18px;
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.replacement-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.replacement-batch-select {
+  min-width: 320px;
+}
+
+.replacement-search {
+  max-width: 320px;
+}
+
+.replacement-source-select {
+  width: 140px;
+}
+
+.replacement-progress-block {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.replacement-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.replacement-alert-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.replacement-main-grid {
+  align-items: flex-start;
+}
+
+.replacement-small-text {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.replacement-reason-tag {
+  border-color: #dbe7dc;
+  background: #f6fbf4;
+  color: #355e3b;
+}
+
+.replacement-selected-card .ant-table-thead > tr > th {
+  background: #f8fafc;
+}
+
+.replacement-full-width {
+  width: 100%;
+}
+
+.replacement-action-row {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.replacement-modal-summary {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .replacement-hero,
+  .replacement-toolbar,
+  .replacement-progress-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .replacement-batch-select,
+  .replacement-search,
+  .replacement-source-select {
+    width: 100%;
+    max-width: none;
+  }
+}
