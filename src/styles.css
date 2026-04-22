@@ -5,6 +5,11 @@
     sans-serif;
   color: #0f172a;
   background-color: #f8fafc;
+  --mobile-accent: #16a34a;
+  --mobile-ink: #111827;
+  --mobile-muted: #667085;
+  --mobile-surface: #f6f8fb;
+  --mobile-line: #d7dee8;
   --space-8: 8px;
   --space-12: 12px;
   --space-16: 16px;
@@ -48,8 +53,42 @@ body {
 }
 
 .sider-sub {
+  display: block;
   color: #94a3b8;
   font-size: 12px;
+}
+
+.workspace-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  margin-top: 14px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.workspace-mode-switch .ant-radio-button-wrapper {
+  height: 30px;
+  border: 0;
+  border-radius: 999px !important;
+  background: transparent;
+  color: #64748b;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 30px;
+  box-shadow: none !important;
+}
+
+.workspace-mode-switch .ant-radio-button-wrapper::before {
+  display: none !important;
+}
+
+.workspace-mode-switch .ant-radio-button-wrapper-checked {
+  background: #111827 !important;
+  color: #ffffff !important;
 }
 
 .app-header {
@@ -2107,14 +2146,16 @@ body {
   line-height: 1.65;
 }
 
-/* Mobile 接种：桌面 Console 内的模拟手机容器 */
+/* Mobile 模式：仅用线框圈出主屏幕，不展示具体机型外观 */
 .mobile-vacc-host {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 20px 16px 40px;
+  padding: 18px 16px 40px;
   min-height: calc(100vh - 100px);
-  background: linear-gradient(165deg, #cbd5e1 0%, #e2e8f0 40%, #f1f5f9 100%);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(22, 163, 74, 0.16), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #eef4f0 100%);
   box-sizing: border-box;
 }
 
@@ -2122,46 +2163,16 @@ body {
   display: flex;
   flex-direction: column;
   width: min(390px, 100%);
-  max-height: min(820px, calc(100vh - 72px));
-  padding: 10px;
-  border-radius: 44px;
-  background: linear-gradient(150deg, #3f3f46 0%, #18181b 42%, #0c0c0e 100%);
+  height: min(820px, calc(100vh - 72px));
+  padding: 0;
+  border: 1.5px solid var(--mobile-line);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.74);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 28px 56px rgba(15, 23, 42, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    0 18px 44px rgba(15, 23, 42, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
   box-sizing: border-box;
-}
-
-.mobile-vacc-phone__status {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 26px;
-  padding: 0 18px 4px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: #f8fafc;
-  user-select: none;
-}
-
-.mobile-vacc-phone__time {
-  font-variant-numeric: tabular-nums;
-}
-
-.mobile-vacc-phone__status-left,
-.mobile-vacc-phone__status-right {
-  width: 56px;
-  height: 10px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.mobile-vacc-phone__status-right {
-  width: 64px;
-  opacity: 0.85;
+  overflow: hidden;
 }
 
 .mobile-vacc-phone__screen {
@@ -2171,36 +2182,20 @@ body {
   flex-direction: column;
   position: relative;
   isolation: isolate;
-  border-radius: 32px;
+  border-radius: 28px;
   overflow: hidden;
-  background: #eef0f4;
+  background: var(--mobile-surface);
 }
 
 .mobile-vacc-phone__viewport {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 4px;
+  padding: 0;
   box-sizing: border-box;
-}
-
-.mobile-vacc-phone__home-indicator {
-  flex-shrink: 0;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-bottom: 4px;
-}
-
-.mobile-vacc-phone__home-indicator::after {
-  content: "";
-  width: 118px;
-  height: 4px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.38);
 }
 
 /* 弹层锚定在模拟屏内，避免全屏遮罩割裂（相对 .mobile-vacc-phone__screen 定位） */
@@ -4291,4 +4286,4876 @@ body {
 
 .mv-pig-drawer-embed-exec .mv-form {
   margin-top: 4px;
+}
+
+/* Mobile workspace refresh: navigation shell and field-app visual rhythm */
+.app-shell--mobile .app-sider {
+  background: #0f172a;
+  border-right: 0;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.app-shell--mobile .sider-logo h5 {
+  color: #f8fafc;
+}
+
+.app-shell--mobile .sider-sub {
+  color: #94a3b8;
+}
+
+.app-shell--mobile .workspace-mode-switch {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.app-shell--mobile .workspace-mode-switch .ant-radio-button-wrapper {
+  color: #cbd5e1;
+}
+
+.app-shell--mobile .workspace-mode-switch .ant-radio-button-wrapper-checked {
+  background: #22c55e !important;
+  color: #052e16 !important;
+}
+
+.app-shell--mobile .app-sider .ant-menu {
+  color: #cbd5e1;
+}
+
+.app-shell--mobile .app-sider .ant-menu-submenu-title,
+.app-shell--mobile .app-sider .ant-menu-item {
+  color: #cbd5e1 !important;
+}
+
+.app-shell--mobile .app-sider .ant-menu-item-selected {
+  background: rgba(34, 197, 94, 0.16) !important;
+  color: #86efac !important;
+}
+
+.app-shell--mobile .app-content {
+  padding: 0;
+  background: #f6f8fb;
+}
+
+.app-shell--mobile .mobile-vacc-host {
+  min-height: 100vh;
+  padding: 16px 18px;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(34, 197, 94, 0.16), transparent 34%),
+    linear-gradient(180deg, #f7faf9 0%, #eef4f1 100%);
+}
+
+.app-shell--mobile .mobile-vacc-phone {
+  width: min(402px, calc(100vw - 256px));
+  height: min(824px, calc(100vh - 32px));
+  border: 1px solid #cfd8e3;
+  border-radius: 28px;
+  background: transparent;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen {
+  border-radius: 27px;
+  background: #f6f8fb;
+}
+
+.mobile-vacc-phone__viewport .mv-root {
+  padding: 0;
+}
+
+.app-shell--mobile .mv-root,
+.app-shell--mobile .mv-app-shell,
+.app-shell--mobile .mv-piglist-root {
+  color: #111827;
+  background: #f6f8fb;
+}
+
+.app-shell--mobile .mv-app-shell {
+  min-height: 100%;
+  border-radius: 0;
+}
+
+.app-shell--mobile .mv-topbar {
+  align-items: center;
+  padding: 16px 16px 10px;
+  background: linear-gradient(180deg, #f6f8fb 0%, rgba(246, 248, 251, 0.92) 100%);
+}
+
+.app-shell--mobile .mv-topbar__icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #334155;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-topbar__bell {
+  color: #16a34a;
+}
+
+.app-shell--mobile .mv-topbar__bell-dot {
+  background: #22c55e;
+}
+
+.app-shell--mobile .mv-topbar__site-select .ant-select-selector {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+
+.app-shell--mobile .mv-topbar__sub {
+  margin-top: 3px !important;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #667085 !important;
+}
+
+.app-shell--mobile .mv-scope-inline {
+  padding: 0 16px 12px;
+}
+
+.app-shell--mobile .mv-scope-inline__seg.ant-segmented {
+  padding: 3px;
+  border-radius: 999px;
+  background: #e9eef5;
+}
+
+.app-shell--mobile .mv-scope-inline__seg .ant-segmented-item {
+  min-height: 34px;
+  border-radius: 999px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 34px;
+}
+
+.app-shell--mobile .mv-scope-inline__seg .ant-segmented-item-selected {
+  background: #111827;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.14);
+}
+
+.app-shell--mobile .mv-home-scroll,
+.app-shell--mobile .mv-piglist-scroll {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.app-shell--mobile .mv-home-scroll {
+  padding-bottom: 28px;
+}
+
+.app-shell--mobile .mv-mission-list,
+.app-shell--mobile .mv-pig-stall-groups,
+.app-shell--mobile .mv-list {
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-mission-card,
+.app-shell--mobile .mv-card,
+.app-shell--mobile .mv-unit-progress__card,
+.app-shell--mobile .mv-pig-stall-group,
+.app-shell--mobile .mv-task-card,
+.app-shell--mobile .mv-pig-grid-card {
+  border: 1px solid rgba(17, 24, 39, 0.06);
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-mission-card {
+  border-radius: 22px;
+  padding: 16px;
+}
+
+.app-shell--mobile .mv-mission-card--pressable:hover {
+  border-color: rgba(22, 163, 74, 0.34);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell--mobile .mv-mission-card__head {
+  align-items: center;
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-mission-card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  font-size: 19px;
+}
+
+.app-shell--mobile .mv-mission-card__icon--vaccine,
+.app-shell--mobile .mv-mission-card__icon--prod,
+.app-shell--mobile .mv-mission-card__icon--xfer {
+  background: #e8f7ee;
+  color: #15803d;
+}
+
+.app-shell--mobile .mv-mission-card__title {
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 800;
+  color: #111827;
+}
+
+.app-shell--mobile .mv-mission-card__sub {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app-shell--mobile .mv-mission-card__dispatch-badge {
+  color: #166534;
+  background: #dcfce7;
+  border-color: transparent;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta {
+  font-size: 13px;
+  color: #111827;
+}
+
+.app-shell--mobile .mv-mission-card__progress-label,
+.app-shell--mobile .mv-piglist-list-hint,
+.app-shell--mobile .mv-unit-progress__stats-label,
+.app-shell--mobile .mv-pig-row-meta-line {
+  color: #667085 !important;
+}
+
+.app-shell--mobile .mv-mission-card__progress-track,
+.app-shell--mobile .mv-unit-progress__track {
+  background: #e6ebf2;
+}
+
+.app-shell--mobile .mv-mission-card__progress-fill,
+.app-shell--mobile .mv-unit-progress__fill {
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+}
+
+.app-shell--mobile .mv-mission-card__cta,
+.app-shell--mobile .mv-piglist-toolbar__complete,
+.app-shell--mobile .mv-task-detail-bottom-bar__btn.ant-btn-primary,
+.app-shell--mobile .mv-pig-batchbar__actions .ant-btn-primary {
+  border: 0;
+  background: #111827;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.16);
+}
+
+.app-shell--mobile .mv-piglist-root {
+  padding: 0;
+}
+
+.app-shell--mobile .mv-piglist-header {
+  padding: 14px 16px 8px;
+  background: #f6f8fb;
+}
+
+.app-shell--mobile .mv-piglist-toolbar {
+  margin-bottom: 8px;
+}
+
+.app-shell--mobile .mv-piglist-toolbar__back,
+.app-shell--mobile .mv-piglist-icon-btn {
+  background: #ffffff !important;
+  color: #334155;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-piglist-page-title {
+  font-size: 20px !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+  color: #111827;
+}
+
+.app-shell--mobile .mv-piglist-page-sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #667085 !important;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-tab {
+  padding: 9px 8px !important;
+  font-size: 14px;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-ink-bar {
+  background: #16a34a;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #111827 !important;
+}
+
+.app-shell--mobile .mv-section-bar-title {
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.app-shell--mobile .mv-section-bar-title::before {
+  background: #16a34a;
+  height: 16px;
+}
+
+.app-shell--mobile .mv-unit-progress__card {
+  border-radius: 20px;
+  padding: 12px;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-room,
+.app-shell--mobile .mv-unit-progress__compact-vaccine {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-vaccine {
+  color: #111827;
+  font-weight: 800;
+}
+
+.app-shell--mobile .mv-unit-progress__meta-chip {
+  min-height: 30px;
+  border: 0;
+  border-radius: 10px;
+  background: #f1f5f3;
+  color: #475569;
+  font-size: 11px;
+}
+
+.app-shell--mobile .mv-unit-progress__stats-value {
+  color: #111827;
+}
+
+.app-shell--mobile .mv-piglist-toolbar-row {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.app-shell--mobile .mv-piglist-toolbar-row .mv-piglist-search {
+  min-height: 40px;
+  border: 0;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-piglist-view-toggle.ant-radio-group-solid {
+  border: 0;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-piglist-view-toggle .ant-radio-button-wrapper-checked {
+  background: #111827 !important;
+  color: #ffffff !important;
+}
+
+.app-shell--mobile .mv-pig-stall-group {
+  border-radius: 20px;
+  padding: 10px;
+}
+
+.app-shell--mobile .mv-pig-stall-group__title {
+  font-size: 14px;
+  line-height: 1.45;
+  color: #111827;
+}
+
+.app-shell--mobile .mv-pig-row-card {
+  min-height: 64px;
+  border-radius: 16px !important;
+  padding: 10px 12px !important;
+  box-shadow: none;
+}
+
+.app-shell--mobile .mv-pig-row-ear-title {
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.app-shell--mobile .mv-pig-row-meta-line {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app-shell--mobile .mv-pig-card--selected {
+  border-color: #16a34a !important;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18);
+}
+
+.app-shell--mobile .mv-pig-status-tone--pending,
+.app-shell--mobile .mv-pig-status-tone--completed,
+.app-shell--mobile .mv-pig-status-tone--skipped,
+.app-shell--mobile .mv-pig-status-tone--suspended,
+.app-shell--mobile .mv-pig-status-tone--deferred {
+  color: #166534 !important;
+}
+
+.app-shell--mobile .mv-pig-row-alert-icon {
+  color: #f97316;
+}
+
+.app-shell--mobile .mv-pig-batchbar {
+  border: 0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 -10px 26px rgba(15, 23, 42, 0.08);
+}
+
+/* Mobile polish: segmented text vertical centering and safer top rhythm */
+.app-shell--mobile .mv-app-shell {
+  padding-top: 8px;
+}
+
+.app-shell--mobile .mv-topbar {
+  padding-top: 20px;
+  padding-bottom: 12px;
+}
+
+.app-shell--mobile .mv-scope-inline {
+  padding-bottom: 14px;
+}
+
+.app-shell--mobile .mv-scope-inline__seg.ant-segmented {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.app-shell--mobile .mv-scope-inline__seg .ant-segmented-group {
+  width: 100%;
+  align-items: center;
+}
+
+.app-shell--mobile .mv-scope-inline__seg .ant-segmented-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  line-height: normal;
+}
+
+.app-shell--mobile .mv-scope-inline__seg .ant-segmented-item-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  line-height: 1;
+}
+
+.app-shell--mobile .mv-home-scroll {
+  padding-top: 2px;
+}
+
+/* Mobile tone adjustment: lighten primary actions, keep black for text/navigation only */
+.app-shell--mobile .mv-mission-card__cta,
+.app-shell--mobile .mv-piglist-toolbar__complete,
+.app-shell--mobile .mv-task-detail-bottom-bar__btn.ant-btn-primary,
+.app-shell--mobile .mv-pig-batchbar__actions .ant-btn-primary {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.20);
+}
+
+.app-shell--mobile .mv-mission-card__cta:hover,
+.app-shell--mobile .mv-piglist-toolbar__complete:hover,
+.app-shell--mobile .mv-task-detail-bottom-bar__btn.ant-btn-primary:hover,
+.app-shell--mobile .mv-pig-batchbar__actions .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  color: #ffffff !important;
+}
+
+.app-shell--mobile .mv-mission-card__cta--navy {
+  background: #ffffff;
+  color: #166534;
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-mission-card__cta--navy:hover {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+}
+
+.app-shell--mobile .mv-piglist-toolbar__back,
+.app-shell--mobile .mv-piglist-icon-btn,
+.app-shell--mobile .mv-pig-batchbar__ghost {
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+}
+
+/* Mobile mode uses task-home navigation, not sidebar feature navigation */
+.app-shell--mobile .app-sider {
+  width: 220px;
+}
+
+.app-shell--mobile .sider-logo {
+  padding-bottom: 20px;
+}
+
+/* Mobile home reference layout */
+.app-shell--mobile .mobile-vacc-phone,
+.app-shell--mobile .mobile-vacc-phone__screen,
+.app-shell--mobile .mv-root,
+.app-shell--mobile .mv-app-shell {
+  background: #ffffff;
+}
+
+.app-shell--mobile .mv-app-shell {
+  position: relative;
+  padding-top: 0;
+}
+
+.app-shell--mobile .mv-statusbar {
+  flex-shrink: 0;
+  height: 74px;
+  padding: 26px 32px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  color: #111827;
+  box-sizing: border-box;
+}
+
+.app-shell--mobile .mv-statusbar__time {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.app-shell--mobile .mv-statusbar__icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 3px;
+}
+
+.app-shell--mobile .mv-signal {
+  width: 23px;
+  height: 18px;
+  display: inline-block;
+  background: linear-gradient(90deg, #111827 20%, transparent 20% 30%, #111827 30% 50%, transparent 50% 60%, #111827 60% 80%, transparent 80% 90%, #111827 90%);
+  border-radius: 2px;
+}
+
+.app-shell--mobile .mv-wifi {
+  width: 24px;
+  height: 16px;
+  display: inline-block;
+  border: 4px solid #111827;
+  border-color: #111827 transparent transparent transparent;
+  border-radius: 50% 50% 0 0;
+  transform: translateY(4px);
+}
+
+.app-shell--mobile .mv-battery {
+  width: 28px;
+  height: 14px;
+  display: inline-block;
+  border: 2px solid #6b7280;
+  border-radius: 4px;
+  position: relative;
+  box-shadow: inset 0 0 0 4px #111827;
+}
+
+.app-shell--mobile .mv-battery::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 4px;
+  width: 3px;
+  height: 6px;
+  border-radius: 0 2px 2px 0;
+  background: #9ca3af;
+}
+
+.app-shell--mobile .mv-topbar--reference {
+  height: 104px;
+  padding: 28px 26px 18px;
+  background: #ffffff;
+  align-items: center;
+}
+
+.app-shell--mobile .mv-avatar-btn {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: #e8eef6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-avatar-face {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.app-shell--mobile .mv-section-selector {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #2b2f36;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-section-selector__chevron {
+  color: #4b5563;
+  font-size: 30px;
+  line-height: 1;
+  transform: translateY(-2px);
+}
+
+.app-shell--mobile .mv-bell-btn {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: #00a66a;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 10px 20px rgba(0, 166, 106, 0.2);
+}
+
+.app-shell--mobile .mv-section-tabs {
+  margin: 0 20px 40px;
+  height: 52px;
+  padding: 6px;
+  border-radius: 18px;
+  background: #f0f2f6;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  gap: 0;
+}
+
+.app-shell--mobile .mv-section-tab {
+  position: relative;
+  height: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #5f6878;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 40px;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-section-tab + .mv-section-tab::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 1px;
+  height: 22px;
+  background: #dce2eb;
+}
+
+.app-shell--mobile .mv-section-tab.is-active {
+  background: #ffffff;
+  color: #22262d;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-section-tab.is-active::before,
+.app-shell--mobile .mv-section-tab.is-active + .mv-section-tab::before {
+  opacity: 0;
+}
+
+.app-shell--mobile .mv-home-scroll {
+  padding: 0 20px 118px;
+  background: #ffffff;
+}
+
+.app-shell--mobile .mv-home-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.app-shell--mobile .mv-home-stat-card {
+  position: relative;
+  min-height: 108px;
+  padding: 24px 20px 18px;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.09);
+  color: #8a95a6;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-home-stat-title {
+  display: block;
+  color: #7a8495;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 20px;
+}
+
+.app-shell--mobile .mv-home-stat-card strong {
+  color: #009f68;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-weight: 900;
+  margin-right: 8px;
+}
+
+.app-shell--mobile .mv-home-stat-card span:last-child {
+  font-size: 16px;
+  color: #9aa4b5;
+}
+
+.app-shell--mobile .mv-home-stat-arrow {
+  position: absolute;
+  right: 18px;
+  top: 22px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #edfbf5;
+  color: #00a66a !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px !important;
+}
+
+.app-shell--mobile .mv-hub-section {
+  margin-top: 0;
+}
+
+.app-shell--mobile .mv-mission-list {
+  gap: 28px;
+}
+
+.app-shell--mobile .mv-mission-card {
+  position: relative;
+  border: 0;
+  border-radius: 20px;
+  padding: 20px 24px 22px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell--mobile .mv-mission-card__head {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.app-shell--mobile .mv-mission-card__icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  background: #eaf4ff !important;
+  color: #2fa7ff !important;
+  font-size: 27px;
+}
+
+.app-shell--mobile .mv-mission-card__title {
+  font-size: 22px;
+  line-height: 1.2;
+  color: #2b2f36;
+  font-weight: 900;
+}
+
+.app-shell--mobile .mv-mission-card__sub {
+  margin-top: 16px;
+  color: #758197;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.app-shell--mobile .mv-mission-card__dispatch-badge,
+.app-shell--mobile .mv-mission-card__status {
+  position: absolute;
+  top: 30px;
+  right: 24px;
+  border: 1px solid #eef1f6;
+  background: #ffffff;
+  color: #5f6878;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 16px;
+  font-weight: 500;
+  max-width: none;
+}
+
+.app-shell--mobile .mv-mission-card__progress-block {
+  margin-top: 34px;
+  padding: 0;
+}
+
+.app-shell--mobile .mv-mission-card__progress-track {
+  height: 8px;
+  background: #edf1f7;
+  border-radius: 999px;
+}
+
+.app-shell--mobile .mv-mission-card__progress-fill {
+  background: #2dcc47;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 22px;
+  margin-bottom: 0;
+  color: #2b2f36;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta::before {
+  content: "累计发情 / 目标发情 ⓘ";
+  color: #2b2f36;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span {
+  display: none;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span:first-child,
+.app-shell--mobile .mv-mission-card__progress-meta > span:nth-child(3) {
+  display: inline;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span:first-child {
+  margin-left: auto;
+  color: #22c55e;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span:first-child::after {
+  content: " / ";
+  color: #2b2f36;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span:nth-child(3) {
+  color: #2b2f36;
+}
+
+.app-shell--mobile .mv-mission-card__cta {
+  height: 56px;
+  margin-top: 34px;
+  border-radius: 10px;
+  background: #00a66a;
+  box-shadow: 0 12px 28px rgba(0, 166, 106, 0.22);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.app-shell--mobile .mv-mission-card__cta--navy {
+  background: #ffffff;
+  color: #00a66a;
+  border: 1px solid #e8edf4;
+  box-shadow: none;
+}
+
+.app-shell--mobile .mv-floating-up {
+  position: absolute;
+  right: 20px;
+  bottom: 92px;
+  z-index: 10;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid #e0e5ee;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 26px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell--mobile .mv-bottom-nav--reference {
+  position: absolute;
+  height: 84px;
+  bottom: 0;
+  padding: 0 32px 10px;
+  background: #ffffff;
+  border-top: 1px solid #edf1f7;
+  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: #adb7c5;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__item svg {
+  font-size: 26px;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__item--active {
+  color: #00a66a;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__fab {
+  width: 70px;
+  height: 70px;
+  margin-top: -38px;
+  background: #00a66a;
+  box-shadow: 0 14px 26px rgba(0, 166, 106, 0.24);
+  font-size: 32px;
+}
+
+/* Mobile home compact pass: prevent card content overlap on the preview width */
+.app-shell--mobile .mv-section-selector {
+  font-size: 18px;
+  letter-spacing: 0.03em;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-section-selector__chevron {
+  font-size: 24px;
+}
+
+.app-shell--mobile .mv-section-tab {
+  font-size: 15px;
+}
+
+.app-shell--mobile .mv-home-stat-title {
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+.app-shell--mobile .mv-home-stat-card strong {
+  font-size: 26px;
+}
+
+.app-shell--mobile .mv-home-stat-card span:last-child {
+  font-size: 13px;
+}
+
+.app-shell--mobile .mv-mission-card {
+  padding: 18px 18px 20px;
+}
+
+.app-shell--mobile .mv-mission-card__head {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-areas:
+    "icon title"
+    "icon badge";
+  align-items: start;
+  column-gap: 14px;
+  row-gap: 8px;
+}
+
+.app-shell--mobile .mv-mission-card__icon {
+  grid-area: icon;
+  width: 48px;
+  height: 48px;
+  font-size: 23px;
+}
+
+.app-shell--mobile .mv-mission-card__titles {
+  grid-area: title;
+  min-width: 0;
+  padding-right: 0;
+}
+
+.app-shell--mobile .mv-mission-card__title {
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.app-shell--mobile .mv-mission-card__sub {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.app-shell--mobile .mv-mission-card__dispatch-badge,
+.app-shell--mobile .mv-mission-card__status {
+  grid-area: badge;
+  position: static;
+  justify-self: start;
+  max-width: 100%;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: left;
+}
+
+.app-shell--mobile .mv-mission-card__progress-block {
+  margin-top: 22px;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 2px;
+  align-items: baseline;
+  font-size: 15px;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta::before {
+  min-width: 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.app-shell--mobile .mv-mission-card__progress-meta > span:first-child {
+  margin-left: 0;
+}
+
+.app-shell--mobile .mv-mission-card__cta {
+  height: 48px;
+  margin-top: 24px;
+  font-size: 16px;
+}
+
+.app-shell--mobile .mv-floating-up {
+  width: 50px;
+  height: 50px;
+  right: 18px;
+  bottom: 88px;
+}
+
+/* Mobile vaccination task card: structured information layout */
+.app-shell--mobile .mv-mission-card--vaccination {
+  padding: 18px;
+}
+
+.app-shell--mobile .mv-vaccine-card__head {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: start;
+}
+
+.app-shell--mobile .mv-vaccine-card__main {
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-vaccine-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 850;
+  color: #20242b;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__dispatch-badge {
+  position: static;
+  flex: 0 0 auto;
+  max-width: 84px;
+  padding: 5px 8px;
+  border: 0;
+  background: #f0fdf4;
+  color: #07824f;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__sub {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7a8495;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress {
+  margin-top: 18px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f7faf8;
+  border: 1px solid #edf2ef;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress-label {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress-value {
+  color: #20242b;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress-value em {
+  color: #16a34a;
+  font-style: normal;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__progress-track {
+  height: 7px;
+  background: #e8edf3;
+}
+
+.app-shell--mobile .mv-vaccine-card__hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-vaccine-card__hint svg {
+  font-size: 11px;
+}
+
+/* Mobile vaccination card readability fix: show full task name and details */
+.app-shell--mobile .mv-vaccine-card__head {
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 12px;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__icon {
+  width: 44px;
+  height: 44px;
+  font-size: 21px;
+}
+
+.app-shell--mobile .mv-vaccine-card__title-row {
+  display: block;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__title {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: initial;
+  -webkit-box-orient: initial;
+  font-size: 15px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.app-shell--mobile .mv-vaccine-card__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__dispatch-badge,
+.app-shell--mobile .mv-vaccine-card__task-type {
+  position: static;
+  max-width: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__dispatch-badge {
+  background: #f0fdf4;
+  color: #07824f;
+}
+
+.app-shell--mobile .mv-vaccine-card__task-type {
+  background: #f3f6fa;
+  color: #64748b;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__sub {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: initial;
+  -webkit-box-orient: initial;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.app-shell--mobile .mv-vaccine-card__progress {
+  margin-top: 14px;
+}
+
+/* Mobile vaccination card hard fix: avoid implicit grid/named-area squeezing */
+.app-shell--mobile .mv-mission-card--vaccination {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app-shell--mobile .mv-vaccine-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-vaccine-card__head .mv-mission-card__icon {
+  grid-area: auto;
+  flex: 0 0 44px;
+}
+
+.app-shell--mobile .mv-vaccine-card__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: calc(100% - 56px);
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__title {
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__sub {
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.app-shell--mobile .mv-vaccine-card__meta-row,
+.app-shell--mobile .mv-vaccine-card__progress,
+.app-shell--mobile .mv-vaccine-card__hint {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Mobile task cards: soften title color away from pure black */
+.app-shell--mobile .mv-mission-card__title,
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__title {
+  color: #31505f;
+}
+
+/* Mobile status bar: iOS-like thin indicators */
+.app-shell--mobile .mv-statusbar {
+  padding-top: 28px;
+}
+
+.app-shell--mobile .mv-statusbar__time {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app-shell--mobile .mv-statusbar__icons {
+  gap: 9px;
+  padding-top: 2px;
+}
+
+.app-shell--mobile .mv-signal {
+  width: 22px;
+  height: 14px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  background: none;
+  border-radius: 0;
+}
+
+.app-shell--mobile .mv-signal::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 5px;
+  border-radius: 2px;
+  background: #111827;
+  box-shadow:
+    6px -3px 0 #111827,
+    12px -6px 0 #111827,
+    18px -9px 0 #111827;
+}
+
+.app-shell--mobile .mv-wifi {
+  position: relative;
+  width: 22px;
+  height: 15px;
+  display: inline-block;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-wifi::before,
+.app-shell--mobile .mv-wifi::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  border: 2px solid #111827;
+  border-color: #111827 transparent transparent transparent;
+  border-radius: 999px 999px 0 0;
+  transform: translateX(-50%);
+}
+
+.app-shell--mobile .mv-wifi::before {
+  top: 1px;
+  width: 22px;
+  height: 18px;
+}
+
+.app-shell--mobile .mv-wifi::after {
+  top: 6px;
+  width: 13px;
+  height: 10px;
+}
+
+.app-shell--mobile .mv-battery {
+  width: 27px;
+  height: 13px;
+  border: 1.5px solid #6b7280;
+  border-radius: 3.5px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.app-shell--mobile .mv-battery::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 20px;
+  height: 7px;
+  border-radius: 2px;
+  background: #111827;
+}
+
+.app-shell--mobile .mv-battery::after {
+  right: -4px;
+  top: 4px;
+  width: 2px;
+  height: 5px;
+  border-radius: 0 2px 2px 0;
+  background: #9ca3af;
+}
+
+/* Mobile status bar spacing fix: reduce top gap and stop clipping iOS indicators */
+.app-shell--mobile .mv-statusbar {
+  height: 54px;
+  padding: 18px 28px 0;
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-topbar--reference {
+  height: 84px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.app-shell--mobile .mv-wifi {
+  width: 24px;
+  height: 18px;
+  overflow: visible;
+}
+
+.app-shell--mobile .mv-wifi::before {
+  top: 2px;
+  width: 24px;
+  height: 18px;
+}
+
+.app-shell--mobile .mv-wifi::after {
+  top: 7px;
+  width: 14px;
+  height: 10px;
+}
+
+.app-shell--mobile .mv-battery {
+  transform: translateY(1px);
+}
+
+/* Mobile status bar: closer to latest iOS weight and proportions */
+.app-shell--mobile .mv-statusbar__time {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.app-shell--mobile .mv-statusbar__icons {
+  transform: scale(0.92);
+  transform-origin: right top;
+}
+
+.app-shell--mobile .mv-signal {
+  width: 21px;
+  height: 13px;
+}
+
+.app-shell--mobile .mv-signal::before {
+  width: 3.2px;
+  height: 4.5px;
+  border-radius: 1.8px;
+  box-shadow:
+    5.5px -2.5px 0 #111827,
+    11px -5.5px 0 #111827,
+    16.5px -8.5px 0 #111827;
+}
+
+.app-shell--mobile .mv-wifi {
+  width: 21px;
+  height: 15px;
+}
+
+.app-shell--mobile .mv-wifi::before,
+.app-shell--mobile .mv-wifi::after {
+  border-width: 1.7px;
+}
+
+.app-shell--mobile .mv-wifi::before {
+  width: 21px;
+  height: 16px;
+}
+
+.app-shell--mobile .mv-wifi::after {
+  top: 6.5px;
+  width: 12px;
+  height: 9px;
+}
+
+.app-shell--mobile .mv-battery {
+  width: 25px;
+  height: 12px;
+  border-width: 1.2px;
+  border-radius: 3.2px;
+}
+
+.app-shell--mobile .mv-battery::before {
+  left: 2px;
+  top: 2px;
+  width: 19px;
+  height: 6px;
+  border-radius: 1.8px;
+}
+
+.app-shell--mobile .mv-battery::after {
+  right: -3.5px;
+  top: 3.5px;
+  width: 2px;
+  height: 5px;
+}
+
+/* Mobile status bar: use complete SVG glyphs to avoid clipping */
+.app-shell--mobile .mv-statusbar__icons {
+  align-items: center;
+  gap: 8px;
+  transform: none;
+}
+
+.app-shell--mobile .mv-signal,
+.app-shell--mobile .mv-wifi,
+.app-shell--mobile .mv-battery {
+  display: inline-block;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  transform: none;
+}
+
+.app-shell--mobile .mv-signal::before,
+.app-shell--mobile .mv-signal::after,
+.app-shell--mobile .mv-wifi::before,
+.app-shell--mobile .mv-wifi::after,
+.app-shell--mobile .mv-battery::before,
+.app-shell--mobile .mv-battery::after {
+  display: none;
+  content: none;
+}
+
+.app-shell--mobile .mv-signal {
+  width: 22px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg width='22' height='14' viewBox='0 0 22 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='1' y='8' width='3.4' height='5' rx='1.2' fill='%23111827'/%3E%3Crect x='6.4' y='5.8' width='3.4' height='7.2' rx='1.2' fill='%23111827'/%3E%3Crect x='11.8' y='3.2' width='3.4' height='9.8' rx='1.2' fill='%23111827'/%3E%3Crect x='17.2' y='0.6' width='3.4' height='12.4' rx='1.2' fill='%23111827'/%3E%3C/svg%3E");
+}
+
+.app-shell--mobile .mv-wifi {
+  width: 22px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg width='22' height='14' viewBox='0 0 22 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 4.5C7.2 -0.1 14.8 -0.1 20 4.5' stroke='%23111827' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M5.7 8C8.8 5.4 13.2 5.4 16.3 8' stroke='%23111827' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M9.4 11.3C10.3 10.6 11.7 10.6 12.6 11.3' stroke='%23111827' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.app-shell--mobile .mv-battery {
+  width: 28px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg width='28' height='14' viewBox='0 0 28 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='1' y='2' width='23' height='10' rx='2.4' stroke='%236B7280' stroke-width='1.4'/%3E%3Crect x='3.2' y='4.2' width='18.8' height='5.6' rx='1.4' fill='%23111827'/%3E%3Crect x='25' y='5' width='2' height='4' rx='1' fill='%239CA3AF'/%3E%3C/svg%3E");
+}
+
+/* Mobile home top spacing: compact iOS-like rhythm */
+.app-shell--mobile .mv-statusbar {
+  height: 44px;
+  padding: 14px 28px 0;
+}
+
+.app-shell--mobile .mv-topbar--reference {
+  height: 72px;
+  padding-top: 8px;
+  padding-bottom: 12px;
+}
+
+/* Mobile home task card spacing */
+.app-shell--mobile .mv-mission-list {
+  gap: 16px;
+}
+
+/* Mobile home vertical rhythm */
+.app-shell--mobile .mv-section-tabs {
+  margin-bottom: 24px;
+}
+
+.app-shell--mobile .mv-home-stats {
+  margin-bottom: 20px;
+}
+
+/* Mobile bottom navigation: task-app density */
+.app-shell--mobile .mv-bottom-nav--reference {
+  height: 66px;
+  padding: 0 30px 6px;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__item {
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 4px 2px;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__item svg {
+  font-size: 22px;
+}
+
+.app-shell--mobile .mv-bottom-nav--reference .mv-bottom-nav__fab {
+  width: 56px;
+  height: 56px;
+  margin-top: -28px;
+  font-size: 26px;
+}
+
+.app-shell--mobile .mv-floating-up {
+  bottom: 72px;
+}
+
+.app-shell--mobile .mv-home-scroll {
+  padding-bottom: 88px;
+}
+
+/* Mobile top selector: use Ant Design Select instead of custom chevron glyph */
+.app-shell--mobile .mv-section-selector-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.app-shell--mobile .mv-section-selector-select .ant-select-selector {
+  height: 42px !important;
+  padding: 0 28px 0 8px !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-align: center;
+}
+
+.app-shell--mobile .mv-section-selector-select .ant-select-selection-item {
+  color: #2f3a46;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 42px !important;
+  text-align: center;
+}
+
+.app-shell--mobile .mv-section-selector-select .ant-select-arrow {
+  right: 4px;
+  color: #4b5563;
+  font-size: 12px;
+  margin-top: -5px;
+}
+
+/* Mobile home stats: soften large numbers */
+.app-shell--mobile .mv-home-stat-card strong {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+
+/* Mobile vaccination card: keep dispatch status inline with title */
+.app-shell--mobile .mv-vaccine-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__title {
+  flex: 1 1 auto;
+}
+
+.app-shell--mobile .mv-mission-card--vaccination .mv-mission-card__dispatch-badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+
+/* Mobile vaccine task page: align with current large-app mobile design rules */
+.app-shell--mobile .mv-piglist-root {
+  background: linear-gradient(180deg, #f7faf8 0%, #f3f6f5 48%, #f7f9fb 100%);
+}
+
+.app-shell--mobile .mv-piglist-root > .mv-statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: rgba(247, 250, 248, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.app-shell--mobile .mv-piglist-header {
+  padding: 8px 16px 10px;
+  background: transparent;
+}
+
+.app-shell--mobile .mv-piglist-toolbar {
+  min-height: 36px;
+  margin: 0 0 8px;
+}
+
+.app-shell--mobile .mv-piglist-toolbar__back,
+.app-shell--mobile .mv-piglist-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-piglist-toolbar__complete {
+  height: 34px !important;
+  border-radius: 999px !important;
+  padding-inline: 14px !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.16);
+}
+
+.app-shell--mobile .mv-piglist-page-title {
+  margin-top: 2px !important;
+  color: #23443a;
+  font-size: 19px !important;
+  font-weight: 760 !important;
+  letter-spacing: 0.01em;
+}
+
+.app-shell--mobile .mv-piglist-page-sub {
+  margin-bottom: 10px !important;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs.ant-tabs {
+  margin-bottom: 0;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-nav {
+  margin-bottom: 8px !important;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-nav::before {
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-tab {
+  padding: 8px 8px !important;
+  color: #7b8794;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-ink-bar {
+  height: 2px;
+  background: #00a66a;
+}
+
+.app-shell--mobile .mv-piglist-room-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #23443a !important;
+}
+
+.app-shell--mobile .mv-piglist-scroll {
+  padding: 0 16px 18px;
+}
+
+.app-shell--mobile .mv-section-bar-title {
+  color: #23443a;
+  font-size: 14px;
+  font-weight: 760;
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-section-bar-title::before {
+  width: 3px;
+  height: 15px;
+  border-radius: 999px;
+  background: #00a66a;
+}
+
+.app-shell--mobile .mv-unit-progress {
+  margin-bottom: 4px;
+}
+
+.app-shell--mobile .mv-unit-progress__card,
+.app-shell--mobile .mv-task-detail__card {
+  border: 0 !important;
+  border-radius: 22px !important;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-unit-progress__card {
+  padding: 14px;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-head {
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-room {
+  color: #667085;
+  font-size: 13px;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-vaccine {
+  color: #23443a;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-unit-progress__compact-meta {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-unit-progress__meta-chip {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 12px;
+  background: #f4f8f6;
+  color: #5f6f68;
+}
+
+.app-shell--mobile .mv-unit-progress__stats-row {
+  margin-bottom: 8px;
+}
+
+.app-shell--mobile .mv-unit-progress__stats-value,
+.app-shell--mobile .mv-task-detail__progress-value {
+  color: #0b8f5d;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.app-shell--mobile .mv-unit-progress__track,
+.app-shell--mobile .mv-task-detail__track {
+  height: 7px;
+  background: #eaf0ef;
+}
+
+.app-shell--mobile .mv-piglist-toolbar-row {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-piglist-toolbar-row .mv-piglist-search {
+  min-height: 38px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-piglist-view-toggle .ant-radio-button-wrapper {
+  width: 36px;
+  height: 36px;
+  line-height: 34px;
+}
+
+.app-shell--mobile .mv-piglist-view-toggle .ant-radio-button-wrapper-checked {
+  background: #e8f7ef !important;
+  color: #008f5d !important;
+}
+
+.app-shell--mobile .mv-pig-stall-groups {
+  gap: 16px;
+}
+
+.app-shell--mobile .mv-pig-stall-group {
+  border: 0;
+  border-radius: 22px;
+  padding: 12px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-pig-stall-group__head {
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-pig-stall-group__title {
+  color: #23443a;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-pig-row-card {
+  min-height: 62px;
+  border: 1px solid #eef2f1 !important;
+  border-radius: 18px !important;
+  background: #fbfdfc;
+}
+
+.app-shell--mobile .mv-pig-row-ear-title {
+  color: #23443a;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-pig-status-tone--pending {
+  color: #0b75a8 !important;
+}
+
+.app-shell--mobile .mv-pig-status-tone--completed {
+  color: #0b8f5d !important;
+}
+
+.app-shell--mobile .mv-pig-status-tone--skipped {
+  color: #d97706 !important;
+}
+
+.app-shell--mobile .mv-pig-status-tone--deferred {
+  color: #6d5bd0 !important;
+}
+
+.app-shell--mobile .mv-pig-batchbar {
+  border-radius: 22px;
+  padding: 10px;
+}
+
+.app-shell--mobile .mv-pig-batchbar__count {
+  color: #5f6f68;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-pig-batchbar__actions .ant-btn {
+  height: 38px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-task-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.app-shell--mobile .mv-task-detail__card {
+  margin-bottom: 0 !important;
+}
+
+.app-shell--mobile .mv-task-detail__card .ant-card-body {
+  padding: 16px !important;
+}
+
+.app-shell--mobile .mv-task-detail__block-title {
+  color: #23443a;
+  font-size: 14px;
+  font-weight: 760;
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-task-detail__progress-line {
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-task-detail__progress-value {
+  font-size: 24px;
+}
+
+.app-shell--mobile .mv-task-detail__progress-pct {
+  color: #0b8f5d;
+}
+
+.app-shell--mobile .mv-task-detail__config-grid {
+  gap: 0;
+}
+
+.app-shell--mobile .mv-task-detail__config-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2f1;
+  font-size: 13px;
+}
+
+.app-shell--mobile .mv-task-detail__config-row:last-child {
+  border-bottom: 0;
+}
+
+.app-shell--mobile .mv-task-detail__config-k {
+  flex: none;
+  color: #7b8794;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-task-detail__config-v {
+  color: #253d35;
+  font-weight: 680;
+  text-align: right;
+}
+
+.app-shell--mobile .mv-task-detail__legend {
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-task-detail__legend-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2f1;
+}
+
+.app-shell--mobile .mv-task-detail__legend-item:last-child {
+  border-bottom: 0;
+}
+
+.app-shell--mobile .mv-task-detail__legend-item .ant-tag {
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.app-shell--mobile .mv-task-detail-bottom-bar {
+  left: 16px;
+  right: 16px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  padding: 8px;
+  border: 0;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.10);
+}
+
+.app-shell--mobile .mv-task-detail-bottom-bar__btn {
+  height: 42px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Mobile bottom drawers: pin to the simulated screen bottom */
+.app-shell--mobile .mobile-vacc-phone__screen .ant-drawer-root,
+.app-shell--mobile .mv-root .ant-drawer-root {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen .ant-drawer-bottom > .ant-drawer-content-wrapper,
+.app-shell--mobile .mv-root .ant-drawer-bottom > .ant-drawer-content-wrapper {
+  position: absolute !important;
+  top: auto !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-height: calc(100% - 12px) !important;
+}
+
+.app-shell--mobile .mv-room-drawer .ant-drawer-content,
+.app-shell--mobile .mv-pig-action-drawer .ant-drawer-content {
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.16);
+}
+
+/* Mobile home inspection task entrances */
+.app-shell--mobile .mv-mission-card--inspection {
+  padding: 16px 18px;
+}
+
+.app-shell--mobile .mv-mission-card__icon--inspection {
+  background: #eaf4ff !important;
+  color: #2fa7ff !important;
+}
+
+.app-shell--mobile .mv-mission-card--inspection .mv-mission-card__head {
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-mission-card--inspection .mv-mission-card__title {
+  color: #23443a;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-mission-card--inspection .mv-mission-card__status {
+  margin-left: auto;
+  border: 0;
+  background: #f7fafc;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-fixture-progress {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #edf2f1;
+  border-radius: 16px;
+  background: #fbfdfc;
+}
+
+.app-shell--mobile .mv-fixture-progress__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8a96a8;
+  font-size: 12px;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-fixture-progress__meta strong {
+  color: #23443a;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.app-shell--mobile .mv-fixture-progress__track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eaf0ef;
+}
+
+.app-shell--mobile .mv-fixture-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2dcc47, #22c55e);
+}
+
+/* Mobile weaning check full flow */
+.app-shell--mobile .mv-weaning-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-bottom: 0;
+  background: #f2f4f7;
+}
+
+.app-shell--mobile .mv-weaning-header {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 16px 8px;
+}
+
+.app-shell--mobile .mv-weaning-header .ant-typography {
+  margin: 0;
+  text-align: center;
+  font-size: 21px;
+  font-weight: 760;
+  color: #253043;
+}
+
+.app-shell--mobile .mv-weaning-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 16px 12px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #e9edf3;
+}
+
+.app-shell--mobile .mv-weaning-tab {
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5d687a;
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-tab.is-active {
+  background: #ffffff;
+  color: #1f2937;
+}
+
+.app-shell--mobile .mv-weaning-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0 16px 16px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card {
+  border-radius: 18px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 760;
+  color: #263345;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__track,
+.app-shell--mobile .mv-weaning-end-summary__track {
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__fill,
+.app-shell--mobile .mv-weaning-end-summary__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2ec74e, #23b764);
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 36px 36px 36px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-input-affix-wrapper {
+  border-radius: 999px;
+}
+
+.app-shell--mobile .mv-weaning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__title {
+  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: 760;
+  color: #273243;
+}
+
+.app-shell--mobile .mv-weaning-row__line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__ear {
+  font-size: 28px;
+  font-weight: 760;
+  color: #25aa73;
+  letter-spacing: 0.02em;
+}
+
+.app-shell--mobile .mv-weaning-row__status {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-row__status--pending {
+  color: #334155;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  color: #94a3b8;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #54a487;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar {
+  padding: 10px 16px 14px;
+  background: #f2f4f7;
+  border-top: 1px solid #e5eaf1;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar .ant-btn-primary {
+  height: 44px;
+  border-radius: 10px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar--dual {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar--dual .ant-btn {
+  height: 42px;
+  border-radius: 9px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-content {
+  border-radius: 22px 22px 0 0;
+  padding: 14px 0 0;
+}
+
+.app-shell--mobile .mv-weaning-detail {
+  padding: 0 16px 14px;
+}
+
+.app-shell--mobile .mv-weaning-detail__title {
+  margin: 0 0 10px !important;
+  text-align: center;
+  font-size: 34px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-detail__head {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.app-shell--mobile .mv-weaning-detail__head strong {
+  min-width: 52px;
+  padding: 6px 8px;
+  text-align: center;
+  background: #eef2f6;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+.app-shell--mobile .mv-weaning-detail__head span {
+  font-size: 36px;
+  font-weight: 760;
+  color: #23aa74;
+}
+
+.app-shell--mobile .mv-weaning-kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2f7;
+  color: #2a3546;
+  font-size: 15px;
+}
+
+.app-shell--mobile .mv-weaning-kv-row:last-child {
+  border-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-kv-row strong {
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-edit-link {
+  padding-inline: 0;
+  color: #23aa74 !important;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-form-card {
+  border-radius: 16px;
+}
+
+.app-shell--mobile .mv-weaning-stepper-row,
+.app-shell--mobile .mv-weaning-option-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.app-shell--mobile .mv-weaning-option-row .ant-radio-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.app-shell--mobile .mv-weaning-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-stepper button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d6dee8;
+  border-radius: 6px;
+  background: #fff;
+  color: #475569;
+}
+
+.app-shell--mobile .mv-weaning-stepper strong {
+  min-width: 20px;
+  text-align: center;
+}
+
+.app-shell--mobile .mv-weaning-inline-input {
+  width: 120px;
+}
+
+.app-shell--mobile .mv-weaning-link-btn {
+  border: 0;
+  background: transparent;
+  color: #23aa74;
+  font-weight: 700;
+  padding: 0;
+}
+
+.app-shell--mobile .mv-weaning-retain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.app-shell--mobile .mv-weaning-retain-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.app-shell--mobile .mv-weaning-retain-row__title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-modal-confirm {
+  border-radius: 10px;
+}
+
+.app-shell--mobile .mv-weaning-pig-ident {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 10px;
+}
+
+.app-shell--mobile .mv-weaning-pig-ident strong {
+  min-width: 44px;
+  padding: 6px;
+  text-align: center;
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.app-shell--mobile .mv-weaning-pig-ident > span {
+  color: #23aa74;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-end-summary__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #223046;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-end-summary__numbers {
+  margin-top: 8px;
+  color: #526075;
+}
+
+.app-shell--mobile .mv-weaning-end-summary__numbers strong {
+  margin-right: 4px;
+  font-size: 28px;
+  color: #111827;
+}
+
+.app-shell--mobile .mv-weaning-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 999px;
+}
+
+.app-shell--mobile .mv-weaning-dot--pending {
+  background: #10b981;
+}
+
+.app-shell--mobile .mv-weaning-dot--done {
+  background: #a6b1c2;
+}
+
+
+/* Mobile inspection room picker */
+.app-shell--mobile .mv-inspection-room-drawer .ant-drawer-content {
+  border-radius: 24px 24px 0 0;
+  background: #f7faf8;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.16);
+}
+
+.app-shell--mobile .mv-inspection-room-drawer .ant-drawer-header {
+  border-bottom: 0;
+  padding: 16px 18px 8px;
+}
+
+.app-shell--mobile .mv-inspection-room-drawer .ant-drawer-title {
+  color: #23443a;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-inspection-room-drawer .ant-drawer-body {
+  padding: 8px 16px 18px;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__hint {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__row {
+  width: 100%;
+  border: 0;
+  border-radius: 18px;
+  padding: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  color: #23443a;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__row strong,
+.app-shell--mobile .mv-inspection-room-sheet__row em {
+  display: block;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__row strong {
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-inspection-room-sheet__row em {
+  margin-top: 4px;
+  color: #7b8794;
+  font-size: 12px;
+  font-style: normal;
+}
+
+/* Mobile inspection flow redesign */
+.app-shell--mobile .mv-weaning-page {
+  background: linear-gradient(180deg, #f7faf8 0%, #f3f6f5 52%, #f8fafc 100%);
+}
+
+.app-shell--mobile .mv-weaning-page .mv-statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  background: rgba(247, 250, 248, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.app-shell--mobile .mv-weaning-header {
+  grid-template-columns: 36px 1fr 36px;
+  padding: 8px 16px 10px;
+}
+
+.app-shell--mobile .mv-weaning-header .ant-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #475569;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-weaning-header .ant-typography {
+  font-size: 19px;
+  line-height: 1.35;
+  font-weight: 760;
+  color: #23443a;
+}
+
+.app-shell--mobile .mv-weaning-tabs.ant-segmented {
+  margin: 0 16px 14px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #e9f1ed;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item {
+  border-radius: 999px;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-label {
+  min-height: 32px;
+  line-height: 32px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-selected {
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-selected .ant-segmented-item-label {
+  color: #23443a;
+}
+
+.app-shell--mobile .mv-weaning-scroll {
+  padding: 0 16px 18px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card,
+.app-shell--mobile .mv-weaning-form-card,
+.app-shell--mobile .mv-weaning-row,
+.app-shell--mobile .mv-weaning-end-summary,
+.app-shell--mobile .mv-weaning-page .mv-card {
+  border: 0 !important;
+  border-radius: 22px !important;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-weaning-page .mv-card .ant-card-body {
+  padding: 16px !important;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head strong {
+  color: #23443a;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head .ant-tag {
+  border: 0;
+  border-radius: 999px;
+  background: #f7fafc;
+  color: #667085;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__track,
+.app-shell--mobile .mv-weaning-end-summary__track {
+  height: 7px;
+  background: #eaf0ef;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta {
+  color: #7b8794;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta strong {
+  color: #0b8f5d;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar {
+  grid-template-columns: 1fr 36px 36px 36px;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-input-affix-wrapper,
+.app-shell--mobile .mv-weaning-list-toolbar .ant-btn {
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-weaning-list {
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-weaning-row__title {
+  margin-bottom: 8px;
+  color: #23443a;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-row__line {
+  grid-template-columns: minmax(0, 1fr) auto 32px;
+}
+
+.app-shell--mobile .mv-weaning-row__ear {
+  color: #0b8f5d;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-row__status {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  background: #ecfdf5;
+  color: #0b8f5d;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  width: 32px;
+  height: 32px;
+  background: #e8f7ef;
+  color: #0b8f5d;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar {
+  padding: 10px 16px 14px;
+  border-top: 0;
+  background: rgba(247, 250, 248, 0.94);
+  box-shadow: 0 -10px 26px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar .ant-btn {
+  height: 42px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar .ant-btn-primary {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.20);
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal {
+  top: auto !important;
+  margin-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-content {
+  border-radius: 24px 24px 0 0;
+  background: #f7faf8;
+}
+
+.app-shell--mobile .mv-weaning-detail__title {
+  color: #23443a;
+  font-size: 20px;
+}
+
+.app-shell--mobile .mv-weaning-detail__head {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.app-shell--mobile .mv-weaning-detail__head strong {
+  grid-row: span 2;
+  background: #e8f7ef;
+  color: #0b8f5d;
+}
+
+.app-shell--mobile .mv-weaning-detail__head span {
+  color: #23443a;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-kv-row {
+  color: #253d35;
+  font-size: 14px;
+}
+
+.app-shell--mobile .mv-weaning-kv-row strong {
+  color: #23443a;
+  font-size: 15px;
+}
+
+.app-shell--mobile .mv-weaning-stepper button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #e8f7ef;
+  color: #0b8f5d;
+}
+
+.app-shell--mobile .mv-weaning-option-row .ant-radio-button-wrapper {
+  border-radius: 999px !important;
+  border-inline-start-width: 1px;
+}
+
+/* Weaning task page: align with provided task-page reference */
+.app-shell--mobile .mv-weaning-page {
+  background: #f4f7fb;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-statusbar {
+  background: #f4f7fb;
+  backdrop-filter: none;
+}
+
+.app-shell--mobile .mv-weaning-header {
+  padding: 18px 16px 36px;
+}
+
+.app-shell--mobile .mv-weaning-header .ant-btn {
+  background: transparent !important;
+  box-shadow: none;
+  color: #5f6b7a;
+  font-size: 21px;
+}
+
+.app-shell--mobile .mv-weaning-header .ant-typography {
+  color: #202633;
+  font-size: 20px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-tabs.ant-segmented {
+  margin: 0 12px 38px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #eef2f8;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-thumb,
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-selected {
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-label {
+  min-height: 42px;
+  line-height: 42px;
+  color: #536075;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-selected .ant-segmented-item-label {
+  color: #202633;
+}
+
+.app-shell--mobile .mv-weaning-scroll {
+  padding: 0 12px 18px;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title {
+  margin: 0 0 22px;
+  color: #536075;
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title::before {
+  width: 4px;
+  height: 18px;
+  margin-right: 16px;
+  background: #2bb673;
+}
+
+.app-shell--mobile .mv-weaning-progress-card {
+  margin-bottom: 40px !important;
+  border-radius: 12px !important;
+  box-shadow: none;
+}
+
+.app-shell--mobile .mv-weaning-progress-card .ant-card-body {
+  padding: 20px !important;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e8f2ff;
+  color: #3aa5ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__title-block strong {
+  display: block;
+  color: #202633;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__title-block .ant-typography {
+  display: block;
+  margin-top: 6px;
+  color: #697589 !important;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__head .ant-tag {
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: #f7f9fc;
+  color: #536075;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__track {
+  margin-top: 34px;
+  height: 8px;
+  background: #edf2f8;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 20px;
+  color: #202633;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta strong {
+  color: #202633;
+  font-size: 20px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta .ant-tag {
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f3f6fb;
+  color: #202633;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 48px 48px 48px;
+  gap: 10px;
+  margin: -8px 0 22px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-input-affix-wrapper,
+.app-shell--mobile .mv-weaning-list-toolbar .ant-btn {
+  height: 48px;
+  border: 1px solid #dde5ef !important;
+  border-radius: 999px !important;
+  background: #f9fbfd !important;
+  box-shadow: none;
+  color: #7c8798;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-input {
+  background: transparent;
+  color: #536075;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-list-summary {
+  margin-bottom: 16px !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.app-shell--mobile .mv-weaning-list-summary .ant-card-body {
+  padding: 18px 20px !important;
+}
+
+.app-shell--mobile .mv-weaning-list-summary strong,
+.app-shell--mobile .mv-weaning-list-summary .ant-typography {
+  display: block;
+}
+
+.app-shell--mobile .mv-weaning-list-summary strong {
+  color: #202633;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-list-summary .ant-typography {
+  margin-top: 10px;
+  color: #697589 !important;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-list {
+  gap: 16px;
+}
+
+.app-shell--mobile .mv-weaning-stall-card {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.app-shell--mobile .mv-weaning-stall-card .ant-card-body {
+  padding: 20px !important;
+}
+
+.app-shell--mobile .mv-weaning-row__title {
+  margin: 0 0 18px;
+  color: #202633;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-stall-card .mv-weaning-row__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid #eef2f7;
+}
+
+.app-shell--mobile .mv-weaning-stall-card .mv-weaning-row__line:last-child {
+  padding-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-row__ear {
+  color: #0ea66b;
+  font-size: 17px;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+}
+
+.app-shell--mobile .mv-weaning-row__status {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #536075;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-row__status::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid #25c45d;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  color: #9aa5b5;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done::before {
+  border-color: #bdeccd;
+  background: #f0fff5;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #22b76c;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+/* Weaning task page typography refinement */
+.app-shell--mobile .mv-weaning-tabs.ant-segmented {
+  display: block;
+  width: auto;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-group {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item,
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title {
+  font-size: 18px;
+  font-weight: 720;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta {
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta strong {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta .ant-tag {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Weaning list toolbar: prevent search and icon buttons from being squeezed */
+.app-shell--mobile .mv-weaning-list-toolbar {
+  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-input-affix-wrapper {
+  min-width: 0;
+  height: 40px;
+  padding-inline: 14px;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Weaning/postpartum task detail tab: clearer spacing and hierarchy */
+.app-shell--mobile .mv-weaning-task-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 86px;
+}
+
+.app-shell--mobile .mv-weaning-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-weaning-task-detail-page .mv-section-bar-title {
+  margin-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-progress-card {
+  margin-bottom: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-detail-metrics-card .ant-card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px !important;
+}
+
+.app-shell--mobile .mv-weaning-detail-metric {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f7fafc;
+}
+
+.app-shell--mobile .mv-weaning-detail-metric span,
+.app-shell--mobile .mv-weaning-detail-metric strong {
+  display: block;
+}
+
+.app-shell--mobile .mv-weaning-detail-metric span {
+  color: #697589;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.app-shell--mobile .mv-weaning-detail-metric strong {
+  margin-top: 8px;
+  color: #202633;
+  font-size: 18px;
+  line-height: 1.2;
+  font-weight: 720;
+}
+
+.app-shell--mobile .mv-weaning-detail-config-card .mv-weaning-kv-row,
+.app-shell--mobile .mv-weaning-detail-sop-card .mv-weaning-kv-row {
+  padding: 12px 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-config-card .mv-weaning-kv-row:first-child,
+.app-shell--mobile .mv-weaning-detail-sop-card .mv-weaning-kv-row:first-child {
+  padding-top: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-config-card .mv-weaning-kv-row:last-child,
+.app-shell--mobile .mv-weaning-detail-sop-card .mv-weaning-kv-row:last-child {
+  padding-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-sop-card .mv-weaning-kv-row svg {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.app-shell--mobile .mv-weaning-detail-legend-card .ant-card-body {
+  padding: 14px 16px !important;
+}
+
+.app-shell--mobile .mv-weaning-detail-legend-card .mv-weaning-legend {
+  gap: 12px;
+  color: #536075;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* Weaning segmented tabs: split exactly 50/50 and center each label */
+.app-shell--mobile .mv-weaning-tabs.ant-segmented {
+  display: block !important;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-group {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  width: 100% !important;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item {
+  width: 100% !important;
+  min-width: 0 !important;
+  justify-self: stretch;
+}
+
+.app-shell--mobile .mv-weaning-tabs .ant-segmented-item-label {
+  width: 100%;
+  padding: 0 !important;
+  justify-content: center;
+}
+
+/* Weaning progress board: keep it fixed between tabs and list search */
+.app-shell--mobile .mv-weaning-progress-board {
+  padding: 0 12px 34px;
+}
+
+.app-shell--mobile .mv-weaning-progress-board .mv-section-bar-title {
+  margin-bottom: 22px;
+}
+
+.app-shell--mobile .mv-weaning-progress-board .mv-weaning-progress-card {
+  margin-bottom: 0 !important;
+}
+
+/* Weaning progress board spacing: reduce the visual gap between title and card */
+.app-shell--mobile .mv-weaning-progress-board {
+  padding-bottom: 24px;
+}
+
+.app-shell--mobile .mv-weaning-progress-board .mv-section-bar-title {
+  margin-bottom: 14px;
+}
+
+/* Weaning/postpartum check registration modal */
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal {
+  top: auto !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding-bottom: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-content {
+  max-height: min(82vh, 620px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 26px 26px 0 0;
+  background: #f7faf8;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.16);
+  padding: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-close {
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #eef3f2;
+  color: #64748b;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-body {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-detail {
+  max-height: min(82vh, 620px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail__title {
+  flex-shrink: 0;
+  margin: 0 !important;
+  padding: 18px 56px 12px;
+  color: #202633;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 760;
+  text-align: center;
+}
+
+.app-shell--mobile .mv-weaning-detail__head {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 16px 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.app-shell--mobile .mv-weaning-detail__head strong {
+  grid-row: span 2;
+  min-width: 0;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f7ef;
+  color: #0b8f5d;
+  font-size: 16px;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-detail__head span {
+  min-width: 0;
+  color: #202633;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 760;
+  letter-spacing: 0.01em;
+}
+
+.app-shell--mobile .mv-weaning-detail__head .ant-typography {
+  color: #697589 !important;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.app-shell--mobile .mv-weaning-detail__identity-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-shell--mobile .mv-weaning-detail__identity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.app-shell--mobile .mv-weaning-detail > .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-detail > .mv-card {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.app-shell--mobile .mv-weaning-detail > .mv-section-bar-title {
+  flex-shrink: 0;
+  margin-top: 2px;
+  margin-bottom: 10px;
+  color: #536075;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card {
+  flex-shrink: 0;
+  margin-bottom: 16px !important;
+  border-radius: 18px !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05) !important;
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card .ant-card-body {
+  padding: 14px 16px 8px !important;
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card .mv-weaning-kv-row {
+  padding: 11px 0;
+  color: #536075;
+  font-size: 13px;
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card .mv-weaning-kv-row strong {
+  color: #202633;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card .mv-weaning-edit-link {
+  height: 34px;
+  margin-top: 4px;
+  padding: 0 !important;
+  color: #0b8f5d !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar--detail {
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  padding: 10px 16px 14px;
+}
+
+/* Mobile typography guardrail: avoid oversized and overly heavy field text */
+.app-shell--mobile .mv-pig-row-ear-title,
+.app-shell--mobile .mv-weaning-row__ear,
+.app-shell--mobile .mv-weaning-detail__head span,
+.app-shell--mobile .mv-pig-grid-card__ear {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.app-shell--mobile .mv-mission-card__title,
+.app-shell--mobile .mv-vaccine-card__title-row .mv-mission-card__title,
+.app-shell--mobile .mv-weaning-progress-card__title-block strong,
+.app-shell--mobile .mv-weaning-row__title,
+.app-shell--mobile .mv-pig-stall-group__title,
+.app-shell--mobile .mv-task-detail__block-title,
+.app-shell--mobile .mv-weaning-detail__title,
+.app-shell--mobile .mv-section-bar-title {
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta strong,
+.app-shell--mobile .mv-fixture-progress__meta strong,
+.app-shell--mobile .mv-home-stat-card strong,
+.app-shell--mobile .mv-task-detail__progress-value,
+.app-shell--mobile .mv-unit-progress__stats-value,
+.app-shell--mobile .mv-weaning-end-summary__numbers strong {
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-detail__head strong,
+.app-shell--mobile .mv-room-pick__tier,
+.app-shell--mobile .mv-inspection-room-sheet__row strong,
+.app-shell--mobile .mv-weaning-detail-metric strong,
+.app-shell--mobile .mv-weaning-kv-row strong,
+.app-shell--mobile .mv-task-detail__config-v {
+  font-weight: 650;
+}
+
+/* Mobile spacing guardrail: keep section titles/cards visually separated without drifting apart */
+.app-shell--mobile .mv-section-bar-title {
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-section-bar-title + .mv-card,
+.app-shell--mobile .mv-section-bar-title + .ant-card,
+.app-shell--mobile .mv-section-bar-title + .mv-weaning-progress-card,
+.app-shell--mobile .mv-section-bar-title + .mv-weaning-list-toolbar,
+.app-shell--mobile .mv-section-bar-title + .mv-piglist-toolbar-row {
+  margin-top: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-progress-board .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-task-detail-page .mv-section-bar-title {
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-card + .mv-section-bar-title,
+.app-shell--mobile .ant-card + .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-form-card + .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-modal-info-card + .mv-section-bar-title {
+  margin-top: 22px;
+}
+
+.app-shell--mobile .mv-weaning-scroll > .mv-section-bar-title:not(:first-child),
+.app-shell--mobile .mv-weaning-detail > .mv-section-bar-title:not(:first-child) {
+  margin-top: 22px;
+}
+
+.app-shell--mobile .mv-weaning-progress-board {
+  padding-bottom: 22px;
+}
+
+.app-shell--mobile .mv-weaning-task-detail-page,
+.app-shell--mobile .mv-pig-stall-groups,
+.app-shell--mobile .mv-weaning-list,
+.app-shell--mobile .mv-mission-list {
+  gap: 16px;
+}
+
+/* Weaning/postpartum check modal: true bottom sheet + scrollable content */
+.app-shell--mobile .mv-weaning-detail-modal.ant-modal {
+  position: absolute !important;
+  top: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-content {
+  max-height: min(84vh, 640px);
+}
+
+.app-shell--mobile .mv-weaning-detail-modal .ant-modal-body {
+  max-height: min(84vh, 640px);
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-weaning-detail {
+  max-height: min(84vh, 640px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0;
+}
+
+.app-shell--mobile .mv-weaning-detail::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar--detail {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+/* Weaning task scroll stability: use one page-level scroller, not nested partial scrollers */
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-weaning-scroll {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-weaning-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+}
+
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page--editor {
+  height: 100%;
+  position: relative;
+  z-index: 120;
+  isolation: isolate;
+  pointer-events: auto !important;
+  overflow: hidden !important;
+}
+
+.app-shell--mobile .mv-weaning-page--editor .mv-weaning-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
+}
+
+.app-shell--mobile .mv-weaning-page--editor .mv-weaning-bottom-bar {
+  margin-top: auto;
+  position: sticky;
+  z-index: 3;
+  pointer-events: auto !important;
+}
+
+/* Weaning check bottom sheet: when open, lock the external pig list and let only the sheet scroll */
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page.is-detail-modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page.is-detail-modal-open::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 90 !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .ant-modal-mask,
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .ant-modal-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .ant-modal-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .ant-modal-wrap {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .ant-modal-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .ant-modal-mask {
+  touch-action: none;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .ant-modal-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .ant-modal-wrap {
+  overflow: hidden !important;
+  pointer-events: none;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-detail-modal,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .mv-weaning-detail-modal {
+  pointer-events: auto;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-detail,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root.mv-weaning-page > .ant-modal-root .mv-weaning-detail {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal {
+  position: absolute !important;
+  top: auto !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: auto;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .ant-modal-content {
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  border-radius: 24px 24px 0 0;
+  background: #f7faf8;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.16);
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .ant-modal-header {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 16px 48px 8px 18px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .ant-modal-title {
+  color: #202633;
+  font-size: 16px;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .ant-modal-body {
+  min-height: 0;
+  max-height: none;
+  padding: 6px 16px 14px !important;
+  overflow: hidden !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .mv-weaning-retain-list {
+  max-height: min(46vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-modal-root .mv-weaning-retain-modal .mv-weaning-modal-confirm {
+  height: 42px;
+  margin-top: 10px;
+  border-radius: 14px;
+}
+
+/* Weaning edit forms: reduce vertical padding inside cards so content does not float away from borders */
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .ant-card-body {
+  padding: 10px 14px !important;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto !important;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .mv-weaning-stepper-row,
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .mv-weaning-option-row,
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .mv-weaning-kv-row {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .mv-weaning-link-btn {
+  min-height: 30px;
+  padding-block: 0 !important;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto !important;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-weaning-form-card .mv-weaning-option-row {
+  display: block;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.app-shell--mobile .mv-weaning-option-row__label {
+  margin-bottom: 10px;
+  color: #415166;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 620;
+}
+
+.app-shell--mobile .mv-weaning-option-row__group.ant-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-option-row__group .ant-radio-button-wrapper {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d9e3ea !important;
+  border-radius: 999px !important;
+  background: #f8fbfc;
+  color: #536075;
+  font-size: 12px;
+  line-height: 30px;
+  font-weight: 600;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto !important;
+}
+
+.app-shell--mobile .mv-weaning-option-row__group .ant-radio-button-wrapper:not(:first-child)::before {
+  display: none !important;
+}
+
+.app-shell--mobile .mv-weaning-option-row__group .ant-radio-button-wrapper-checked {
+  border-color: rgba(34, 197, 94, 0.28) !important;
+  background: rgba(187, 247, 208, 0.46) !important;
+  color: #0b7a55 !important;
+}
+
+.app-shell--mobile .mv-weaning-page--editor .mv-weaning-bottom-bar .ant-btn-primary {
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #65d6a3 0%, #35b97d 100%);
+  box-shadow: 0 10px 22px rgba(53, 185, 125, 0.18);
+  font-size: 15px;
+  font-weight: 650;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto !important;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.28);
+  pointer-events: auto;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet__panel {
+  width: 100%;
+  max-height: min(72vh, 560px);
+  padding: 8px 16px 14px;
+  border-radius: 24px 24px 0 0;
+  background: #f7faf8;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet__handle {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d6dde7;
+  margin: 0 auto 12px;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet__header strong {
+  color: #202633;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-inline-sheet__header .ant-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: #64748b;
+}
+
+.app-shell--mobile .mv-weaning-page--editor .mv-weaning-stepper,
+.app-shell--mobile .mv-weaning-page--editor .mv-weaning-stepper button,
+.app-shell--mobile .mv-weaning-page--editor .ant-input-affix-wrapper,
+.app-shell--mobile .mv-weaning-page--editor .ant-input,
+.app-shell--mobile .mv-weaning-page--editor .ant-radio-group,
+.app-shell--mobile .mv-weaning-page--editor .ant-radio-button-wrapper,
+.app-shell--mobile .mv-weaning-page--editor .ant-btn,
+.app-shell--mobile .mv-weaning-page--editor button {
+  pointer-events: auto !important;
+}
+
+/* Mobile overlay architecture: drawers stay inside the simulated phone, never the global page */
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 80 !important;
+  pointer-events: none;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-mask,
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-wrap {
+  position: absolute !important;
+  inset: 0 !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-mask,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-mask {
+  z-index: 0 !important;
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.38) !important;
+  touch-action: none;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-wrap,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-wrap {
+  z-index: 1 !important;
+  pointer-events: none;
+  overflow: hidden !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-content-wrapper,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-content-wrapper,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-content-wrapper {
+  position: absolute !important;
+  top: auto !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-height: calc(100% - 10px) !important;
+  pointer-events: auto;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-content,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-content,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-content {
+  max-height: 100% !important;
+  overflow: hidden !important;
+  border-radius: 24px 24px 0 0 !important;
+  background: #f7faf8 !important;
+  box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.18) !important;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root .ant-drawer-body {
+  max-height: min(78vh, 640px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root.mv-room-drawer .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__screen > .ant-drawer-root.mv-inspection-room-drawer .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root.mv-room-drawer .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport > .ant-drawer-root.mv-inspection-room-drawer .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root.mv-room-drawer .ant-drawer-body,
+.app-shell--mobile .mobile-vacc-phone__viewport .mv-root > .ant-drawer-root.mv-inspection-room-drawer .ant-drawer-body {
+  max-height: min(70vh, 560px) !important;
+}
+
+/* Mobile page titles: keep task/edit titles lighter and less oversized */
+.app-shell--mobile .mv-weaning-header .ant-typography {
+  font-size: 17px !important;
+  line-height: 1.35 !important;
+  font-weight: 650 !important;
+  color: #263241 !important;
+  letter-spacing: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-task-detail-page .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-progress-board .mv-section-bar-title,
+.app-shell--mobile .mv-weaning-detail > .mv-section-bar-title {
+  color: #536075 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  font-weight: 620 !important;
+}
+
+.app-shell--mobile .mv-weaning-page .mv-section-bar-title::before {
+  width: 3px !important;
+  height: 14px !important;
+  margin-right: 10px !important;
+}
+
+.app-shell--mobile .mv-weaning-plan-board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-weaning-focus-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.app-shell--mobile .mv-weaning-focus-pill {
+  min-width: 0;
+  padding: 12px 12px 11px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell--mobile .mv-weaning-focus-pill--cull {
+  background: linear-gradient(180deg, #fff8f1 0%, #ffffff 100%);
+}
+
+.app-shell--mobile .mv-weaning-focus-pill--retain {
+  background: linear-gradient(180deg, #f2fcf7 0%, #ffffff 100%);
+}
+
+.app-shell--mobile .mv-weaning-focus-pill__label {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-focus-pill__value {
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.app-shell--mobile .mv-weaning-focus-pill__unit {
+  margin-left: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-plan-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress__meta strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8eef5;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.app-shell--mobile .mv-weaning-plan-progress--cull .mv-weaning-plan-progress__fill {
+  background: linear-gradient(90deg, #fb923c 0%, #f97316 100%);
+}
+
+.app-shell--mobile .mv-weaning-plan-progress--retain .mv-weaning-plan-progress__fill {
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+}
+
+.app-shell--mobile .mv-weaning-row__line {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell--mobile .mv-weaning-row__line--pending:hover,
+.app-shell--mobile .mv-weaning-row__line--done:hover {
+  opacity: 0.96;
+}
+
+.app-shell--mobile .mv-weaning-row__main {
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-weaning-row__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__ear {
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  color: #11a36c !important;
+  letter-spacing: 0.01em;
+}
+
+.app-shell--mobile .mv-weaning-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-weaning-row__status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.app-shell--mobile .mv-weaning-row__status--pending {
+  color: #4b5563 !important;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  color: #94a3b8 !important;
+}
+
+.app-shell--mobile .mv-weaning-row__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.app-shell--mobile .mv-weaning-row__meta-divider {
+  color: #cbd5e1;
+}
+
+.app-shell--mobile .mv-weaning-row__result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-row__result-divider {
+  color: #cbd5e1;
+}
+
+.app-shell--mobile .mv-weaning-row__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.app-shell--mobile .mv-weaning-flag {
+  margin-inline-end: 0;
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-flag--cull-pending {
+  background: #fff1e8;
+  color: #ea580c;
+}
+
+.app-shell--mobile .mv-weaning-flag--cull-done {
+  background: #eefbf3;
+  color: #1f8f5f;
+}
+
+.app-shell--mobile .mv-weaning-flag--retain {
+  background: #ecfdf3;
+  color: #16a34a;
+}
+
+.app-shell--mobile .mv-weaning-row__note {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  background: #31b36b !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 18px rgba(49, 179, 107, 0.22);
+}
+
+.app-shell--mobile .mv-weaning-editor-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(240, 253, 244, 0.92);
+  color: #166534;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app-shell--mobile .mv-weaning-editor-tip__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+}
+
+.app-shell--mobile .mv-weaning-modal-info-card .mv-weaning-edit-link {
+  align-self: flex-start;
+  padding-inline: 0 !important;
+}
+
+.app-shell--mobile .mv-weaning-bottom-bar--detail .ant-btn[disabled] {
+  background: #dbe5ec !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+}
+
+.app-shell--mobile .mv-weaning-list-toolbar .ant-btn.is-active {
+  background: #ecfdf3 !important;
+  color: #16a34a !important;
+  border-color: rgba(34, 197, 94, 0.18) !important;
+}
+
+.app-shell--mobile .mv-weaning-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid {
+  min-height: 164px;
+  padding: 14px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__topline {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__status {
+  margin-top: 8px;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__action {
+  width: 26px !important;
+  height: 26px !important;
+  align-self: flex-end;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__header strong {
+  color: #0f172a;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__tag {
+  margin-inline-end: 0;
+  border-radius: 999px;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__tag.is-ready {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__tag.is-pending {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.app-shell--mobile .mv-weaning-detail-overview__steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-detail-step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-detail-step-chip.is-done {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.app-shell--mobile .mv-weaning-detail-step-chip__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.app-shell--mobile .mv-weaning-detail-step-chip.is-done .mv-weaning-detail-step-chip__dot {
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.app-shell--mobile .mv-weaning-detail-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.app-shell--mobile .mv-weaning-detail-card__head strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-detail-card__head .ant-typography {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8 !important;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.app-shell--mobile .mv-weaning-detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-detail-stat-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.app-shell--mobile .mv-weaning-detail-stat {
+  min-width: 0;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.app-shell--mobile .mv-weaning-detail-stat span {
+  display: block;
+  margin-bottom: 7px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-detail-stat strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 680;
+  word-break: break-word;
+}
+
+.app-shell--mobile .mv-weaning-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-shell--mobile .mv-weaning-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.app-shell--mobile .mv-weaning-filter-row.is-active {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.app-shell--mobile .mv-weaning-filter-row svg {
+  color: currentColor;
+}
+
+/* Weaning list polish: clearer status pills and lighter enter action */
+.app-shell--mobile .mv-weaning-row__status {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 24px;
+}
+
+.app-shell--mobile .mv-weaning-row__status-icon {
+  display: none !important;
+}
+
+.app-shell--mobile .mv-weaning-row__status--pending {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569 !important;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  background: #ecfdf3;
+  border-color: rgba(34, 197, 94, 0.18);
+  color: #15803d !important;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  width: 32px !important;
+  height: 32px !important;
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #f2fcf7 0%, #ffffff 100%) !important;
+  color: #1f9f6a !important;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-weaning-row__action svg {
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-row__line:hover .mv-weaning-row__action,
+.app-shell--mobile .mv-weaning-row__line:active .mv-weaning-row__action {
+  background: #e8f9f1 !important;
+  color: #168f60 !important;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__action {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* Weaning task layout refresh: merged progress card + tighter list rows */
+.app-shell--mobile .mv-weaning-header {
+  padding: 18px 16px 18px !important;
+}
+
+.app-shell--mobile .mv-weaning-tabs.ant-segmented {
+  margin: 0 12px 16px !important;
+}
+
+.app-shell--mobile .mv-weaning-progress-board {
+  padding-bottom: 10px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card .ant-card-body {
+  padding: 16px 16px 14px !important;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__track {
+  margin-top: 16px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__meta {
+  margin-top: 12px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.app-shell--mobile button.mv-weaning-progress-card__quickstat {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat.is-clickable {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat.is-clickable:active {
+  transform: scale(0.985);
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat.is-active {
+  border-color: rgba(16, 185, 129, 0.22);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat--cull {
+  background: #fff7ed;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat--retain {
+  background: #f0fdf4;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat span {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__quickstat strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 680;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-row {
+  min-width: 0;
+  padding: 8px 10px 9px;
+  border-radius: 14px;
+  background: #fbfdff;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-row--cull {
+  background: #fffaf5;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-row--retain {
+  background: #f7fff9;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-meta span {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-meta strong {
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e8eef5;
+  overflow: hidden;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-row--cull .mv-weaning-progress-card__process-fill {
+  background: linear-gradient(90deg, #fb923c 0%, #f97316 100%);
+}
+
+.app-shell--mobile .mv-weaning-progress-card__process-row--retain .mv-weaning-progress-card__process-fill {
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+}
+
+.app-shell--mobile .mv-weaning-list-summary {
+  margin-bottom: 12px !important;
+}
+
+.app-shell--mobile .mv-weaning-list-summary .ant-card-body {
+  padding: 12px 14px !important;
+}
+
+.app-shell--mobile .mv-weaning-list-summary strong {
+  font-size: 14px;
+}
+
+.app-shell--mobile .mv-weaning-list-summary .ant-typography {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.app-shell--mobile .mv-weaning-stall-card .ant-card-body {
+  padding: 14px 14px 10px !important;
+}
+
+.app-shell--mobile .mv-weaning-row__title {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.app-shell--mobile .mv-weaning-stall-card .mv-weaning-row__line {
+  padding: 11px 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell--mobile .mv-weaning-row__topline {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.app-shell--mobile .mv-weaning-row__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.app-shell--mobile .mv-weaning-row__earline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-weaning-row__aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.app-shell--mobile .mv-weaning-row__ear {
+  font-size: 16px !important;
+}
+
+.app-shell--mobile .mv-weaning-row__meta-inline {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.app-shell--mobile .mv-weaning-row__subline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.app-shell--mobile .mv-weaning-row__status {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  justify-content: center;
+  background: transparent !important;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.app-shell--mobile .mv-weaning-row__status::before {
+  display: none !important;
+  content: none !important;
+}
+
+.app-shell--mobile .mv-weaning-row__status--pending {
+  color: #94a3b8 !important;
+}
+
+.app-shell--mobile .mv-weaning-row__status--done {
+  color: #22c55e !important;
+}
+
+.app-shell--mobile .mv-weaning-row__result {
+  flex: 0 0 auto;
+  margin-top: 0;
+  margin-left: auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.app-shell--mobile .mv-weaning-row__flags {
+  margin-top: 5px;
+}
+
+.app-shell--mobile .mv-weaning-row__flags--inline {
+  margin-top: 0;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-shell--mobile .mv-weaning-row__note {
+  margin-top: 5px;
+}
+
+.app-shell--mobile .mv-weaning-row__action {
+  width: 26px !important;
+  height: 26px !important;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+  margin-right: 1px;
+}
+
+.app-shell--mobile .mv-weaning-row__action svg {
+  font-size: 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid {
+  min-height: 150px;
+  padding: 12px 10px;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__topline {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__identity {
+  gap: 5px;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__subline {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-shell--mobile .mv-weaning-row__line--grid .mv-weaning-row__action {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+.app-shell--mobile .mv-weaning-flag {
+  padding: 1px 7px !important;
+  font-size: 10px;
+  line-height: 16px;
 }

@@ -19,6 +19,7 @@ export interface CullingSowRow {
   reason?: CullingReason;
   dystociaHistoryCount: number;
   averageLitterSize: number;
+  averageLiveBorn: number;
   teatCount: number;
   returnToEstrusCount: number;
   diseaseTags: string[];

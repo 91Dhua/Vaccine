@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Layout, Menu, Typography } from "antd";
+import { Layout, Menu, Radio, Typography } from "antd";
 import { VaccinePlanPage } from "./components/VaccinePlanPage";
 import { VaccineCatalogPage } from "./components/VaccineCatalogPage";
 import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
 import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
 import { VaccineTaskWizard } from "./components/VaccineTaskWizard";
-import { CullingMobilePage, CullingPlanPage, CullingTaskPage } from "./components/culling";
+import { CullingPlanPage, CullingTaskDetailPage } from "./components/culling";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
 import { generateConsoleTaskId } from "./consoleTaskId";
@@ -21,6 +21,7 @@ import {
 const { Content, Sider } = Layout;
 const { Title } = Typography;
 
+type WorkspaceMode = "console" | "mobile";
 const SEED_TASKS: TaskRow[] = [
   {
     id: "VT-DEMO-7K2M",
@@ -96,7 +97,8 @@ const SEED_TASKS: TaskRow[] = [
 ];
 
 export default function App() {
-  const [activeKey, setActiveKey] = useState("plan");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("console");
+  const [consoleActiveKey, setConsoleActiveKey] = useState("plan");
   const [taskStep, setTaskStep] = useState<"tasks" | "select" | "form" | "preview">(
     "tasks"
   );
@@ -107,58 +109,65 @@ export default function App() {
     seedMobileTasksFromConsole(SEED_TASKS)
   );
   const [mobileLogs, setMobileLogs] = useState<MobileExecutionLog[]>([]);
+  const activeKey = workspaceMode === "console" ? consoleActiveKey : "mobile-vacc";
+  const consoleMenuItems = [
+    {
+      key: "immunity",
+      label: "免疫",
+      children: [
+        { key: "plan", label: "疫苗计划配置" },
+        { key: "task", label: "疫苗任务" }
+      ]
+    },
+    {
+      key: "pig-culling",
+      label: "淘汰&留种",
+      children: [{ key: "culling-plan", label: "母猪淘汰&后备留种" }]
+    },
+    {
+      key: "settings",
+      label: "设置",
+      children: [{ key: "vaccine-settings", label: "疫苗管理" }]
+    }
+  ];
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout className={`app-shell app-shell--${workspaceMode}`} style={{ minHeight: "100vh" }}>
       <Sider width={220} className="app-sider">
         <div className="sider-logo">
           <Title level={5} style={{ margin: 0 }}>
             智慧养殖
           </Title>
-          <span className="sider-sub">Console</span>
+          <span className="sider-sub">{workspaceMode === "console" ? "Console" : "Mobile"}</span>
+          <Radio.Group
+            className="workspace-mode-switch"
+            optionType="button"
+            buttonStyle="solid"
+            value={workspaceMode}
+            onChange={(event) => setWorkspaceMode(event.target.value)}
+          >
+            <Radio.Button value="console">Console</Radio.Button>
+            <Radio.Button value="mobile">Mobile</Radio.Button>
+          </Radio.Group>
         </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[activeKey]}
-          defaultOpenKeys={["immunity", "pig-culling"]}
-          onClick={(info) => setActiveKey(info.key)}
-          items={[
-            {
-              key: "immunity",
-              label: "免疫",
-              children: [
-                { key: "plan", label: "疫苗计划配置" },
-                { key: "task", label: "疫苗任务" },
-                { key: "mobile-vacc", label: "Mobile接种" }
-              ]
-            },
-            {
-              key: "pig-culling",
-              label: "猪只淘汰",
-              children: [
-                { key: "culling-plan", label: "淘汰&补充" },
-                { key: "culling-task", label: "淘汰任务" },
-                { key: "culling-mobile", label: "淘汰mobile" }
-              ]
-            },
-            {
-              key: "settings",
-              label: "设置",
-              children: [{ key: "vaccine-settings", label: "疫苗管理" }]
-            }
-          ]}
-        />
+        {workspaceMode === "console" ? (
+          <Menu
+            mode="inline"
+            selectedKeys={[activeKey]}
+            defaultOpenKeys={["immunity", "pig-culling"]}
+            onClick={(info) => setConsoleActiveKey(info.key)}
+            items={consoleMenuItems}
+          />
+        ) : null}
       </Sider>
       <Layout>
         <Content className="app-content">
           {activeKey === "plan" ? (
             <VaccinePlanPage />
           ) : activeKey === "culling-plan" ? (
-            <CullingPlanPage />
-          ) : activeKey === "culling-task" ? (
-            <CullingTaskPage />
-          ) : activeKey === "culling-mobile" ? (
-            <CullingMobilePage />
+            <CullingPlanPage onOpenTaskDetail={() => setConsoleActiveKey("culling-detail")} />
+          ) : activeKey === "culling-detail" ? (
+            <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage

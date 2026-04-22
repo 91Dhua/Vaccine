@@ -4,7 +4,9 @@ import {
   DeploymentUnitOutlined,
   ExclamationCircleFilled,
   ExperimentOutlined,
+  HeartFilled,
   FilterOutlined,
+  HomeOutlined,
   LeftOutlined,
   MedicineBoxOutlined,
   MoreOutlined,
@@ -12,7 +14,9 @@ import {
   SearchOutlined,
   SwapOutlined,
   TagOutlined,
+  ToolOutlined,
   UnorderedListOutlined,
+  UpOutlined,
   UserOutlined
 } from "@ant-design/icons";
 import {
@@ -40,6 +44,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildVaccinationHomeCards } from "../buildMobileHomeCards";
 import { filterFixtureTasks, MOBILE_HOME_FIXTURE_TASKS } from "../mobileHomeFixtures";
 import type { MobileHomeTaskCard } from "../mobileHomeTypes";
+import { MobileWeaningCheckFlow } from "./MobileWeaningCheckFlow";
 import {
   exemptionHitRuleDisplay,
   filterTasksByLocation,
@@ -52,6 +57,7 @@ import {
 import { useMobileSimulationContainer } from "../mobileSimulationContext";
 import {
   allRoomOptions,
+  roomLabelById,
   type WorkshopDef,
   workshopForRoom,
   WORKSHOPS
@@ -104,7 +110,7 @@ function buildImmuneIntervalTip(task: MobilePigTask): string | null {
   return `${task.earTag} 距离上次接种“${lastVaccineName}”（${formatZhDate(lastAt)}）未满${intervalDays}天，当前仍在免疫间隔期内。\n为避免免疫干扰，建议延后至 ${formatZhDate(nextDate.format("YYYY-MM-DD"))} 后再接种。`;
 }
 
-type Screen = "hub" | "pigList";
+type Screen = "hub" | "pigList" | "weaning";
 type PigDrawerPhase = "detail" | "execute";
 
 const LOG_TYPE_LABEL: Record<MobileExecutionLog["type"], string> = {
@@ -435,7 +441,12 @@ function PigSlotDrawer({
   );
 }
 
-export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: Props) {
+export function MobileVaccinationPage({
+  pigTasks,
+  setPigTasks,
+  logs,
+  setLogs
+}: Props) {
   const modalContainer = useMobileSimulationContainer();
   const [scopeMode, setScopeMode] = useState<"workshop" | "room">("workshop");
   const [workshopId, setWorkshopId] = useState<string>("ws-1");
@@ -443,6 +454,10 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
   const [screen, setScreen] = useState<Screen>("hub");
   const [pigListBatchId, setPigListBatchId] = useState<string | null>(null);
   const [pigListRoomId, setPigListRoomId] = useState<string | null>(null);
+  const [weaningFlowTitle, setWeaningFlowTitle] = useState("断奶检查");
+  const [weaningFlowRoomLabel, setWeaningFlowRoomLabel] = useState("分娩舍 B1 间");
+  const [inspectionDrawerOpen, setInspectionDrawerOpen] = useState(false);
+  const [inspectionFixture, setInspectionFixture] = useState<(typeof fixtureCards)[0] | null>(null);
   const [pigDrawerOpen, setPigDrawerOpen] = useState(false);
   const [pigDrawerPhase, setPigDrawerPhase] = useState<PigDrawerPhase>("detail");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -626,6 +641,10 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
     }
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (!inspectionDrawerOpen) setInspectionFixture(null);
+  }, [inspectionDrawerOpen]);
+
   const roomPickerGroups = useMemo((): RoomPickerGroup[] => {
     const rooms = drawerCard?.roomPending;
     if (!rooms?.length) return [];
@@ -671,6 +690,58 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
       }),
     [scopeMode, resolvedWorkshopId, roomIdDirect]
   );
+
+  const inspectionRooms = useMemo(() => {
+    if (scopeMode === "room") {
+      const room = allRoomOptions().find((o) => o.roomId === roomIdDirect);
+      return room ? [{ roomId: room.roomId, roomLabel: room.roomLabel, pending: 100, total: 200 }] : [];
+    }
+    const workshop = WORKSHOPS.find((w) => w.id === resolvedWorkshopId) ?? WORKSHOPS[0];
+    return workshop.roomIds.map((roomId) => ({
+      roomId,
+      roomLabel: roomLabelById(roomId),
+      pending: 100,
+      total: 200
+    }));
+  }, [scopeMode, roomIdDirect, resolvedWorkshopId]);
+
+  const enterInspectionRoom = (roomId: string) => {
+    if (!inspectionFixture) return;
+    setWeaningFlowTitle(inspectionFixture.title);
+    setWeaningFlowRoomLabel(roomLabelById(roomId));
+    setInspectionDrawerOpen(false);
+    setInspectionFixture(null);
+    setScreen("weaning");
+  };
+
+  const homeProgress = useMemo(() => {
+    return fixtureCards.reduce(
+      (acc, card) => {
+        return {
+          done: acc.done + (card.progressDone ?? 0),
+          total: acc.total + (card.progressTotal ?? 0)
+        };
+      },
+      { done: 0, total: 0 }
+    );
+  }, [fixtureCards]);
+
+  const sectionTabRooms = useMemo(() => {
+    const workshop = WORKSHOPS.find((w) => w.id === resolvedWorkshopId) ?? WORKSHOPS[0];
+    return workshop.roomIds.slice(0, 4).map((roomId, index) => ({
+      key: roomId,
+      label: `单元${index + 1}`
+    }));
+  }, [resolvedWorkshopId]);
+
+  const setOverviewScope = useCallback(() => {
+    setScopeMode("workshop");
+  }, []);
+
+  const setUnitScope = useCallback((roomId: string) => {
+    setRoomIdDirect(roomId);
+    setScopeMode("room");
+  }, []);
 
   const appendLog = useCallback(
     (entry: Omit<MobileExecutionLog, "id">) => {
@@ -724,12 +795,6 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
 
   const openVaccinationCard = (card: MobileHomeTaskCard) => {
     if (!card.batchId) return;
-    if (scopeMode === "room") {
-      setPigListBatchId(card.batchId);
-      setPigListRoomId(roomIdDirect);
-      setScreen("pigList");
-      return;
-    }
     setDrawerCard(card);
     setDrawerOpen(true);
   };
@@ -894,12 +959,14 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
           }));
 
     const openFixture = (fx: (typeof fixtureCards)[0]) => {
+      if (fx.taskType === "weaning-check" || fx.taskType === "postpartum-check") {
+        setInspectionFixture(fx);
+        setInspectionDrawerOpen(true);
+        return;
+      }
       Modal.info({
         title: fx.title,
-        content:
-          fx.kind === "production"
-            ? "演示：生产类任务请在对应生产模块执行。"
-            : "演示：转舍任务请在场内转舍流程中确认头数与目的地。",
+        content: "演示：转舍任务请在场内转舍流程中确认头数与目的地。",
         getContainer: modalContainer
       });
     };
@@ -908,184 +975,147 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
       <>
         <div className="mv-root mv-root--hub">
           <div className="mv-app-shell">
-          <header className="mv-topbar">
-            <button type="button" className="mv-topbar__icon-btn" aria-label="个人">
-              <UserOutlined />
+          <div className="mv-statusbar" aria-hidden>
+            <span className="mv-statusbar__time">9:41</span>
+            <span className="mv-statusbar__icons">
+              <i className="mv-signal" />
+              <i className="mv-wifi" />
+              <i className="mv-battery" />
+            </span>
+          </div>
+
+          <header className="mv-topbar mv-topbar--reference">
+            <button type="button" className="mv-avatar-btn" aria-label="个人">
+              <span className="mv-avatar-face">👩‍🌾</span>
             </button>
-            <div className="mv-topbar__center">
-              <Select
-                className="mv-topbar__site-select"
-                bordered={false}
-                popupMatchSelectWidth={false}
-                value={siteSelectValue}
-                onChange={(v) =>
-                  scopeMode === "workshop"
-                    ? setWorkshopId(v as string)
-                    : setRoomIdDirect(v as string)
-                }
-                options={siteSelectOptions}
-                suffixIcon={<span className="mv-topbar__chevron">▾</span>}
-              />
-              <Text type="secondary" className="mv-topbar__sub">
-                智慧猪场 · 现场任务
-              </Text>
-            </div>
-            <button type="button" className="mv-topbar__icon-btn mv-topbar__bell" aria-label="通知">
+            <Select
+              className="mv-section-selector-select"
+              bordered={false}
+              popupMatchSelectWidth={false}
+              value={siteSelectValue}
+              onChange={(v) =>
+                scopeMode === "workshop"
+                  ? setWorkshopId(v as string)
+                  : setRoomIdDirect(v as string)
+              }
+              options={siteSelectOptions}
+            />
+            <button type="button" className="mv-bell-btn" aria-label="通知">
               <BellOutlined />
-              <span className="mv-topbar__bell-dot" />
             </button>
           </header>
 
-          <div className="mv-scope-inline">
-            <Segmented
-              size="small"
-              className="mv-scope-inline__seg"
-              value={scopeMode}
-              onChange={(v) => setScopeMode(v as "workshop" | "room")}
-              options={[
-                { label: "车间", value: "workshop" },
-                { label: "房间", value: "room" }
-              ]}
-            />
+          <div className="mv-section-tabs" role="tablist" aria-label="区域切换">
+            <button
+              type="button"
+              className={`mv-section-tab${scopeMode === "workshop" ? " is-active" : ""}`}
+              onClick={setOverviewScope}
+            >
+              总览
+            </button>
+            {sectionTabRooms.map((room) => (
+              <button
+                key={room.key}
+                type="button"
+                className={`mv-section-tab${scopeMode === "room" && roomIdDirect === room.key ? " is-active" : ""}`}
+                onClick={() => setUnitScope(room.key)}
+              >
+                {room.label}
+              </button>
+            ))}
           </div>
 
           <main className="mv-home-scroll">
+              <section className="mv-home-stats" aria-label="现场概览">
+                <div className="mv-home-stat-card">
+                  <span className="mv-home-stat-title">存栏</span>
+                  <strong>99,999</strong>
+                  <span>头</span>
+                </div>
+                <div className="mv-home-stat-card mv-home-stat-card--action">
+                  <span className="mv-home-stat-arrow"><RightOutlined /></span>
+                  <span className="mv-home-stat-title">断奶检查</span>
+                  <strong>{homeProgress.total > 0 ? `${homeProgress.done} / ${homeProgress.total}` : "0 / 0"}</strong>
+                  <span>已检查</span>
+                </div>
+              </section>
+
               <section className="mv-hub-section">
-                {vaccinationHomeCards.length === 0 && fixtureCards.length === 0 ? (
+                {fixtureCards.length === 0 ? (
                   <div className="mv-mission-empty">
                     <Text type="secondary">当前场区暂无任务</Text>
                   </div>
                 ) : (
                   <div className="mv-mission-list">
-                    {vaccinationHomeCards.map((card) => {
-                      const { done, total, pct } = vaccinationCardProgress(card);
+                    {fixtureCards.map((fx) => {
+                      const progressDone = fx.progressDone ?? 0;
+                      const progressPct = fx.progressTotal
+                        ? Math.min(100, Math.round((progressDone / fx.progressTotal) * 100))
+                        : 0;
+                      const isInspection = fx.taskType === "postpartum-check" || fx.taskType === "weaning-check";
                       return (
-                        <div
-                          key={card.id}
-                          className="mv-mission-card mv-mission-card--pressable"
-                          role="button"
-                          tabIndex={0}
-                          aria-label={
-                            scopeMode === "workshop"
-                              ? `${card.title}，点击选择房间`
-                              : `${card.title}，点击进入任务`
+                      <div
+                        key={fx.id}
+                        className={`mv-mission-card mv-mission-card--pressable${isInspection ? " mv-mission-card--inspection" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${fx.title}，点击选择房间`}
+                        onClick={() => openFixture(fx)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openFixture(fx);
                           }
-                          onClick={() => openVaccinationCard(card)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              openVaccinationCard(card);
-                            }
-                          }}
-                        >
-                          <div className="mv-mission-card__head">
-                            <div className="mv-mission-card__icon mv-mission-card__icon--vaccine">
-                              <MedicineBoxOutlined />
-                            </div>
-                            <div className="mv-mission-card__titles">
-                              <div className="mv-mission-card__title">{card.title}</div>
-                              <div className="mv-mission-card__sub">{card.subtitle}</div>
-                            </div>
-                            {card.dispatchedDays != null ? (
-                              <span className="mv-mission-card__dispatch-badge">
-                                已下发：{card.dispatchedDays}天
-                              </span>
-                            ) : null}
-                          </div>
-                          {total > 0 && (
-                            <div className="mv-mission-card__progress-block">
-                              <div className="mv-mission-card__progress-meta">
-                                <span>{done}</span>
-                                <span className="mv-mission-card__progress-div">/</span>
-                                <span>{total}</span>
-                                <span className="mv-mission-card__progress-label"> 头已完成</span>
-                              </div>
-                              <div className="mv-mission-card__progress-track">
-                                <div
-                                  className="mv-mission-card__progress-fill"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {fixtureCards.map((fx) => (
-                      <div key={fx.id} className="mv-mission-card">
+                        }}
+                      >
                         <div className="mv-mission-card__head">
                           <div
-                            className={`mv-mission-card__icon ${fx.kind === "production" ? "mv-mission-card__icon--prod" : "mv-mission-card__icon--xfer"}`}
+                            className={`mv-mission-card__icon ${isInspection ? "mv-mission-card__icon--inspection" : fx.kind === "production" ? "mv-mission-card__icon--prod" : "mv-mission-card__icon--xfer"}`}
                           >
-                            {fx.kind === "production" ? <ExperimentOutlined /> : <SwapOutlined />}
+                            {isInspection ? <HeartFilled /> : fx.kind === "production" ? <ExperimentOutlined /> : <SwapOutlined />}
                           </div>
                           <div className="mv-mission-card__titles">
                             <div className="mv-mission-card__title">{fx.title}</div>
                             <div className="mv-mission-card__sub">{fx.subtitle}</div>
                           </div>
                           <span className="mv-mission-card__status mv-mission-card__status--muted">
-                            现场
+                            {fx.statusLabel ?? "现场"}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          className="mv-mission-card__cta mv-mission-card__cta--navy"
-                          onClick={() => openFixture(fx)}
-                        >
-                          查看说明
-                          <RightOutlined className="mv-mission-card__cta-icon" />
-                        </button>
+                        {fx.progressTotal ? (
+                          <div className="mv-fixture-progress">
+                            <div className="mv-fixture-progress__meta">
+                              <span>{fx.progressLabel ?? "已完成 / 目标"}</span>
+                              <span>
+                                <strong>{progressDone}</strong> / {fx.progressTotal}
+                              </span>
+                            </div>
+                            <div className="mv-fixture-progress__track">
+                              <div className="mv-fixture-progress__fill" style={{ width: `${progressPct}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
-
-              {retryScoped.length > 0 ? (
-                <section
-                  className="mv-hub-section mv-hub-section--retry"
-                  id="mv-hub-retry"
-                  aria-label="补打清单"
-                >
-                  <div className="mv-hub-retry-heading">补打清单</div>
-                  <div className="mv-mission-list">
-                    {retryScoped.map((t) => (
-                      <div key={t.id} className="mv-mission-card mv-mission-card--retry">
-                        <div className="mv-mission-card__head">
-                          <div className="mv-mission-card__icon mv-mission-card__icon--retry">
-                            <span className="mv-mission-card__retry-tag">补免</span>
-                          </div>
-                          <div className="mv-mission-card__titles">
-                            <div className="mv-mission-card__title">{t.taskId}</div>
-                            <div className="mv-mission-card__sub">
-                              栏位 {t.stallNo} · 猪只 {t.earTag} · {t.roomLabel}
-                            </div>
-                          </div>
-                          <span className="mv-mission-card__status mv-mission-card__status--warn">
-                            {statusLabel(t)}
-                          </span>
-                        </div>
-                        <div className="mv-mission-card__meta-line">
-                          {t.vaccineName} · {resolveDosageLabel(t)}
-                        </div>
-                        <button
-                          type="button"
-                          className="mv-mission-card__cta"
-                          onClick={() => openPigDrawer(t.id)}
-                        >
-                          执行任务
-                          <RightOutlined className="mv-mission-card__cta-icon" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
           </main>
 
-          <nav className="mv-bottom-nav" aria-label="主导航">
+          <button
+            type="button"
+            className="mv-floating-up"
+            aria-label="回到顶部"
+            onClick={() => message.info("演示：回到顶部")}
+          >
+            <UpOutlined />
+          </button>
+
+          <nav className="mv-bottom-nav mv-bottom-nav--reference" aria-label="主导航">
             <button type="button" className="mv-bottom-nav__item mv-bottom-nav__item--active">
-              首页
+              <HomeOutlined />
+              <span>首页</span>
             </button>
             <button
               type="button"
@@ -1100,7 +1130,8 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
               className="mv-bottom-nav__item"
               onClick={() => message.info("演示：工具箱入口")}
             >
-              工具
+              <ToolOutlined />
+              <span>工具</span>
             </button>
           </nav>
         </div>
@@ -1225,6 +1256,38 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
             </div>
           )}
         </Drawer>
+
+        <Drawer
+          title="选择进入房间"
+          placement="bottom"
+          height="auto"
+          getContainer={false}
+          rootClassName="mv-inspection-room-drawer"
+          open={inspectionDrawerOpen}
+          onClose={() => setInspectionDrawerOpen(false)}
+        >
+          <div className="mv-inspection-room-sheet">
+            <Text type="secondary" className="mv-inspection-room-sheet__hint">
+              {inspectionFixture?.title ?? "检查任务"}需要选择执行房间后进入任务。
+            </Text>
+            <div className="mv-inspection-room-sheet__list">
+              {inspectionRooms.map((r) => (
+                <button
+                  key={r.roomId}
+                  type="button"
+                  className="mv-inspection-room-sheet__row"
+                  onClick={() => enterInspectionRoom(r.roomId)}
+                >
+                  <span>
+                    <strong>{r.roomLabel}</strong>
+                    <em>待检查 {r.pending} / 共 {r.total} {"栏"}</em>
+                  </span>
+                  <RightOutlined />
+                </button>
+              ))}
+            </div>
+          </div>
+        </Drawer>
         </div>
         {pigDrawerOpen && active ? (
           <PigSlotDrawer
@@ -1255,6 +1318,14 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
     return (
       <>
         <div className="mv-root mv-piglist-root">
+          <div className="mv-statusbar" aria-label="手机状态栏">
+            <span>9:41</span>
+            <span className="mv-status-icons" aria-hidden>
+              <span className="mv-signal" />
+              <span className="mv-wifi" />
+              <span className="mv-battery" />
+            </span>
+          </div>
           <div className="mv-piglist-header">
           <div className="mv-piglist-toolbar">
             <Button
@@ -1824,6 +1895,20 @@ export function MobileVaccinationPage({ pigTasks, setPigTasks, logs, setLogs }: 
           />
         ) : null}
       </>
+    );
+  }
+
+  if (screen === "weaning") {
+    return (
+      <MobileWeaningCheckFlow
+        title={weaningFlowTitle}
+        roomLabel={weaningFlowRoomLabel}
+        onBack={() => {
+          setScreen("hub");
+          setWeaningFlowTitle("断奶检查");
+          setWeaningFlowRoomLabel("分娩舍 B1 间");
+        }}
+      />
     );
   }
 

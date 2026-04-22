@@ -5,8 +5,14 @@ import { workshopForRoom } from "./mobileWorkshops";
 export type FixtureHomeTask = {
   id: string;
   kind: Exclude<MobileHomeTaskKind, "vaccination">;
+  taskType?: "postpartum-check" | "weaning-check" | "transfer";
   title: string;
   subtitle: string;
+  statusLabel?: string;
+  progressLabel?: string;
+  progressDone?: number;
+  progressTotal?: number;
+  actionText?: string;
   /** 出现在哪些车间 */
   workshopIds: string[];
   /** 若限定房间则仅在该房间选址时出现；省略表示该车间的所有房间都显示 */
@@ -15,26 +21,40 @@ export type FixtureHomeTask = {
 
 export const MOBILE_HOME_FIXTURE_TASKS: FixtureHomeTask[] = [
   {
-    id: "fx-prod-1",
+    id: "fx-weaning-check-1",
     kind: "production",
-    title: "生产任务 · 单元巡检",
-    subtitle: "采食量录入 · 今日 2 条待处理",
+    taskType: "weaning-check",
+    title: "断奶检查",
+    subtitle: "生产线1 ｜ 批次25",
+    statusLabel: "第 2/3 天",
+    progressLabel: "已检查 / 需检查",
+    progressDone: 100,
+    progressTotal: 200,
     workshopIds: ["ws-1", "ws-2"]
   },
   {
-    id: "fx-prod-2",
+    id: "fx-weaning-check-2",
     kind: "production",
-    title: "生产任务 · 母猪体况评分",
-    subtitle: "配怀线 · 本周批次",
-    workshopIds: ["ws-1"]
+    taskType: "weaning-check",
+    title: "断奶检查",
+    subtitle: "生产线1 ｜ 批次26",
+    statusLabel: "第 1/3 天",
+    progressLabel: "已检查 / 需检查",
+    progressDone: 40,
+    progressTotal: 200,
+    workshopIds: ["ws-1", "ws-2"]
   },
   {
-    id: "fx-xfer-1",
-    kind: "transfer",
-    title: "转舍任务 · 仔猪调出",
-    subtitle: "目标：保育舍 · 待确认头数",
-    workshopIds: ["ws-2"],
-    roomIds: ["r-b1"]
+    id: "fx-weaning-check-3",
+    kind: "production",
+    taskType: "weaning-check",
+    title: "断奶检查",
+    subtitle: "生产线2 ｜ 批次12",
+    statusLabel: "已完成",
+    progressLabel: "已检查 / 需检查",
+    progressDone: 180,
+    progressTotal: 180,
+    workshopIds: ["ws-2"]
   }
 ];
 

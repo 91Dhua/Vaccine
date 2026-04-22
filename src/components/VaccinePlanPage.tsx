@@ -694,7 +694,7 @@ const TASK_OPTIONS = [
   { label: "配种", value: "配种" },
   { label: "保育", value: "保育" },
   { label: "仔猪处理", value: "仔猪处理" },
-  { label: "产后检查", value: "产后检查" }
+  { label: "断奶检查", value: "断奶检查" }
 ];
 
 const STATUS_OPTIONS = [

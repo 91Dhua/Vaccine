@@ -72,7 +72,7 @@ export function buildVaccinationHomeCards(
       cards.push({
         id: `vac-${batchId}`,
         kind: "vaccination",
-        title: `接种 · ${first.taskId}`,
+        title: "接种任务",
         subtitle,
         dispatchedDays,
         batchId,
@@ -106,7 +106,7 @@ export function buildVaccinationHomeCards(
       cards.push({
         id: `vac-${batchId}`,
         kind: "vaccination",
-        title: `接种 · ${first.taskId}`,
+        title: "接种任务",
         subtitle,
         dispatchedDays,
         batchId,

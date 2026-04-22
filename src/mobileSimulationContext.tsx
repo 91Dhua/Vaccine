@@ -19,7 +19,7 @@ export function useMobileSimulationContainer(): () => HTMLElement {
   return useCallback(() => ref?.current ?? document.body, [ref]);
 }
 
-/** Console 内「Mobile 接种」：手机外框 + 状态栏 + 安全区，弹层限制在屏幕内 */
+/** Mobile 模式宿主：只用线框圈出屏幕区域，弹层限制在屏幕内 */
 export function MobileSimulationShell({ children }: { children: ReactNode }) {
   const screenRef = useRef<HTMLDivElement>(null);
   const getPopupContainer = useCallback(() => screenRef.current ?? document.body, []);
@@ -40,18 +40,12 @@ export function MobileSimulationShell({ children }: { children: ReactNode }) {
   return (
     <MobileSimulationScreenRefContext.Provider value={screenRef}>
       <div className="mobile-vacc-host">
-        <div className="mobile-vacc-phone" aria-label="Mobile 接种演示（模拟手机）">
-          <div className="mobile-vacc-phone__status" aria-hidden>
-            <span className="mobile-vacc-phone__status-left" />
-            <time className="mobile-vacc-phone__time">9:41</time>
-            <span className="mobile-vacc-phone__status-right" />
-          </div>
+        <div className="mobile-vacc-phone" aria-label="Mobile 设计预览屏幕">
           <div className="mobile-vacc-phone__screen" ref={screenRef}>
             <ConfigProvider getPopupContainer={getPopupContainer}>
               <div className="mobile-vacc-phone__viewport">{children}</div>
             </ConfigProvider>
           </div>
-          <div className="mobile-vacc-phone__home-indicator" aria-hidden />
         </div>
       </div>
     </MobileSimulationScreenRefContext.Provider>

@@ -5,9 +5,7 @@ import {
   Input,
   InputNumber,
   Modal,
-  Progress,
   Segmented,
-  Select,
   Space,
   Switch,
   Table,
@@ -22,9 +20,7 @@ import {
   StopOutlined,
   UserAddOutlined
 } from "@ant-design/icons";
-import { batchCullingSows, cullingReasonLabels } from "./cullingData";
-import { replacementCandidates } from "../replacement/replacementData";
-import type { ReplacementCandidate } from "../replacement/types";
+import { batchCullingSows } from "./cullingData";
 import type { CullingSowRow, CullingTargetMode } from "./types";
 import "./CullingPlanPage.css";
 
@@ -33,60 +29,31 @@ const { Text } = Typography;
 const BATCH_SOW_COUNT: number = 10;
 const BATCH_NAME = "Batch 26F001";
 const PRODUCTION_LINE = "Line A · Breeding Herd";
-const TARGET_REPLACEMENT_UNIT = "妊娠舍 A2";
-const TARGET_REPLACEMENT_FREE_SLOTS = 6;
+const WEANING_BATCH_NAME = "断奶批次 26F001-W";
+const TOTAL_GILT_PIGLETS = 18;
+const DEFAULT_RETAIN_TARGET = 6;
 
-const capacityForecast = {
-  nextBatchName: "Batch 26F002",
-  nextBatchStartDate: "2026-02-24",
-  nextBatchRequiredSowSlots: 12,
-  currentlyEmptyEligibleSlots: 3,
-  scheduledVacanciesBeforeNextBatch: 4,
-  confirmedTransferOutSows: 1,
-  confirmedOutboundSows: 0,
-  reservedSlotsForOtherTasks: 1
-};
-
-function calculateTarget(mode: CullingTargetMode, value: number) {
+function calculateTarget(mode: CullingTargetMode, value: number, baseCount: number) {
   if (mode === "percentage") {
-    return Math.ceil((BATCH_SOW_COUNT * value) / 100);
+    return Math.ceil((baseCount * value) / 100);
   }
-  return Math.min(Math.max(0, Math.floor(value)), BATCH_SOW_COUNT);
+  return Math.min(Math.max(0, Math.floor(value)), baseCount);
 }
 
-function formatTargetUnit(mode: CullingTargetMode, value: number, target: number) {
+function formatTargetUnit(mode: CullingTargetMode, value: number, target: number, baseCount: number) {
   if (mode === "percentage") {
     return `%（约 ${target} 头）`;
   }
-  const ratio = BATCH_SOW_COUNT === 0 ? 0 : Math.round((value / BATCH_SOW_COUNT) * 100);
+  const ratio = baseCount === 0 ? 0 : Math.round((value / baseCount) * 100);
   return `头 · ${ratio}%`;
 }
 
-const replacementSourceLabels = {
-  internal: "场内后备",
-  purchased: "外购后备",
-  quarantine: "隔离后备"
-} as const;
-
-const replacementEligibilityLabels = {
-  ELIGIBLE: "可补入",
-  WARNING: "需复核",
-  BLOCKED: "不可选"
-} as const;
-
-const replacementEligibilityColors = {
-  ELIGIBLE: "success",
-  WARNING: "warning",
-  BLOCKED: "error"
-} as const;
-
-export function CullingPlanPage() {
+export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () => void } = {}) {
   const [planEnabled, setPlanEnabled] = useState(true);
   const [replacementEnabled, setReplacementEnabled] = useState(false);
   const [targetMode, setTargetMode] = useState<CullingTargetMode>("percentage");
   const [targetValue, setTargetValue] = useState(10);
-  const [plannedMatingCount, setPlannedMatingCount] = useState(12);
-  const [safetyBuffer, setSafetyBuffer] = useState(2);
+  const [retainTargetCount, setRetainTargetCount] = useState(DEFAULT_RETAIN_TARGET);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCullingIds, setSelectedCullingIds] = useState<string[]>([]);
   const [draftCullingIds, setDraftCullingIds] = useState<string[]>([]);
@@ -95,125 +62,48 @@ export function CullingPlanPage() {
   const [selectedReplacementIds, setSelectedReplacementIds] = useState<string[]>([]);
   const [draftReplacementIds, setDraftReplacementIds] = useState<string[]>([]);
   const [replacementModalOpen, setReplacementModalOpen] = useState(false);
-  const [replacementSourceFilter, setReplacementSourceFilter] = useState<"ALL" | ReplacementCandidate["source"]>("ALL");
   const [replacementQuery, setReplacementQuery] = useState("");
 
   const plannedTarget = useMemo(
-    () => calculateTarget(targetMode, Number(targetValue || 0)),
+    () => calculateTarget(targetMode, Number(targetValue || 0), BATCH_SOW_COUNT),
     [targetMode, targetValue]
   );
+
 
   const draftRows = useMemo(
     () => batchCullingSows.filter((sow) => draftCullingIds.includes(sow.id)),
     [draftCullingIds]
   );
 
-  const projectedAvailableSlotsBeforeCulling = Math.max(
-    0,
-    capacityForecast.currentlyEmptyEligibleSlots +
-      capacityForecast.scheduledVacanciesBeforeNextBatch +
-      capacityForecast.confirmedTransferOutSows +
-      capacityForecast.confirmedOutboundSows -
-      capacityForecast.reservedSlotsForOtherTasks
-  );
-  const minimumRequiredVacancies = Math.max(
-    0,
-    capacityForecast.nextBatchRequiredSowSlots - projectedAvailableSlotsBeforeCulling
-  );
-  const remainingCapacityGap = Math.max(
-    0,
-    minimumRequiredVacancies - selectedCullingIds.length
-  );
-  const hasCapacityPressure = minimumRequiredVacancies > 0;
-  const capacityProgressPercent = minimumRequiredVacancies
-    ? Math.min(100, Math.round((selectedCullingIds.length / minimumRequiredVacancies) * 100))
-    : 100;
-
   const remainingGap = Math.max(0, plannedTarget - selectedCullingIds.length);
   const overTarget = Math.max(0, selectedCullingIds.length - plannedTarget);
 
-  const adjustedMatingPreparationTarget = Math.max(0, plannedMatingCount + safetyBuffer);
   const expectedCullingCount = planEnabled ? Math.max(plannedTarget, selectedCullingIds.length) : 0;
-  const projectedSowsAfterCulling = Math.max(0, BATCH_SOW_COUNT - expectedCullingCount);
-  const estimatedStableAvailableSows = projectedSowsAfterCulling;
-  const requiredReplacementCount = Math.max(
-    0,
-    adjustedMatingPreparationTarget - estimatedStableAvailableSows
+  const draftReplacementRows = batchCullingSows.filter((sow) =>
+    draftReplacementIds.includes(sow.id)
   );
-  const selectedReplacementRows = replacementCandidates.filter((candidate) =>
-    selectedReplacementIds.includes(candidate.id)
-  );
-  const draftReplacementRows = replacementCandidates.filter((candidate) =>
-    draftReplacementIds.includes(candidate.id)
-  );
-  const selectedReplacementCount = selectedReplacementRows.filter(
-    (candidate) => candidate.eligibility !== "BLOCKED"
-  ).length;
-  const draftReplacementCount = draftReplacementRows.filter(
-    (candidate) => candidate.eligibility !== "BLOCKED"
-  ).length;
-  const remainingReplacementGap = Math.max(
-    0,
-    requiredReplacementCount - selectedReplacementCount
-  );
-  const draftRemainingReplacementGap = Math.max(
-    0,
-    requiredReplacementCount - draftReplacementCount
-  );
-  const replacementCapacityGap = Math.max(
-    0,
-    selectedReplacementCount - TARGET_REPLACEMENT_FREE_SLOTS
-  );
-  const draftReplacementCapacityGap = Math.max(
-    0,
-    draftReplacementCount - TARGET_REPLACEMENT_FREE_SLOTS
-  );
-  const replacementProgressPercent = requiredReplacementCount
-    ? Math.min(100, Math.round((selectedReplacementCount / requiredReplacementCount) * 100))
-    : 100;
-
-  const resourceRiskLevel =
-    requiredReplacementCount === 0
-      ? "LOW"
-      : selectedReplacementCount >= requiredReplacementCount
-        ? "LOW"
-        : remainingReplacementGap <= Math.max(1, Math.ceil(requiredReplacementCount * 0.25))
-          ? "MEDIUM"
-          : "HIGH";
-  const resourceRiskCopy = {
-    LOW: "当前资源覆盖目标，整体风险较低",
-    MEDIUM: "仍有少量补充缺口，建议尽快确认后备名单",
-    HIGH: "补充缺口明显，存在配种目标无法达成风险"
-  }[resourceRiskLevel];
-  const resourceRiskColor = { LOW: "success", MEDIUM: "warning", HIGH: "error" }[resourceRiskLevel];
-
-  const getCandidateWindow = (candidate: ReplacementCandidate) => {
-    if (candidate.eligibility === "BLOCKED") return "不适合本批";
-    if (candidate.estrusStatus.includes("三情期")) return "本周可配";
-    if (candidate.estrusStatus.includes("二情期")) return "7-10 天内";
-    return "需继续观察";
-  };
+  const draftReplacementCount = draftReplacementRows.length;
 
   const filteredReplacementCandidates = useMemo(() => {
     const normalized = replacementQuery.trim().toLowerCase();
-    return replacementCandidates.filter((candidate) => {
-      const hitQuery =
-        !normalized ||
-        candidate.earTag.toLowerCase().includes(normalized) ||
-        candidate.location.toLowerCase().includes(normalized);
-      const hitSource =
-        replacementSourceFilter === "ALL" || candidate.source === replacementSourceFilter;
-      return hitQuery && hitSource;
-    });
-  }, [replacementQuery, replacementSourceFilter]);
+    return batchCullingSows.filter((sow) =>
+      !normalized ||
+      sow.sowTag.toLowerCase().includes(normalized) ||
+      sow.pen.toLowerCase().includes(normalized)
+    );
+  }, [replacementQuery]);
 
   const addRecommendedReplacements = () => {
-    const recommendedIds = replacementCandidates
-      .filter((candidate) => candidate.recommended && candidate.eligibility !== "BLOCKED")
-      .slice(0, Math.max(requiredReplacementCount, 1))
-      .map((candidate) => candidate.id);
+    const recommendedIds = [...batchCullingSows]
+      .sort((a, b) => {
+        if (a.averageLiveBorn !== b.averageLiveBorn) return b.averageLiveBorn - a.averageLiveBorn;
+        if (a.averageLitterSize !== b.averageLitterSize) return b.averageLitterSize - a.averageLitterSize;
+        return a.parity - b.parity;
+      })
+      .slice(0, Math.max(retainTargetCount, 1))
+      .map((sow) => sow.id);
     setDraftReplacementIds((prev) => [...new Set([...prev, ...recommendedIds])]);
-    message.success("已按系统建议加入补入名单，最终仍由管理者确认。");
+    message.success("已按系统规则加入留种关注母猪，最终仍由管理者确认。");
   };
 
   const addSowByEarTag = (value: string) => {
@@ -244,10 +134,7 @@ export function CullingPlanPage() {
       sorter: (a, b) => a.sowTag.localeCompare(b.sowTag),
       render: (value: string, row) => (
         <div className="culling-sow-identity">
-          <Space size={6} wrap={false}>
-            <Text strong>{value}</Text>
-            {row.isRecommended && <Tag color="orange">建议淘汰</Tag>}
-          </Space>
+          <Text strong>{value}</Text>
           <Text type="secondary" className="culling-reason-text">{row.pen}</Text>
         </div>
       )
@@ -285,6 +172,14 @@ export function CullingPlanPage() {
       render: (value) => <span className={`culling-metric-cell ${value < 12 ? "is-risk" : ""}`}>{value} 个</span>
     },
     {
+      title: "窝均活仔",
+      dataIndex: "averageLiveBorn",
+      width: 96,
+      align: "center",
+      sorter: (a, b) => a.averageLiveBorn - b.averageLiveBorn,
+      render: (value) => <span className={`culling-metric-cell ${value < 8.5 ? "is-risk" : ""}`}>{value} 头</span>
+    },
+    {
       title: "返情次数",
       dataIndex: "returnToEstrusCount",
       width: 96,
@@ -303,103 +198,18 @@ export function CullingPlanPage() {
         </div>
       ) : <span className="culling-metric-cell">-</span>
     },
-    {
-      title: "淘汰原因",
-      dataIndex: "reason",
-      width: 128,
-      sorter: (a, b) => (a.reason ? cullingReasonLabels[a.reason] : "").localeCompare(b.reason ? cullingReasonLabels[b.reason] : ""),
-      render: (value: CullingSowRow["reason"]) => (
-        <span className="culling-table-pill">{value ? cullingReasonLabels[value] : "-"}</span>
-      )
-    }
   ];
 
-  const replacementColumns: ColumnsType<ReplacementCandidate> = [
-    {
-      title: "后备母猪",
-      dataIndex: "earTag",
-      render: (value: string, row) => (
-        <Space direction="vertical" size={2}>
-          <Space size={6}>
-            <Text strong>{value}</Text>
-            {row.recommended && row.eligibility !== "BLOCKED" && (
-              <Tag color="green">建议补入</Tag>
-            )}
-          </Space>
-          <Text type="secondary" className="culling-reason-text">
-            {replacementSourceLabels[row.source]} · {row.location}
-          </Text>
-        </Space>
-      )
-    },
-    {
-      title: "生产条件",
-      render: (_, row) => (
-        <Space direction="vertical" size={2}>
-          <Text>{row.ageDays}日龄 · {row.weightKg}kg · BCS {row.bodyCondition}</Text>
-          <Text type="secondary" className="culling-reason-text">{row.estrusStatus}</Text>
-        </Space>
-      )
-    },
-    {
-      title: "预计可配窗口",
-      width: 130,
-      render: (_, row) => <Tag color={row.eligibility === "BLOCKED" ? "red" : "blue"}>{getCandidateWindow(row)}</Tag>
-    },
-    {
-      title: "健康/免疫",
-      width: 160,
-      render: (_, row) => (
-        <Space direction="vertical" size={2}>
-          <Text>{row.healthStatus}</Text>
-          <Text type="secondary" className="culling-reason-text">{row.vaccinationStatus}</Text>
-        </Space>
-      )
-    },
-    {
-      title: "评分",
-      dataIndex: "score",
-      width: 120,
-      sorter: (a, b) => a.score - b.score,
-      defaultSortOrder: "descend",
-      render: (score: number) => <Progress percent={score} size="small" strokeColor="#16a34a" />
-    },
-    {
-      title: "规则",
-      dataIndex: "eligibility",
-      width: 120,
-      render: (value: ReplacementCandidate["eligibility"], row) => (
-        <Space direction="vertical" size={4}>
-          <Tag color={replacementEligibilityColors[value]}>
-            {replacementEligibilityLabels[value]}
-          </Tag>
-          {row.blockers.map((blocker) => (
-            <Tag key={blocker} color="red">{blocker}</Tag>
-          ))}
-        </Space>
-      )
-    },
-    {
-      title: "推荐原因",
-      dataIndex: "reasons",
-      render: (reasons: string[]) => (
-        <Space size={[4, 4]} wrap>
-          {reasons.map((reason) => (
-            <Tag key={reason} className="culling-replacement-reason-tag">{reason}</Tag>
-          ))}
-        </Space>
-      )
-    }
-  ];
+  const replacementColumns: ColumnsType<CullingSowRow> = columns;
 
   return (
     <div className="culling-page">
       <section className="culling-hero">
         <div>
           <div className="culling-eyebrow">Production Planning</div>
-          <h1 className="culling-title">淘汰&补充计划</h1>
+          <h1 className="culling-title">母猪淘汰&后备留种</h1>
           <div className="culling-subtitle">
-            在批次开始前设置软性淘汰目标，并同步配置需要补入的后备母猪，帮助批次在淘汰后保持生产种群稳定。
+            配置母猪淘汰软目标，并同步规划本批次的后备留种目标，圈定需要重点关注其后代的母猪。
           </div>
         </div>
         <div className="culling-hero-actions">
@@ -409,91 +219,15 @@ export function CullingPlanPage() {
         </div>
       </section>
 
-
-      {hasCapacityPressure && (
-        <section className="culling-capacity-card">
-          <div className="culling-capacity-main">
-            <div className="culling-capacity-kicker">Capacity Pressure</div>
-            <h2 className="culling-capacity-title">至少需要释放 {minimumRequiredVacancies} 个母猪栏位</h2>
-            <div className="culling-capacity-copy">
-              按当前批次运转，{capacityForecast.nextBatchName} 将在 {capacityForecast.nextBatchStartDate} 需要 {capacityForecast.nextBatchRequiredSowSlots} 个母猪栏位。系统预计在不额外淘汰的情况下只有 {projectedAvailableSlotsBeforeCulling} 个可用栏位，因此还需要释放 {minimumRequiredVacancies} 个栏位。
-            </div>
-            <div className="culling-capacity-explain">
-              如果不通过转栏、减少/延迟下批次进入来解决，则至少需要淘汰 {minimumRequiredVacancies} 头生产母猪。淘汰名单仍可由用户动态决定。
-            </div>
-          </div>
-
-          <div className="culling-capacity-panel">
-            <div className="culling-capacity-panel-title">Capacity Requirement</div>
-            <Progress
-              percent={capacityProgressPercent}
-              showInfo={false}
-              strokeColor={remainingCapacityGap > 0 ? "#b45309" : "#16a34a"}
-              trailColor="#f1f5f9"
-            />
-            <div className="culling-capacity-progress-copy">
-              已指定 {selectedCullingIds.length} / 必需释放 {minimumRequiredVacancies}
-            </div>
-            {remainingCapacityGap > 0 ? (
-              <Tag color="warning">仍需解决 {remainingCapacityGap} 个栏位</Tag>
-            ) : (
-              <Tag color="success">栏位压力已解决</Tag>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="culling-summary-grid">
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">批次母猪</div>
-          <div className="culling-stat-value">{BATCH_SOW_COUNT}</div>
-          <div className="culling-stat-note">批次开始时固定基数</div>
-        </div>
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">Mating Target</div>
-          <div className="culling-stat-value">{plannedMatingCount}</div>
-          <div className="culling-stat-note">计划配种头数</div>
-        </div>
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">Safety Buffer</div>
-          <div className="culling-stat-value">+{safetyBuffer}</div>
-          <div className="culling-stat-note">安全余量</div>
-        </div>
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">计划淘汰</div>
-          <div className="culling-stat-value">{plannedTarget}</div>
-          <div className="culling-stat-note">{targetMode === "percentage" ? `${targetValue}% 向上取整` : "手动头数"}</div>
-        </div>
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">手动名单</div>
-          <div className="culling-stat-value">{selectedCullingIds.length}</div>
-          <div className="culling-stat-note">指定必淘母猪</div>
-        </div>
-        <div className="culling-stat-card">
-          <div className="culling-stat-label">目标差异</div>
-          <div className="culling-stat-value">
-            {overTarget > 0 ? `+${overTarget}` : remainingGap > 0 ? `-${remainingGap}` : "0"}
-          </div>
-          <div className="culling-stat-note">软目标差异，不阻断</div>
-        </div>
-        {hasCapacityPressure && (
-          <div className="culling-stat-card is-warning">
-            <div className="culling-stat-label">Minimum Vacancies</div>
-            <div className="culling-stat-value">{minimumRequiredVacancies}</div>
-            <div className="culling-stat-note">为下批次正常运行必须解决</div>
-          </div>
-        )}
-      </section>
-
       <section className="culling-board">
         <div className="culling-plan-card">
           <div className="culling-plan-card-header">
             <div className="culling-plan-heading">
               <StopOutlined className="culling-plan-icon" />
               <div>
-                <div className="culling-plan-title">计划淘汰母猪</div>
+                <div className="culling-plan-title">母猪淘汰计划</div>
                 <div className="culling-plan-description">
-                  识别并安排本批次需要淘汰的生产母猪。
+                  设置本批次的淘汰目标，并手动标记需要淘汰的生产母猪。
                 </div>
               </div>
             </div>
@@ -523,20 +257,20 @@ export function CullingPlanPage() {
                     onChange={(value) => setTargetValue(Number(value || 0))}
                   />
                   <span className="culling-target-unit">
-                    {formatTargetUnit(targetMode, Number(targetValue || 0), plannedTarget)}
+                    {formatTargetUnit(targetMode, Number(targetValue || 0), plannedTarget, BATCH_SOW_COUNT)}
                   </span>
                 </div>
 
                 <div className="culling-manual-block">
-                  <div className="culling-manual-title">手动指定淘汰母猪</div>
+                  <div className="culling-manual-title">指定淘汰母猪</div>
                   <div className="culling-manual-copy">
-                    手动指定必须淘汰的母猪，优先于系统推荐结果。
+                    手动指定需要优先关注的淘汰母猪，这些标记会优先于系统推荐结果。
                   </div>
                 </div>
               </div>
 
               <Button
-                className="culling-manage-button"
+                className={`culling-manage-button ${selectedCullingIds.length > 0 ? "is-selected" : ""}`}
                 icon={<EditOutlined />}
                 onClick={() => {
                   setDraftCullingIds(selectedCullingIds);
@@ -545,7 +279,7 @@ export function CullingPlanPage() {
                   setModalOpen(true);
                 }}
               >
-                管理淘汰名单
+                {selectedCullingIds.length > 0 ? `已选 ${selectedCullingIds.length} 头` : "管理淘汰名单"}
               </Button>
             </div>
           )}
@@ -556,9 +290,9 @@ export function CullingPlanPage() {
             <div className="culling-plan-heading">
               <UserAddOutlined className="culling-plan-icon muted" />
               <div>
-                <div className="culling-plan-title">补充后备母猪</div>
+                <div className="culling-plan-title">后备留种计划</div>
                 <div className="culling-plan-description">
-                  根据计划配种头数、安全余量和预计淘汰数量，计算本批次需要补充的后备母猪。
+                  为本批次设定后备补充目标，并优先关注哪些母猪的仔猪将用于留种。
                 </div>
               </div>
             </div>
@@ -566,95 +300,48 @@ export function CullingPlanPage() {
           </div>
 
           {replacementEnabled && (
-            <div className="culling-replacement-body is-summary-only">
-              <div className="culling-replacement-config-row">
-                <div className="culling-config-field">
-                  <span>计划配种头数</span>
+            <div className="culling-plan-body culling-plan-body--replacement">
+              <div>
+                <div className="culling-target-title">留种目标</div>
+                <div className="culling-target-copy">
+                  设置本批次计划留作后备母猪的目标头数。
+                </div>
+                <div className="culling-target-control culling-target-control--replacement">
                   <InputNumber
                     min={0}
-                    value={plannedMatingCount}
-                    onChange={(value) => setPlannedMatingCount(Number(value || 0))}
+                    max={TOTAL_GILT_PIGLETS}
+                    value={retainTargetCount}
+                    onChange={(value) => setRetainTargetCount(Number(value || 0))}
                   />
+                  <span className="culling-target-unit">头</span>
                 </div>
-                <div className="culling-config-field">
-                  <span>安全余量</span>
-                  <InputNumber
-                    min={0}
-                    value={safetyBuffer}
-                    onChange={(value) => setSafetyBuffer(Number(value || 0))}
-                  />
-                </div>
-                <div className="culling-config-result">
-                  <span>调整后准备目标</span>
-                  <strong>{adjustedMatingPreparationTarget} 头</strong>
+
+                <div className="culling-manual-block">
+                  <div className="culling-manual-title">指定留种母猪</div>
+                  <div className="culling-manual-copy">
+                    先设定本批次计划留种多少头用于后备母猪，再指定需要重点关注其后代的母猪。断奶后，系统将结合仔猪实际状况协助您完成最终留种标记。
+                  </div>
                 </div>
               </div>
 
-              <div className="culling-replacement-summary">
-                <div className="culling-replacement-summary-main">
-                  <div className="culling-target-title">资源缺口判断</div>
-                  <div className="culling-target-copy">
-                    当前批次有 {BATCH_SOW_COUNT} 头生产母猪；系统预计淘汰 {expectedCullingCount} 头后，稳定可用母猪约 {estimatedStableAvailableSows} 头。
-                    为完成 {plannedMatingCount} 头计划配种并保留 {safetyBuffer} 头安全余量，建议补充 {requiredReplacementCount} 头后备母猪。
-                  </div>
-                  <div className="culling-replacement-progress">
-                    <div className="culling-replacement-progress-head">
-                      <Text strong>已选 {selectedReplacementCount} / 建议补充 {requiredReplacementCount}</Text>
-                      <Tag color={remainingReplacementGap > 0 ? "warning" : "success"}>
-                        仍需补充 {remainingReplacementGap}
-                      </Tag>
-                    </div>
-                    <Progress percent={replacementProgressPercent} strokeColor="#16a34a" />
-                  </div>
-                </div>
-                <div className="culling-replacement-summary-side">
-                  <Tag color={resourceRiskColor}>资源风险：{resourceRiskCopy}</Tag>
-                  <Tag color={replacementCapacityGap > 0 ? "error" : "success"}>
-                    {TARGET_REPLACEMENT_UNIT} 空位 {TARGET_REPLACEMENT_FREE_SLOTS}
-                  </Tag>
-                  {replacementCapacityGap > 0 ? (
-                    <Alert
-                      type="error"
-                      showIcon
-                      message={`当前补入名单会缺 ${replacementCapacityGap} 个栏位`}
-                      description="可以先保存补入名单，但转入/加入批次需要等待栏位释放或调整目标栏位。"
-                    />
-                  ) : (
-                    <Alert
-                      type={remainingReplacementGap > 0 ? "warning" : "success"}
-                      showIcon
-                      message={remainingReplacementGap > 0 ? `仍建议补充 ${remainingReplacementGap} 头` : "补入数量已满足配种准备目标"}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="culling-replacement-footer">
-                <span>
-                  已选补入：{selectedReplacementRows.length > 0
-                    ? selectedReplacementRows.map((candidate) => candidate.earTag).join("、")
-                    : "暂无"}
-                </span>
-                <Button
-                  className="culling-manage-button"
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    setDraftReplacementIds(selectedReplacementIds);
-                    setReplacementQuery("");
-                    setReplacementSourceFilter("ALL");
-                    setReplacementModalOpen(true);
-                  }}
-                >
-                  指定补充母猪
-                </Button>
-              </div>
+              <Button
+                className={`culling-manage-button ${selectedReplacementIds.length > 0 ? "is-selected" : ""}`}
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setDraftReplacementIds(selectedReplacementIds);
+                  setReplacementQuery("");
+                  setReplacementModalOpen(true);
+                }}
+              >
+                {selectedReplacementIds.length > 0 ? `已选 ${selectedReplacementIds.length} 头` : "指定留种母猪"}
+              </Button>
             </div>
           )}
         </div>
       </section>
 
       <Modal
-        title="指定补充母猪"
+        title="指定留种母猪"
         open={replacementModalOpen}
         width={920}
         centered
@@ -662,10 +349,7 @@ export function CullingPlanPage() {
         footer={
           <div className="culling-modal-footer">
             <span className="culling-modal-footer-note">
-              已选 {draftReplacementCount} / 需补充 {requiredReplacementCount}；
-              {draftRemainingReplacementGap > 0
-                ? ` 仍需补充 ${draftRemainingReplacementGap} 头`
-                : " 补入数量已满足目标"}
+              已选 {draftReplacementCount} 头重点关注母猪。
             </span>
             <Button
               type="primary"
@@ -673,56 +357,29 @@ export function CullingPlanPage() {
               onClick={() => {
                 setSelectedReplacementIds(draftReplacementIds);
                 setReplacementModalOpen(false);
-                message.success("补入名单已保存为本批次淘汰&补充计划的一部分。");
+                message.success("留种关注母猪名单已保存到本批次后备留种计划。");
               }}
             >
-              Save
+              完成
             </Button>
           </div>
         }
       >
         <div className="culling-modal-copy">
-          根据计划配种 {plannedMatingCount} 头、安全余量 {safetyBuffer} 头、当前生产母猪 {BATCH_SOW_COUNT} 头，以及预计淘汰 {expectedCullingCount} 头计算，系统建议补充 {requiredReplacementCount} 头后备母猪。
+          这里选择的是需要重点关注其后代的母猪，用于指导后续断奶阶段的现场留种判断；当前计划留种目标为 {retainTargetCount} 头，最终是否留种仍以实际断奶结果和仔猪状态为准。
         </div>
-        {draftReplacementCapacityGap > 0 ? (
-          <Alert
-            type="error"
-            showIcon
-            message={`按当前草稿转入会缺 ${draftReplacementCapacityGap} 个栏位`}
-            description="名单可以保存，但转入/加入批次需要等待栏位释放或调整目标栏位。"
-            style={{ marginBottom: 16 }}
-          />
-        ) : (
-          <Alert
-            type="info"
-            showIcon
-            message="这里只配置补入名单，后续 Mobile 现场复核与转入执行会由任务流程承接。"
-            style={{ marginBottom: 16 }}
-          />
-        )}
         <div className="culling-replacement-toolbar">
           <Space wrap>
             <Input
               allowClear
-              placeholder="搜索耳标号 / 位置"
+              placeholder="搜索耳标号 / 栏位"
               value={replacementQuery}
               onChange={(event) => setReplacementQuery(event.target.value)}
               style={{ width: 220 }}
             />
-            <Select
-              value={replacementSourceFilter}
-              onChange={setReplacementSourceFilter}
-              style={{ width: 138 }}
-              options={[
-                { value: "ALL", label: "全部来源" },
-                { value: "internal", label: "场内后备" },
-                { value: "quarantine", label: "隔离后备" },
-                { value: "purchased", label: "外购后备" }
-              ]}
-            />
           </Space>
           <Button icon={<PlusOutlined />} onClick={addRecommendedReplacements}>
-            加入建议补入
+            加入建议关注名单
           </Button>
         </div>
         <Table
@@ -733,22 +390,22 @@ export function CullingPlanPage() {
           columns={replacementColumns}
           pagination={{ pageSize: 5 }}
           rowSelection={{
+            columnTitle: "留种",
             selectedRowKeys: draftReplacementIds,
-            onChange: (keys) => setDraftReplacementIds(keys.map(String)),
-            getCheckboxProps: (candidate) => ({ disabled: candidate.eligibility === "BLOCKED" })
+            onChange: (keys) => setDraftReplacementIds(keys.map(String))
           }}
         />
         {draftReplacementRows.length > 0 && (
           <Space size={6} wrap style={{ marginTop: 12, display: "flex" }}>
-            {draftReplacementRows.map((candidate) => (
-              <Tag key={candidate.id}>{candidate.earTag}</Tag>
+            {draftReplacementRows.map((sow) => (
+              <Tag key={sow.id}>{sow.sowTag}</Tag>
             ))}
           </Space>
         )}
       </Modal>
 
       <Modal
-        title="手动指定淘汰母猪"
+        title="指定淘汰母猪"
         open={modalOpen}
         width={920}
         centered
@@ -774,13 +431,13 @@ export function CullingPlanPage() {
         }
       >
         <div className="culling-modal-copy">
-          选择需要标记淘汰的母猪，这些选择会优先于系统自动推荐。
+          选择需要优先标记为淘汰建议的母猪，这些选择会优先于系统自动推荐。
         </div>
         <Alert
           className="culling-inline-alert"
           type="warning"
           showIcon={false}
-          message="手动指定的母猪将被纳入淘汰名单；未手动选择的母猪仍可能根据淘汰目标被系统推荐。"
+          message="这里的名单用于形成 Console 端的淘汰建议；现场断奶检查和产后检查仍可继续补充新的淘汰建议。"
           style={{ marginBottom: 16 }}
         />
         <Table
@@ -823,6 +480,11 @@ export function CullingPlanPage() {
           </Space>
         )}
       </Modal>
+      <div className="culling-page-footer">
+        <Button className="culling-detail-entry-button" type="primary" onClick={() => onOpenTaskDetail?.()}>
+          任务详情
+        </Button>
+      </div>
     </div>
   );
 }
