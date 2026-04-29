@@ -91,6 +91,7 @@ const sowData: SowRecord[] = [
   }
 ];
 
+
 const retainedPigletColumns: ColumnsType<RetainedPigletRecord> = [
   {
     title: "仔猪ID",
@@ -110,10 +111,6 @@ const retainedPigletColumns: ColumnsType<RetainedPigletRecord> = [
   {
     title: "位置",
     dataIndex: "location"
-  },
-  {
-    title: "性别",
-    dataIndex: "gender"
   },
   {
     title: "日龄",
@@ -210,6 +207,13 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
     []
   );
 
+  const checkedTotal = sowData.length;
+  const checkedDone = sowData.filter((item) => item.taskStatus === "已检查").length;
+  const cullingTotal = sowData.filter((item) => item.cullingAdvice.includes("建议") && !item.cullingAdvice.includes("不建议")).length;
+  const cullingDone = cullingTotal;
+  const retainedTarget = 6;
+  const retainedDone = retainedPigletData.length;
+
   return (
     <div className="culling-detail-page">
       <div className="culling-detail-topbar">
@@ -247,7 +251,9 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
             </div>
             <div>
               <div className="culling-detail-label">任务状态</div>
-              <Tag className="culling-detail-tag-success">已结束</Tag>
+              <div className="culling-detail-value culling-detail-value--status">
+                <Tag className="culling-detail-tag-success">已结束</Tag>
+              </div>
             </div>
             <div>
               <div className="culling-detail-label">批次号</div>
@@ -301,7 +307,25 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
           <Progress percent={100} showInfo={false} strokeColor="#39c54a" className="culling-detail-progress" />
           <div className="culling-detail-progress-row">
             <span className="culling-detail-label">已检查 / 需检查</span>
-            <span className="culling-detail-progress-value">2 / 2 头</span>
+            <span className="culling-detail-progress-value">{checkedDone} / {checkedTotal} 头</span>
+          </div>
+          <div className="culling-detail-plan-progress-list">
+            <DetailPlanProgress
+              label="淘汰进度"
+              tooltip="已确认淘汰 / 需确认淘汰"
+              done={cullingDone}
+              total={cullingTotal}
+              unit="头"
+              strokeColor="#f97316"
+            />
+            <DetailPlanProgress
+              label="留种进度"
+              tooltip="已标记留种仔猪 / 计划留种目标"
+              done={retainedDone}
+              total={retainedTarget}
+              unit="头"
+              strokeColor="#22c55e"
+            />
           </div>
         </Card>
       </div>
@@ -367,6 +391,41 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
           }}
         />
       </Card>
+    </div>
+  );
+}
+
+function DetailPlanProgress({
+  label,
+  tooltip,
+  done,
+  total,
+  unit,
+  strokeColor
+}: {
+  label: string;
+  tooltip: string;
+  done: number;
+  total: number;
+  unit: string;
+  strokeColor: string;
+}) {
+  const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+  return (
+    <div className="culling-detail-plan-progress">
+      <div className="culling-detail-progress-row">
+        <span className="culling-detail-label">
+          {label}
+          <Tooltip title={tooltip}>
+            <span className="culling-detail-info-dot">i</span>
+          </Tooltip>
+        </span>
+        <span className="culling-detail-progress-value">
+          {done} / {total} {unit}
+        </span>
+      </div>
+      <Progress percent={percent} showInfo={false} strokeColor={strokeColor} className="culling-detail-progress culling-detail-progress--compact" />
     </div>
   );
 }

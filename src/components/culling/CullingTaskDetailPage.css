@@ -132,12 +132,18 @@
   word-break: break-word;
 }
 
+.culling-detail-value--status {
+  display: flex;
+  align-items: flex-start;
+}
+
 .culling-detail-tag-success {
   border: none;
   border-radius: 8px;
   background: #dcfce7;
   color: #16a34a;
   font-weight: 600;
+  margin-inline-end: 0;
 }
 
 .culling-detail-metrics-box {
@@ -188,12 +194,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .culling-detail-progress-value {
   color: #111827;
   font-size: 15px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.culling-detail-plan-progress-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf2f7;
+}
+
+.culling-detail-plan-progress {
+  min-width: 0;
+}
+
+.culling-detail-progress--compact {
+  margin: 8px 0 0;
 }
 
 .culling-detail-record-card {
@@ -255,6 +279,22 @@
   border-radius: 8px;
   background: #ffedd5;
   color: #ea580c;
+  font-weight: 600;
+}
+
+.culling-detail-tag-cull-pending {
+  border: none;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-weight: 600;
+}
+
+.culling-detail-tag-cull-done {
+  border: none;
+  border-radius: 8px;
+  background: #ecfdf3;
+  color: #15803d;
   font-weight: 600;
 }
 

@@ -4,7 +4,7 @@ import { VaccinePlanPage } from "./components/VaccinePlanPage";
 import { VaccineCatalogPage } from "./components/VaccineCatalogPage";
 import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
 import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
-import { VaccineTaskWizard } from "./components/VaccineTaskWizard";
+import { VaccineTaskWizard, type VaccineTaskDraft } from "./components/VaccineTaskWizard";
 import { CullingPlanPage, CullingTaskDetailPage } from "./components/culling";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
@@ -103,7 +103,7 @@ export default function App() {
     "tasks"
   );
   const [selectedPigs, setSelectedPigs] = useState<string[]>([]);
-  const [taskDraft, setTaskDraft] = useState<any>(null);
+  const [taskDraft, setTaskDraft] = useState<VaccineTaskDraft | null>(null);
   const [tasks, setTasks] = useState<TaskRow[]>(SEED_TASKS);
   const [mobilePigTasks, setMobilePigTasks] = useState<MobilePigTask[]>(() =>
     seedMobileTasksFromConsole(SEED_TASKS)
@@ -183,6 +183,12 @@ export default function App() {
                 <VaccineTaskListPage
                   tasks={tasks}
                   onCreateTask={() => setTaskStep("select")}
+                  onDeleteTask={(taskId) => {
+                    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+                    setMobilePigTasks((prev) =>
+                      prev.filter((task) => task.taskId !== taskId && task.batchId !== taskId)
+                    );
+                  }}
                 />
               )}
               {taskStep === "select" && (
@@ -234,7 +240,6 @@ export default function App() {
                       const brandCfg = vaccineCat?.brands.find(
                         (b) => b.brandNameCn === brandLine
                       );
-                      const multi = Boolean(taskDraft.multiDose);
                       const newTask: TaskRow = {
                         id: generateConsoleTaskId(),
                         vaccine: taskDraft.vaccineName || "-",
@@ -244,14 +249,6 @@ export default function App() {
                         dosage: dosageStr,
                         schedule: taskDraft.date || "-",
                         doseTimes: Number(taskDraft.times) > 0 ? Number(taskDraft.times) : 1,
-                        intervalValue:
-                          multi && taskDraft.intervalValue != null
-                            ? Number(taskDraft.intervalValue)
-                            : undefined,
-                        intervalUnit:
-                          multi && String(taskDraft.intervalUnit ?? "").trim()
-                            ? String(taskDraft.intervalUnit).trim()
-                            : undefined,
                         immuneIntervalDays: brandCfg?.immuneIntervalDays,
                         targetCount: cover,
                         status: "未开始",

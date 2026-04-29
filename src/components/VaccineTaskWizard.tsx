@@ -1,14 +1,11 @@
 import {
-  Alert,
   Button,
   Card,
   DatePicker,
   Form,
   InputNumber,
   Select,
-  Space,
   Steps,
-  Switch,
   Typography
 } from "antd";
 import dayjs from "dayjs";
@@ -17,12 +14,22 @@ import { resolveTaskVaccinePresentation } from "../mobileVaccinationUtils";
 
 const { Title, Text } = Typography;
 
+export type VaccineTaskDraft = {
+  vaccineId: string;
+  vaccineName: string;
+  brand?: string;
+  dosage: number;
+  dosageUnit: "毫克" | "毫升";
+  date?: string;
+  times?: number;
+};
+
 interface Props {
   step: "form" | "preview";
   selectedPigs: string[];
-  payload?: any;
+  payload?: VaccineTaskDraft | null;
   onBack: () => void;
-  onNext?: (payload: any) => void;
+  onNext?: (payload: VaccineTaskDraft) => void;
   onFinish?: () => void;
 }
 
@@ -35,14 +42,8 @@ export function VaccineTaskWizard({
   onFinish
 }: Props) {
   const [form] = Form.useForm();
-  const multiDose = Form.useWatch("multiDose", form);
-  const watchedDate = Form.useWatch("date", form);
-  const watchedDosage = Form.useWatch("dosage", form);
-  const watchedDosageUnit = Form.useWatch("dosageUnit", form);
   const watchedVaccineId = Form.useWatch("vaccineId", form);
   const watchedTimes = Form.useWatch("times", form);
-  const watchedIntervalValue = Form.useWatch("intervalValue", form);
-  const watchedIntervalUnit = Form.useWatch("intervalUnit", form);
   const watchedBrand = Form.useWatch("brand", form);
 
   const brandOptions =
@@ -79,7 +80,7 @@ export function VaccineTaskWizard({
 
         <Card className="section-card" style={{ marginTop: 16 }}>
           <div className="confirm-card">
-            <div className="confirm-title">选择治疗猪只</div>
+            <div className="confirm-title">选择接种猪只</div>
             <div className="confirm-row">
               <div className="confirm-left">
                 <div className="confirm-dot">✓</div>
@@ -130,14 +131,6 @@ export function VaccineTaskWizard({
               <div>
                 <Text type="secondary">剂次</Text>
                 <div className="preview-value">{payload?.times || 1} 次</div>
-              </div>
-              <div>
-                <Text type="secondary">间隔</Text>
-                <div className="preview-value">
-                  {payload?.multiDose
-                    ? `${payload?.intervalValue ?? "—"} ${payload?.intervalUnit ?? ""}`.trim()
-                    : "—"}
-                </div>
               </div>
             </div>
           </div>
@@ -228,44 +221,6 @@ export function VaccineTaskWizard({
               <InputNumber min={1} addonAfter="次" style={{ width: "100%" }} />
             </Form.Item>
           </div>
-          <Form.Item label="多次接种" name="multiDose" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          {multiDose && (
-            <div className="form-grid">
-              <Form.Item
-                name="intervalValue"
-                label="间隔时间"
-                rules={[{ required: true, message: "请输入间隔时间" }]}
-              >
-                <InputNumber min={1} style={{ width: "100%" }} />
-              </Form.Item>
-              <Form.Item
-                name="intervalUnit"
-                label="间隔时间单位"
-                rules={[{ required: true, message: "请选择单位" }]}
-              >
-                <Select
-                  options={[
-                    { label: "小时", value: "小时" },
-                    { label: "天", value: "天" }
-                  ]}
-                />
-              </Form.Item>
-            </div>
-          )}
-          <Alert
-            type="info"
-            showIcon
-            message={`系统将从 ${watchedDate?.format("YYYY-MM-DD") || "2026-02-09"} 起，给选中猪只下发${watchedDosage || 2}${watchedDosageUnit || "毫克"}的${
-              vaccines.find((v) => v.id === watchedVaccineId)?.name || "疫苗"
-            }${watchedBrand ? `（${watchedBrand}）` : ""}接种任务，任务共执行${watchedTimes || 1}次${
-              multiDose
-                ? `，每${watchedIntervalValue || 2}${watchedIntervalUnit || "小时"}一次`
-                : ""
-            }。`}
-            style={{ marginTop: 12 }}
-          />
         </Form>
         <div className="form-actions">
           <Button onClick={onBack}>取消</Button>
@@ -275,10 +230,13 @@ export function VaccineTaskWizard({
               const values = await form.validateFields();
               const vaccine = vaccines.find((v) => v.id === values.vaccineId);
               onNext?.({
-                ...values,
+                vaccineId: values.vaccineId,
+                dosage: values.dosage,
+                dosageUnit: values.dosageUnit,
                 date: values.date?.format("YYYY-MM-DD"),
                 vaccineName: vaccine?.name || "",
-                brand: values.brand
+                brand: values.brand,
+                times: values.times
               });
             }}
           >

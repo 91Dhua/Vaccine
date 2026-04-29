@@ -263,9 +263,6 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
 
                 <div className="culling-manual-block">
                   <div className="culling-manual-title">指定淘汰母猪</div>
-                  <div className="culling-manual-copy">
-                    手动指定需要优先关注的淘汰母猪，这些标记会优先于系统推荐结果。
-                  </div>
                 </div>
               </div>
 
@@ -319,7 +316,7 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
                 <div className="culling-manual-block">
                   <div className="culling-manual-title">指定留种母猪</div>
                   <div className="culling-manual-copy">
-                    先设定本批次计划留种多少头用于后备母猪，再指定需要重点关注其后代的母猪。断奶后，系统将结合仔猪实际状况协助您完成最终留种标记。
+                    设定本批次计划留种的后备母猪数量，并圈定值得重点关注的母猪。后续涉及到留种操作的相关任务，饲养员可根据提示优先筛选这些母猪的后代。
                   </div>
                 </div>
               </div>

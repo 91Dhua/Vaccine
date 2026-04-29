@@ -30,7 +30,6 @@ import {
   CalendarOutlined,
   DeleteOutlined,
   EditOutlined,
-  EyeOutlined,
   LeftOutlined,
   PlusOutlined,
   QuestionCircleOutlined
@@ -2262,7 +2261,20 @@ function AnnualVaccinationYearView({
               ) : (
                 <ul className="plan-annual-cal-detail-list">
                   {selectedTasks.map((it) => (
-                    <li key={it.planId} className="plan-annual-cal-detail-card">
+                    <li
+                      key={it.planId}
+                      className="plan-annual-cal-detail-card plan-annual-cal-detail-card--clickable"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`查看计划 ${it.planName}`}
+                      onClick={() => onOpenPlanReadonly?.(it.planId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onOpenPlanReadonly?.(it.planId);
+                        }
+                      }}
+                    >
                       <div className="plan-annual-cal-detail-card-head">
                         <span
                           className="plan-annual-cal-detail-swatch"
@@ -2271,29 +2283,6 @@ function AnnualVaccinationYearView({
                           }}
                         />
                         <span className="plan-annual-cal-detail-name">{it.planName}</span>
-                        <Tooltip title="在配置页查看（只读）">
-                          <Button
-                            type="text"
-                            size="small"
-                            className="plan-annual-cal-detail-view-btn"
-                            icon={<EyeOutlined />}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onOpenPlanReadonly?.(it.planId);
-                            }}
-                            aria-label="在配置页查看计划"
-                          />
-                        </Tooltip>
-                        <span
-                          className={
-                            it.enabled
-                              ? "plan-annual-cal-status plan-annual-cal-status--on"
-                              : "plan-annual-cal-status plan-annual-cal-status--off"
-                          }
-                        >
-                          {it.enabled ? "启用" : "停用"}
-                        </span>
                       </div>
                       <div className="plan-annual-cal-detail-body">
                         <div className="plan-annual-cal-detail-field">

@@ -3,8 +3,6 @@ import {
   BellOutlined,
   DeploymentUnitOutlined,
   ExclamationCircleFilled,
-  ExperimentOutlined,
-  HeartFilled,
   FilterOutlined,
   HomeOutlined,
   LeftOutlined,
@@ -12,7 +10,6 @@ import {
   MoreOutlined,
   RightOutlined,
   SearchOutlined,
-  SwapOutlined,
   TagOutlined,
   ToolOutlined,
   UnorderedListOutlined,
@@ -62,6 +59,7 @@ import {
   workshopForRoom,
   WORKSHOPS
 } from "../mobileWorkshops";
+import { FixtureMissionCard, VaccinationHomeCard } from "./MobileHomeTaskCards";
 
 const { Text, Title } = Typography;
 
@@ -1041,63 +1039,29 @@ export function MobileVaccinationPage({
               </section>
 
               <section className="mv-hub-section">
-                {fixtureCards.length === 0 ? (
+                {vaccinationHomeCards.length === 0 && fixtureCards.length === 0 ? (
                   <div className="mv-mission-empty">
                     <Text type="secondary">当前场区暂无任务</Text>
                   </div>
                 ) : (
                   <div className="mv-mission-list">
-                    {fixtureCards.map((fx) => {
-                      const progressDone = fx.progressDone ?? 0;
-                      const progressPct = fx.progressTotal
-                        ? Math.min(100, Math.round((progressDone / fx.progressTotal) * 100))
-                        : 0;
-                      const isInspection = fx.taskType === "postpartum-check" || fx.taskType === "weaning-check";
+                    {vaccinationHomeCards.map((card) => {
+                      const { done, total, pct } = vaccinationCardProgress(card);
                       return (
-                      <div
-                        key={fx.id}
-                        className={`mv-mission-card mv-mission-card--pressable${isInspection ? " mv-mission-card--inspection" : ""}`}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`${fx.title}，点击选择房间`}
-                        onClick={() => openFixture(fx)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            openFixture(fx);
-                          }
-                        }}
-                      >
-                        <div className="mv-mission-card__head">
-                          <div
-                            className={`mv-mission-card__icon ${isInspection ? "mv-mission-card__icon--inspection" : fx.kind === "production" ? "mv-mission-card__icon--prod" : "mv-mission-card__icon--xfer"}`}
-                          >
-                            {isInspection ? <HeartFilled /> : fx.kind === "production" ? <ExperimentOutlined /> : <SwapOutlined />}
-                          </div>
-                          <div className="mv-mission-card__titles">
-                            <div className="mv-mission-card__title">{fx.title}</div>
-                            <div className="mv-mission-card__sub">{fx.subtitle}</div>
-                          </div>
-                          <span className="mv-mission-card__status mv-mission-card__status--muted">
-                            {fx.statusLabel ?? "现场"}
-                          </span>
-                        </div>
-                        {fx.progressTotal ? (
-                          <div className="mv-fixture-progress">
-                            <div className="mv-fixture-progress__meta">
-                              <span>{fx.progressLabel ?? "已完成 / 目标"}</span>
-                              <span>
-                                <strong>{progressDone}</strong> / {fx.progressTotal}
-                              </span>
-                            </div>
-                            <div className="mv-fixture-progress__track">
-                              <div className="mv-fixture-progress__fill" style={{ width: `${progressPct}%` }} />
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
+                        <VaccinationHomeCard
+                          key={card.id}
+                          card={card}
+                          done={done}
+                          total={total}
+                          pct={pct}
+                          scopeMode={scopeMode}
+                          onOpen={openVaccinationCard}
+                        />
                       );
                     })}
+                    {fixtureCards.map((fx) => (
+                      <FixtureMissionCard key={fx.id} task={fx} onOpen={openFixture} />
+                    ))}
                   </div>
                 )}
               </section>

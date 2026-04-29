@@ -10,7 +10,7 @@ import {
   UnorderedListOutlined
 } from "@ant-design/icons";
 import { Button, Card, Checkbox, Input, Modal, Radio, Segmented, Tag, Typography, message } from "antd";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useMobileSimulationContainer } from "../mobileSimulationContext";
 
 const { Text, Title } = Typography;
@@ -56,7 +56,8 @@ type SowStatus = {
   appetite: "正常" | "进食减少" | "拒食";
   activity: "正常" | "病" | "不愿意动";
   backfat: "薄" | "适中" | "厚";
-  cullSuggestion: "不建议淘汰" | "建议淘汰";
+  cullSuggestion: "不淘汰" | "淘汰";
+  cullRejectReason?: string;
 };
 
 type CheckRecord = {
@@ -127,6 +128,8 @@ export function MobileWeaningCheckFlow({
   const [filterOpen, setFilterOpen] = useState(false);
   const [rowFilter, setRowFilter] = useState<RowFilter>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [cullRejectReasonOpen, setCullRejectReasonOpen] = useState(false);
+  const [cullRejectReason, setCullRejectReason] = useState("");
 
   const annotatedRows = useMemo<AnnotatedRow[]>(
     () =>
@@ -165,9 +168,6 @@ export function MobileWeaningCheckFlow({
   const cullDoneCount = annotatedRows.filter((row) => row.cullDone).length;
   const retainNeeded = annotatedRows.filter((row) => row.retainPlanned).length;
   const retainDoneCount = annotatedRows.filter((row) => row.retainDone).length;
-  const pendingCheckCount = Math.max(0, totalCount - completedCount);
-  const pendingCullCount = Math.max(0, cullNeeded - cullDoneCount);
-  const pendingRetainCount = Math.max(0, retainNeeded - retainDoneCount);
 
   const filterLabelMap: Record<RowFilter, string> = {
     all: "全部母猪",
@@ -262,6 +262,7 @@ export function MobileWeaningCheckFlow({
   const isActiveReadyToSubmit = isActivePigletDone && isActiveSowDone;
 
   if (editingSection === "sow" && activeRow) {
+    const isConsoleSuggestedCull = Boolean(activeAnnotatedRow?.cullPlanned);
     const current: SowStatus =
       activeRecord?.sow ?? {
         bodyScore: 3,
@@ -271,8 +272,26 @@ export function MobileWeaningCheckFlow({
         appetite: "正常",
         activity: "正常",
         backfat: "适中",
-        cullSuggestion: "不建议淘汰"
+        cullSuggestion: isConsoleSuggestedCull ? "淘汰" : "不淘汰"
       };
+    const updateCurrentSow = (next: SowStatus) => {
+      setRecords((prev) => ({
+        ...prev,
+        [activeRow.id]: {
+          piglet: prev[activeRow.id]?.piglet,
+          sow: next
+        }
+      }));
+    };
+    const handleCullReviewChange = (value: SowStatus["cullSuggestion"]) => {
+      if (isConsoleSuggestedCull && value === "不淘汰") {
+        updateCurrentSow({ ...current, cullSuggestion: value });
+        setCullRejectReason(current.cullRejectReason ?? "");
+        setCullRejectReasonOpen(true);
+        return;
+      }
+      updateCurrentSow({ ...current, cullSuggestion: value, cullRejectReason: undefined });
+    };
     return (
       <div className="mv-root mv-weaning-page mv-weaning-page--editor">
         <div className="mv-statusbar" aria-hidden>
@@ -297,7 +316,7 @@ export function MobileWeaningCheckFlow({
         </div>
         <div className="mv-weaning-editor-tip">
           <span className="mv-weaning-editor-tip__dot" />
-          请确认母猪当前体况，并给出是否建议淘汰的判断。
+          请确认母猪当前体况，并完成是否淘汰的现场复核。
         </div>
         <div className="mv-weaning-scroll">
           <div className="mv-section-bar-title">体况评分</div>
@@ -381,18 +400,17 @@ export function MobileWeaningCheckFlow({
               }
             />
             <WeaningOptionRow
-              label="淘汰建议"
-              options={["不建议淘汰", "建议淘汰"]}
-              value={current.cullSuggestion}
-              onChange={(v) =>
-                setRecords((prev) => ({
-                  ...prev,
-                  [activeRow.id]: {
-                    piglet: prev[activeRow.id]?.piglet,
-                    sow: { ...current, cullSuggestion: v as SowStatus["cullSuggestion"] }
-                  }
-                }))
+              label={
+                <span className="mv-weaning-option-row__label-inline">
+                  <span>淘汰复核</span>
+                  {isConsoleSuggestedCull ? (
+                    <Tag className="mv-weaning-flag mv-weaning-flag--cull-pending">建议淘汰</Tag>
+                  ) : null}
+                </span>
               }
+              options={["不淘汰", "淘汰"]}
+              value={current.cullSuggestion}
+              onChange={(v) => handleCullReviewChange(v as SowStatus["cullSuggestion"])}
             />
           </Card>
         </div>
@@ -401,6 +419,60 @@ export function MobileWeaningCheckFlow({
             确认
           </Button>
         </div>
+        <Modal
+          title={null}
+          open={cullRejectReasonOpen}
+          onCancel={() => {
+            updateCurrentSow({ ...current, cullSuggestion: "淘汰", cullRejectReason: undefined });
+            setCullRejectReasonOpen(false);
+            setCullRejectReason("");
+          }}
+          footer={null}
+          width={340}
+          getContainer={modalContainer}
+          className="mv-weaning-cull-reason-modal"
+          destroyOnClose
+        >
+          <div className="mv-weaning-cull-reason">
+            <strong>请填写不淘汰原因</strong>
+            <Text type="secondary">
+              该母猪已由管理者标记为建议淘汰。如现场判断不淘汰，需要记录原因，方便后台复盘。
+            </Text>
+            <Input.TextArea
+              value={cullRejectReason}
+              onChange={(e) => setCullRejectReason(e.target.value)}
+              placeholder="例如：体况恢复良好，乳房与采食正常，建议继续观察"
+              autoSize={{ minRows: 3, maxRows: 5 }}
+              maxLength={120}
+              showCount
+            />
+            <div className="mv-weaning-cull-reason__actions">
+              <Button
+                onClick={() => {
+                  updateCurrentSow({ ...current, cullSuggestion: "淘汰", cullRejectReason: undefined });
+                  setCullRejectReasonOpen(false);
+                  setCullRejectReason("");
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => {
+                  const reason = cullRejectReason.trim();
+                  if (!reason) {
+                    message.warning("请填写不淘汰原因");
+                    return;
+                  }
+                  updateCurrentSow({ ...current, cullSuggestion: "不淘汰", cullRejectReason: reason });
+                  setCullRejectReasonOpen(false);
+                }}
+              >
+                确认
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     );
   }
@@ -604,11 +676,12 @@ export function MobileWeaningCheckFlow({
     );
   }
 
+  const endTaskAllDone = completedCount >= totalCount;
+  const endTaskRemaining = Math.max(0, totalCount - completedCount);
+
   if (endTaskOpen) {
-    const allDone = completedCount >= totalCount;
-    const remaining = Math.max(0, totalCount - completedCount);
     return (
-      <div className="mv-root mv-weaning-page">
+      <div className={`mv-root mv-weaning-page mv-weaning-end-page${endTaskAllDone ? " is-done" : " is-incomplete"}`}>
         <div className="mv-statusbar" aria-hidden>
           <span className="mv-statusbar__time">9:41</span>
           <span className="mv-statusbar__icons">
@@ -617,60 +690,92 @@ export function MobileWeaningCheckFlow({
             <i className="mv-battery" />
           </span>
         </div>
-        <div className="mv-weaning-header">
+        <div className="mv-weaning-header mv-weaning-end-header">
           <Button type="text" icon={<LeftOutlined />} onClick={() => setEndTaskOpen(false)} />
           <Title level={5}>结束任务</Title>
           <span />
         </div>
-        <div className="mv-weaning-scroll">
+
+        <div className="mv-weaning-scroll mv-weaning-end-scroll">
           <Card className="mv-card mv-weaning-end-summary" bordered={false}>
             <div className="mv-weaning-end-summary__title">
-              {allDone ? (
-                <>
-                  <CheckCircleFilled style={{ color: "#22c55e" }} /> 已达到任务目标
-                </>
-              ) : (
-                <>未达到任务目标</>
-              )}
+              <span className={`mv-weaning-end-status-icon ${endTaskAllDone ? "is-done" : "is-incomplete"}`}>
+                {endTaskAllDone ? <CheckCircleFilled /> : <CloseOutlined />}
+              </span>
+              <strong>{endTaskAllDone ? "已达到任务目标" : "未达到任务目标"}</strong>
             </div>
-            <div className="mv-weaning-end-summary__numbers">
-              <strong>{completedDisplay}</strong> / {totalDisplay} {displayUnit} ({progressPct}%)
-            </div>
-            <div className="mv-weaning-end-summary__track">
-              <div className="mv-weaning-end-summary__fill" style={{ width: `${progressPct}%` }} />
+            <div className="mv-weaning-end-progress-box">
+              <div className="mv-weaning-end-progress-meta">
+                <span>已检查 / 需检查</span>
+                <strong>
+                  {completedDisplay} / {totalDisplay}栏 <em>({progressPct}%)</em>
+                </strong>
+              </div>
+              <div className="mv-weaning-end-summary__track">
+                <div className="mv-weaning-end-summary__fill" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="mv-weaning-end-progress-extra">
+                <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+                <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
+              </div>
             </div>
           </Card>
-          <Card className="mv-card" bordered={false}>
-            <div className="mv-section-bar-title">执行详情</div>
-            <div className="mv-weaning-kv-row">
-              <span>已检查栏位</span>
-              <strong>{completedDisplay} {displayUnit}</strong>
+
+          <div className="mv-section-bar-title">执行详情</div>
+          <Card className="mv-card mv-weaning-end-detail-card" bordered={false}>
+            <div className="mv-weaning-end-detail-group">
+              <div className="mv-weaning-end-detail-group__title">
+                <span className="mv-weaning-end-detail-icon is-done"><CheckCircleFilled /></span>
+                <strong>继续跟随批次</strong>
+              </div>
+              {!endTaskAllDone ? (
+                <>
+                  <div className="mv-weaning-end-detail-row">
+                    <span>已检查栏位</span>
+                    <strong>{completedDisplay} 栏（共：1,231 头仔猪）</strong>
+                  </div>
+                  <div className="mv-weaning-end-detail-row">
+                    <span>未检查栏位</span>
+                    <strong>{endTaskRemaining * displayScale} 栏（共：1,231 头仔猪）</strong>
+                  </div>
+                </>
+              ) : null}
+              <div className="mv-weaning-end-detail-total">1,231 头</div>
             </div>
-            <div className="mv-weaning-kv-row">
-              <span>未检查栏位</span>
-              <strong>{remaining * displayScale} {displayUnit}</strong>
+
+            <div className="mv-weaning-end-detail-group">
+              <div className="mv-weaning-end-detail-group__title">
+                <span className="mv-weaning-end-detail-icon is-incomplete"><CloseOutlined /></span>
+                <strong>将从批次中移出</strong>
+              </div>
+              <div className="mv-weaning-end-detail-row">
+                <span>母猪</span>
+                <strong>100 头</strong>
+              </div>
+              <div className="mv-weaning-end-detail-total">100 栏&nbsp;&nbsp;100 头</div>
             </div>
           </Card>
         </div>
-        <div className="mv-weaning-bottom-bar mv-weaning-bottom-bar--dual">
-          <Button onClick={() => setEndTaskOpen(false)}>取消</Button>
-          <Button
-            type="primary"
-            onClick={() => {
-              if (!allDone) {
-                Modal.warning({
-                  title: "结束任务",
-                  content: `当前还有 ${remaining * displayScale} ${displayUnit}未检查，无法结束${checkTabLabel}任务。`,
-                  getContainer: false
-                });
-                return;
-              }
-              message.success("任务已结束");
-              onBack();
-            }}
-          >
-            结束任务
-          </Button>
+
+        <div className="mv-weaning-end-bottom">
+          <div className="mv-weaning-end-confirm-row">
+            <span className="mv-weaning-end-info-dot">i</span>
+            <span>请确认，将从批次中移出</span>
+            <span className="mv-weaning-end-count-box">200</span>
+            <strong>头母猪 *</strong>
+          </div>
+          <div className="mv-weaning-end-actions">
+            <Button onClick={() => setEndTaskOpen(false)}>取消</Button>
+            <Button
+              type="primary"
+              onClick={() => {
+                message.success("任务已结束");
+                onBack();
+              }}
+            >
+              结束任务
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -714,44 +819,10 @@ export function MobileWeaningCheckFlow({
               </div>
               <Tag>{taskDayLabel}</Tag>
             </div>
-            <div className="mv-weaning-progress-card__track">
-              <div className="mv-weaning-progress-card__fill" style={{ width: `${progressPct}%` }} />
-            </div>
-            <div className="mv-weaning-progress-card__meta">
-              <span>已检查 / 需检查</span>
-              <strong>
-                {completedDisplay} / {totalDisplay} {displayUnit}
-              </strong>
-              <Tag>{progressPct}%</Tag>
-            </div>
             <div className="mv-weaning-progress-card__process">
-              <CompactProcessRow label="淘汰进度" done={cullDoneCount} total={cullNeeded} tone="cull" />
-              <CompactProcessRow label="留种进度" done={retainDoneCount} total={retainNeeded} tone="retain" />
-            </div>
-            <div className="mv-weaning-progress-card__quickstats">
-              <CompactKpi label="待检查" value={`${pendingCheckCount * displayScale}${displayUnit}`} />
-              <CompactKpi
-                label="待淘汰确认"
-                value={`${pendingCullCount}头`}
-                tone="cull"
-                clickable
-                active={rowFilter === "cull"}
-                onClick={() => {
-                  setRowFilter("cull");
-                  setViewMode("list");
-                }}
-              />
-              <CompactKpi
-                label="待留种标记"
-                value={`${pendingRetainCount}头`}
-                tone="retain"
-                clickable
-                active={rowFilter === "retain"}
-                onClick={() => {
-                  setRowFilter("retain");
-                  setViewMode("list");
-                }}
-              />
+              <CompactProcessRow label="已检查 / 需检查" done={completedDisplay} total={totalDisplay} tone="check" />
+              <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+              <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
             </div>
           </Card>
         </section>
@@ -844,15 +915,39 @@ export function MobileWeaningCheckFlow({
                   </div>
                   <Tag>{taskDayLabel}</Tag>
                 </div>
-                <div className="mv-weaning-progress-card__track">
-                  <div className="mv-weaning-progress-card__fill" style={{ width: `${progressPct}%` }} />
+                <div className="mv-weaning-progress-card__process">
+                  <CompactProcessRow label="已检查 / 需检查" done={completedDisplay} total={totalDisplay} tone="check" />
+                  <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+                  <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
                 </div>
-                <div className="mv-weaning-progress-card__meta">
-                  <span>已检查 / 需检查</span>
-                  <strong>
-                    {completedDisplay} / {totalDisplay} {displayUnit}
-                  </strong>
-                  <Tag>{progressPct}%</Tag>
+              </Card>
+            </section>
+
+            <section className="mv-weaning-detail-section">
+              <div className="mv-section-bar-title">状态说明</div>
+              <Card className="mv-card mv-weaning-detail-legend-card" bordered={false}>
+                <div className="mv-weaning-legend">
+                  <div className="mv-weaning-legend__item mv-weaning-legend__item--with-copy">
+                    <span className="mv-weaning-dot mv-weaning-dot--suggested-cull" />
+                    <div>
+                      <span className="mv-weaning-legend__title">建议淘汰</span>
+                      <span className="mv-weaning-legend__copy">由管理者在后台标记的淘汰对象，用于提前关注和评估是否淘汰。</span>
+                    </div>
+                  </div>
+                  <div className="mv-weaning-legend__item mv-weaning-legend__item--with-copy">
+                    <span className="mv-weaning-dot mv-weaning-dot--cull-pending" />
+                    <div>
+                      <span className="mv-weaning-legend__title">需淘汰</span>
+                      <span className="mv-weaning-legend__copy">在任务执行过程中确认需要淘汰的猪只，表示该猪只已进入淘汰流程。</span>
+                    </div>
+                  </div>
+                  <div className="mv-weaning-legend__item mv-weaning-legend__item--with-copy">
+                    <span className="mv-weaning-dot mv-weaning-dot--cull-done" />
+                    <div>
+                      <span className="mv-weaning-legend__title">已淘汰</span>
+                      <span className="mv-weaning-legend__copy">已完成淘汰处理的猪只（如出售、死亡或离场）。</span>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </section>
@@ -888,22 +983,6 @@ export function MobileWeaningCheckFlow({
                 <div className="mv-weaning-kv-row">
                   <span>{isPostpartum ? "查看断奶检查标准" : "查看断奶检查标准"}</span>
                   <RightOutlined />
-                </div>
-              </Card>
-            </section>
-
-            <section className="mv-weaning-detail-section">
-              <div className="mv-section-bar-title">状态说明</div>
-              <Card className="mv-card mv-weaning-detail-legend-card" bordered={false}>
-                <div className="mv-weaning-legend">
-                  <div>
-                    <span className="mv-weaning-dot mv-weaning-dot--pending" />
-                    待检查
-                  </div>
-                  <div>
-                    <span className="mv-weaning-dot mv-weaning-dot--done" />
-                    已完成
-                  </div>
                 </div>
               </Card>
             </section>
@@ -962,28 +1041,12 @@ export function MobileWeaningCheckFlow({
                 </Text>
               </div>
             </div>
-            <Card className="mv-card mv-weaning-detail-overview-card" bordered={false}>
-              <div className="mv-weaning-detail-overview__header">
-                <div>
-                  <div className="mv-weaning-detail-overview__eyebrow">本头任务进度</div>
-                  {isActiveReadyToSubmit ? <strong>可以提交本头检查</strong> : null}
-                </div>
-                <Tag className={`mv-weaning-detail-overview__tag ${isActiveReadyToSubmit ? "is-ready" : "is-pending"}`}>
-                  {isActiveReadyToSubmit ? "可提交" : "待填写"}
-                </Tag>
-              </div>
-              <div className="mv-weaning-detail-overview__steps">
-                <DetailStepChip label="仔猪信息" done={isActivePigletDone} />
-                <DetailStepChip label="母猪状态" done={isActiveSowDone} />
-              </div>
-            </Card>
 
             <div className="mv-section-bar-title">仔猪信息</div>
             <Card className="mv-card mv-weaning-modal-info-card mv-weaning-modal-piglet-card" bordered={false}>
               <div className="mv-weaning-detail-card__head">
                 <div>
                   <strong>仔猪信息</strong>
-                  <Text type="secondary">{isActivePigletDone ? "已完成填写" : "待填写"}</Text>
                 </div>
                 <Button
                   type="link"
@@ -1010,7 +1073,6 @@ export function MobileWeaningCheckFlow({
               <div className="mv-weaning-detail-card__head">
                 <div>
                   <strong>母猪状态</strong>
-                  <Text type="secondary">{isActiveSowDone ? "已完成填写" : "待填写"}</Text>
                 </div>
                 <Button
                   type="link"
@@ -1026,7 +1088,7 @@ export function MobileWeaningCheckFlow({
               </div>
               <div className="mv-weaning-detail-stat-grid mv-weaning-detail-stat-grid--compact">
                 <DetailStat label="体况评分" value={activeRecord?.sow ? `${activeRecord.sow.bodyScore}分` : "-"} />
-                <DetailStat label="淘汰建议" value={activeRecord?.sow?.cullSuggestion ?? "-"} />
+                <DetailStat label="淘汰复核" value={activeRecord?.sow?.cullSuggestion ?? "-"} />
                 <DetailStat label="检查异常" value={activeRecord?.sow ? "3项" : "-"} />
               </div>
             </Card>
@@ -1039,6 +1101,8 @@ export function MobileWeaningCheckFlow({
           </div>
         ) : null}
       </Modal>
+
+
 
       <Modal
         title="筛选猪只"
@@ -1108,20 +1172,15 @@ function WeaningRowCard({
                 {row.retainPlanned ? <Tag className="mv-weaning-flag mv-weaning-flag--retain">重点留种来源</Tag> : null}
               </div>
             </div>
-            <div className="mv-weaning-row__subline">
-              <span className="mv-weaning-row__meta-inline">
-                <span>{mode === "grid" ? row.stallNo : row.sowParityText}</span>
-                <span className="mv-weaning-row__meta-divider">|</span>
-                <span>{mode === "grid" ? `${row.sowParityText} · ${row.sowAgeDays}日龄` : `${row.sowAgeDays}日龄`}</span>
-              </span>
-              {row.status === "done" && (row.pigletTotal || row.retainedPiglets) ? (
+            {row.status === "done" && (row.pigletTotal || row.retainedPiglets) ? (
+              <div className="mv-weaning-row__subline">
                 <div className="mv-weaning-row__result">
                   <span>共：{row.pigletTotal ?? 0}</span>
                   <span className="mv-weaning-row__result-divider">|</span>
                   <span>留种：{row.retainedPiglets ?? 0}</span>
                 </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
           <div className="mv-weaning-row__aside">
             <span
@@ -1141,52 +1200,18 @@ function WeaningRowCard({
   );
 }
 
-function CompactKpi({
-  label,
-  value,
-  tone = "default",
-  clickable = false,
-  active = false,
-  onClick
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "cull" | "retain";
-  clickable?: boolean;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const className = `mv-weaning-progress-card__quickstat mv-weaning-progress-card__quickstat--${tone}${
-    clickable ? " is-clickable" : ""
-  }${active ? " is-active" : ""}`;
-
-  if (clickable && onClick) {
-    return (
-      <button type="button" className={className} onClick={onClick}>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </button>
-    );
-  }
-
-  return (
-    <div className={className}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function CompactProcessRow({
   label,
   done,
   total,
-  tone
+  tone,
+  unit
 }: {
   label: string;
   done: number;
   total: number;
-  tone: "cull" | "retain";
+  tone: "check" | "cull" | "retain";
+  unit?: string;
 }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
@@ -1194,21 +1219,12 @@ function CompactProcessRow({
       <div className="mv-weaning-progress-card__process-meta">
         <span>{label}</span>
         <strong>
-          {done} / {total}
+          {done} / {total}{unit ? ` ${unit}` : ""}
         </strong>
       </div>
       <div className="mv-weaning-progress-card__process-track">
         <div className="mv-weaning-progress-card__process-fill" style={{ width: `${pct}%` }} />
       </div>
-    </div>
-  );
-}
-
-function DetailStepChip({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className={`mv-weaning-detail-step-chip${done ? " is-done" : ""}`}>
-      <span className="mv-weaning-detail-step-chip__dot">{done ? "✓" : "·"}</span>
-      <span>{label}</span>
     </div>
   );
 }
@@ -1280,7 +1296,7 @@ function WeaningOptionRow({
   value,
   onChange
 }: {
-  label: string;
+  label: ReactNode;
   options: string[];
   value: string;
   onChange: (v: string) => void;

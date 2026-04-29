@@ -1,5 +1,5 @@
 import type { ColumnsType } from "antd/es/table";
-import { Button, Card, Table, Tabs, Tag, Typography } from "antd";
+import { Button, Card, Popconfirm, Space, Table, Tabs, Tag, Typography } from "antd";
 
 const { Title, Text } = Typography;
 
@@ -38,9 +38,13 @@ export type TaskRow = {
 interface Props {
   tasks: TaskRow[];
   onCreateTask: () => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
-function taskTableColumns(status: TaskRow["status"]): ColumnsType<TaskRow> {
+function taskTableColumns(
+  status: TaskRow["status"],
+  onDeleteTask?: (taskId: string) => void
+): ColumnsType<TaskRow> {
   const base: ColumnsType<TaskRow> = [
     {
       title: "任务ID",
@@ -77,15 +81,6 @@ function taskTableColumns(status: TaskRow["status"]): ColumnsType<TaskRow> {
       width: 72,
       render: (n: number) => `${n ?? 1} 次`
     },
-    {
-      title: "间隔",
-      key: "interval",
-      width: 120,
-      render: (_, row) =>
-        row.intervalValue != null && row.intervalUnit
-          ? `${row.intervalValue} ${row.intervalUnit}`
-          : "—"
-    },
     { title: "接种日期", dataIndex: "schedule", key: "schedule", width: 120 },
     {
       title: "目标猪只",
@@ -103,6 +98,28 @@ function taskTableColumns(status: TaskRow["status"]): ColumnsType<TaskRow> {
         key: "creatorAt",
         width: 200,
         render: (_, row) => `${row.creator} / ${row.createdAt}`
+      },
+      {
+        title: "操作",
+        key: "actions",
+        width: 110,
+        fixed: "right",
+        render: (_, row) =>
+          onDeleteTask ? (
+            <Space size={0}>
+              <Popconfirm
+                title="删除接种任务"
+                description="删除后会同步移除该任务下发到 Mobile 的接种数据。"
+                okText="删除"
+                cancelText="取消"
+                onConfirm={() => onDeleteTask(row.id)}
+              >
+                <Button type="link" danger style={{ paddingInline: 0 }}>
+                  删除
+                </Button>
+              </Popconfirm>
+            </Space>
+          ) : null
       }
     ];
   }
@@ -123,7 +140,7 @@ function taskTableColumns(status: TaskRow["status"]): ColumnsType<TaskRow> {
   ];
 }
 
-export function VaccineTaskListPage({ onCreateTask, tasks }: Props) {
+export function VaccineTaskListPage({ onCreateTask, onDeleteTask, tasks }: Props) {
   return (
     <div>
       <div className="page-header">
@@ -151,7 +168,7 @@ export function VaccineTaskListPage({ onCreateTask, tasks }: Props) {
                 pagination={false}
                 scroll={{ x: "max-content" }}
                 locale={{ emptyText: "暂无任务" }}
-                columns={taskTableColumns(status)}
+                columns={taskTableColumns(status, onDeleteTask)}
               />
             )
           }))}
