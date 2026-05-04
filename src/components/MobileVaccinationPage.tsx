@@ -108,6 +108,34 @@ function buildImmuneIntervalTip(task: MobilePigTask): string | null {
   return `${task.earTag} 距离上次接种“${lastVaccineName}”（${formatZhDate(lastAt)}）未满${intervalDays}天，当前仍在免疫间隔期内。\n为避免免疫干扰，建议延后至 ${formatZhDate(nextDate.format("YYYY-MM-DD"))} 后再接种。`;
 }
 
+function ExemptionHitPopover({ task }: { task: MobilePigTask }) {
+  if (!task.exemptionHit) return null;
+  const reason = exemptionHitRuleDisplay(task) || "已命中接种豁免规则，请暂缓接种。";
+  return (
+    <Popover
+      trigger="click"
+      placement="top"
+      overlayClassName="mv-exemption-popover"
+      getPopupContainer={(node) => node.parentElement ?? document.body}
+      content={
+        <div className="mv-exemption-popover__content">
+          <div className="mv-exemption-popover__title">不建议接种</div>
+          <div className="mv-exemption-popover__text">{reason}</div>
+        </div>
+      }
+    >
+      <button
+        type="button"
+        className="mv-pig-row-alert-btn"
+        aria-label="查看不建议接种原因"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExclamationCircleFilled className="mv-pig-row-alert-icon" aria-hidden="true" />
+      </button>
+    </Popover>
+  );
+}
+
 type Screen = "hub" | "pigList" | "weaning";
 type PigDrawerPhase = "detail" | "execute";
 
@@ -223,10 +251,10 @@ function PigSlotDrawer({
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
 
   const pigMoreActionItems = [
-    { key: "triage", label: "调整分诊等级" },
-    { key: "symptom", label: "编辑疾病/症状" },
-    { key: "death", label: "上报死亡" },
-    { key: "mark", label: "标记" }
+    { key: "pending-1", label: "待定操作 1" },
+    { key: "pending-2", label: "待定操作 2" },
+    { key: "pending-3", label: "待定操作 3" },
+    { key: "pending-4", label: "待定操作 4" }
   ] as const;
 
   const actionsLocked =
@@ -269,7 +297,7 @@ function PigSlotDrawer({
             className="mv-pig-drawer__more-btn"
             icon={<MoreOutlined />}
             aria-label="更多操作"
-            onClick={() => setMoreActionsOpen(true)}
+            onClick={() => setMoreActionsOpen((prev) => !prev)}
           />
         </div>
       </div>
@@ -353,6 +381,15 @@ function PigSlotDrawer({
               <Button
                 block
                 size="large"
+                className="mv-pig-drawer-secondary-action"
+                icon={<MoreOutlined />}
+                onClick={() => setMoreActionsOpen((prev) => !prev)}
+              >
+                更多
+              </Button>
+              <Button
+                block
+                size="large"
                 type="primary"
                 disabled={actionsLocked}
                 onClick={() => {
@@ -380,39 +417,32 @@ function PigSlotDrawer({
                 {task.exemptionHit ? "仍然接种" : "接种"}
               </Button>
             </div>
+
+            {moreActionsOpen ? (
+              <div className="mv-pig-drawer-more-panel">
+                <Text type="secondary" className="mv-pig-more-actions__hint">
+                  更多操作入口先按占位展示，后续再替换为正式文案。
+                </Text>
+                <div className="mv-pig-more-actions mv-pig-more-actions--inline">
+                  {pigMoreActionItems.map((item) => (
+                    <Button
+                      key={item.key}
+                      block
+                      size="large"
+                      className="mv-pig-more-actions__btn"
+                      onClick={() => {
+                        message.info(`「${item.label}」待后续确认`);
+                      }}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </div>
-
-      <Modal
-        title="更多操作"
-        open={moreActionsOpen}
-        getContainer={modalContainer}
-        footer={null}
-        destroyOnClose
-        onCancel={() => setMoreActionsOpen(false)}
-        width={360}
-      >
-        <Text type="secondary" className="mv-pig-more-actions__hint">
-          以下入口已对接既有模块，演示环境仅作占位提示。
-        </Text>
-        <div className="mv-pig-more-actions">
-          {pigMoreActionItems.map((item) => (
-            <Button
-              key={item.key}
-              block
-              size="large"
-              className="mv-pig-more-actions__btn"
-              onClick={() => {
-                message.info(`「${item.label}」请在正式环境中打开已配置页面`);
-                setMoreActionsOpen(false);
-              }}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </Modal>
 
       <Modal
         title="移出接种列表"
@@ -1354,7 +1384,7 @@ export function MobileVaccinationPage({
                     <DeploymentUnitOutlined className="mv-unit-progress__meta-icon" />
                     <em
                       className="mv-unit-progress__meta-value"
-                      title={`接种途径：${fieldOrDash(unit?.administrationRoute)}`}
+                      title={`接种方式：${fieldOrDash(unit?.administrationRoute)}`}
                     >
                       {fieldOrDash(unit?.administrationRoute)}
                     </em>
@@ -1500,12 +1530,7 @@ export function MobileVaccinationPage({
                               <div className="mv-pig-row-main">
                                 <div className="mv-pig-row-ear-title">
                                   {t.earTag}
-                                  {t.exemptionHit ? (
-                                    <ExclamationCircleFilled
-                                      className="mv-pig-row-alert-icon"
-                                      aria-label="命中豁免规则"
-                                    />
-                                  ) : null}
+                                  <ExemptionHitPopover task={t} />
                                 </div>
                                 <div className="mv-pig-row-meta-line">
                                   <span>{pigTypeLabel(t)}</span>
@@ -1536,12 +1561,7 @@ export function MobileVaccinationPage({
                               {t.isRetry ? <span className="mv-pig-grid-card__retry">补打</span> : null}
                               <div className="mv-pig-grid-card__ear">
                                 {t.earTag}
-                                {t.exemptionHit ? (
-                                  <ExclamationCircleFilled
-                                    className="mv-pig-row-alert-icon"
-                                    aria-label="命中豁免规则"
-                                  />
-                                ) : null}
+                                <ExemptionHitPopover task={t} />
                               </div>
                               <Tag
                                 className={`mv-pig-grid-card__tag mv-pig-status-tone--${rowSt.tone}${rowSt.label.includes("后可接种") ? " mv-pig-grid-card__tag--long" : ""}`}
@@ -1665,7 +1685,7 @@ export function MobileVaccinationPage({
                     <span className="mv-task-detail__config-v">{fieldOrDash(unit?.dosageForm)}</span>
                   </div>
                   <div className="mv-task-detail__config-row">
-                    <span className="mv-task-detail__config-k">接种途径</span>
+                    <span className="mv-task-detail__config-k">接种方式</span>
                     <span className="mv-task-detail__config-v">{fieldOrDash(unit?.administrationRoute)}</span>
                   </div>
                   <div className="mv-task-detail__config-row">

@@ -17,7 +17,7 @@ export function formatAdministrationRoutes(routes?: readonly string[] | null): s
   return parts.join("、");
 }
 
-/** 按疫苗中文名 + 品牌中文名从疫苗目录解析剂型与接种途径（用于下发任务行） */
+/** 按疫苗中文名 + 品牌中文名从疫苗目录解析剂型与接种方式（用于下发任务行） */
 export function resolveTaskVaccinePresentation(
   vaccineName: string,
   brandName: string
@@ -74,7 +74,7 @@ export type MobilePigTask = {
   vaccineBrand?: string;
   /** 剂型 */
   dosageForm?: string;
-  /** 接种途径（已格式化为展示文案） */
+  /** 接种方式（已格式化为展示文案） */
   administrationRoute?: string;
   /** 剂量全文，如「2 毫克」（来自任务行的 dosage） */
   dosage: string;

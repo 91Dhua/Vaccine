@@ -715,7 +715,7 @@ export function MobileWeaningCheckFlow({
                 <div className="mv-weaning-end-summary__fill" style={{ width: `${progressPct}%` }} />
               </div>
               <div className="mv-weaning-end-progress-extra">
-                <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+                <CompactProcessRow label="已淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
                 <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
               </div>
             </div>
@@ -821,7 +821,7 @@ export function MobileWeaningCheckFlow({
             </div>
             <div className="mv-weaning-progress-card__process">
               <CompactProcessRow label="已检查 / 需检查" done={completedDisplay} total={totalDisplay} tone="check" />
-              <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+              <CompactProcessRow label="已淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
               <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
             </div>
           </Card>
@@ -917,7 +917,7 @@ export function MobileWeaningCheckFlow({
                 </div>
                 <div className="mv-weaning-progress-card__process">
                   <CompactProcessRow label="已检查 / 需检查" done={completedDisplay} total={totalDisplay} tone="check" />
-                  <CompactProcessRow label="需淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
+                  <CompactProcessRow label="已淘汰 / 计划淘汰" done={cullDoneCount} total={cullNeeded} tone="cull" unit="头" />
                   <CompactProcessRow label="标记留种 / 计划留种" done={retainDoneCount} total={retainNeeded} tone="retain" unit="头" />
                 </div>
               </Card>

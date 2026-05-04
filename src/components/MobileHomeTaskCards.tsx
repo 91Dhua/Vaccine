@@ -49,8 +49,6 @@ export function VaccinationHomeCard({
         <div className="mv-vaccine-card__main">
           <div className="mv-vaccine-card__title-row">
             <div className="mv-mission-card__title">{card.title}</div>
-          </div>
-          <div className="mv-vaccine-card__meta-row">
             {typeof card.dispatchedDays === "number" ? (
               <span className="mv-mission-card__dispatch-badge">已下发 {card.dispatchedDays} 天</span>
             ) : null}

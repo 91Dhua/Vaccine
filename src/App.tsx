@@ -5,6 +5,7 @@ import { VaccineCatalogPage } from "./components/VaccineCatalogPage";
 import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
 import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
 import { VaccineTaskWizard, type VaccineTaskDraft } from "./components/VaccineTaskWizard";
+import { VaccineTaskDetailPage } from "./components/VaccineTaskDetailPage";
 import { CullingPlanPage, CullingTaskDetailPage } from "./components/culling";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
@@ -22,6 +23,7 @@ const { Content, Sider } = Layout;
 const { Title } = Typography;
 
 type WorkspaceMode = "console" | "mobile";
+type VaccineTaskFlowMode = "create" | "edit" | "supplement";
 const SEED_TASKS: TaskRow[] = [
   {
     id: "VT-DEMO-7K2M",
@@ -33,7 +35,7 @@ const SEED_TASKS: TaskRow[] = [
     schedule: "2026-02-10",
     doseTimes: 1,
     targetCount: 16,
-    status: "未开始",
+    status: "待接种",
     creator: "王敏",
     createdAt: "2026-02-09 09:20",
     pigIds: [
@@ -99,17 +101,27 @@ const SEED_TASKS: TaskRow[] = [
 export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("console");
   const [consoleActiveKey, setConsoleActiveKey] = useState("plan");
-  const [taskStep, setTaskStep] = useState<"tasks" | "select" | "form" | "preview">(
+  const [taskStep, setTaskStep] = useState<"tasks" | "select" | "form" | "preview" | "detail">(
     "tasks"
   );
+  const [taskFlowMode, setTaskFlowMode] = useState<VaccineTaskFlowMode>("create");
   const [selectedPigs, setSelectedPigs] = useState<string[]>([]);
   const [taskDraft, setTaskDraft] = useState<VaccineTaskDraft | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<TaskRow[]>(SEED_TASKS);
   const [mobilePigTasks, setMobilePigTasks] = useState<MobilePigTask[]>(() =>
     seedMobileTasksFromConsole(SEED_TASKS)
   );
   const [mobileLogs, setMobileLogs] = useState<MobileExecutionLog[]>([]);
   const activeKey = workspaceMode === "console" ? consoleActiveKey : "mobile-vacc";
+  const tasksWithSupplementState = tasks.map((task) => ({
+    ...task,
+    needsSupplement:
+      task.status === "已完成" &&
+      mobilePigTasks.some((pigTask) => pigTask.taskId === task.id && pigTask.status !== "completed")
+  }));
+  const activeTask = tasks.find((task) => task.id === activeTaskId) || null;
   const consoleMenuItems = [
     {
       key: "immunity",
@@ -181,28 +193,119 @@ export default function App() {
             <div>
               {taskStep === "tasks" && (
                 <VaccineTaskListPage
-                  tasks={tasks}
-                  onCreateTask={() => setTaskStep("select")}
+                  tasks={tasksWithSupplementState}
+                  onCreateTask={() => {
+                    setTaskFlowMode("create");
+                    setEditingTaskId(null);
+                    setTaskDraft(null);
+                    setSelectedPigs([]);
+                    setActiveTaskId(null);
+                    setTaskStep("select");
+                  }}
+                  onViewTask={(taskId) => {
+                    setTaskFlowMode("create");
+                    setEditingTaskId(null);
+                    setActiveTaskId(taskId);
+                    setTaskStep("detail");
+                  }}
                   onDeleteTask={(taskId) => {
                     setTasks((prev) => prev.filter((task) => task.id !== taskId));
                     setMobilePigTasks((prev) =>
                       prev.filter((task) => task.taskId !== taskId && task.batchId !== taskId)
                     );
+                    if (activeTaskId === taskId) {
+                      setActiveTaskId(null);
+                    }
                   }}
                 />
               )}
+              {taskStep === "detail" && activeTask ? (
+                <VaccineTaskDetailPage
+                  task={activeTask}
+                  pigTasks={mobilePigTasks.filter((task) => task.taskId === activeTask.id)}
+                  logs={mobileLogs.filter((log) => log.pigTaskId.startsWith(`${activeTask.id}__`))}
+                  onBack={() => setTaskStep("tasks")}
+                  onEdit={
+                    activeTask.status === "待接种"
+                      ? () => {
+                          setTaskFlowMode("edit");
+                          setEditingTaskId(activeTask.id);
+                          setTaskDraft({
+                            vaccineId:
+                              vaccineCatalog.find((item) => item.nameCn === activeTask.vaccine)?.vaccineId || "",
+                            vaccineName: activeTask.vaccine,
+                            brand: activeTask.brand === "-" ? undefined : activeTask.brand,
+                            vaccinationMethod: activeTask.administrationRoute,
+                            dosage: Number(String(activeTask.dosage).replace(/[^\d.]/g, "")) || 1,
+                            dosageUnit: activeTask.dosage.includes("毫升") ? "毫升" : "毫克",
+                            date: activeTask.schedule
+                          });
+                          setSelectedPigs(
+                            activeTask.pigIds && activeTask.pigIds.length > 0
+                              ? activeTask.pigIds
+                              : mobilePigTasks
+                                  .filter((task) => task.taskId === activeTask.id)
+                                  .map((task) => task.pigId)
+                          );
+                          setTaskStep("select");
+                        }
+                      : undefined
+                  }
+                  onSupplement={
+                    activeTask.status === "已完成"
+                      ? (pigIds) => {
+                          const dosageValue = Number(String(activeTask.dosage).replace(/[^\d.]/g, "")) || 1;
+                          setTaskFlowMode("supplement");
+                          setEditingTaskId(null);
+                          setTaskDraft({
+                            vaccineId:
+                              vaccineCatalog.find((item) => item.nameCn === activeTask.vaccine)?.vaccineId || "",
+                            vaccineName: activeTask.vaccine,
+                            brand: activeTask.brand === "-" ? undefined : activeTask.brand,
+                            vaccinationMethod: activeTask.administrationRoute,
+                            dosage: dosageValue,
+                            dosageUnit: activeTask.dosage.includes("毫升") ? "毫升" : "毫克",
+                            date: undefined
+                          });
+                          setSelectedPigs(pigIds);
+                          setTaskStep("select");
+                        }
+                      : undefined
+                  }
+                  onDelete={
+                    activeTask.status === "待接种"
+                      ? () => {
+                          setTasks((prev) => prev.filter((task) => task.id !== activeTask.id));
+                          setMobilePigTasks((prev) =>
+                            prev.filter((task) => task.taskId !== activeTask.id && task.batchId !== activeTask.id)
+                          );
+                          setActiveTaskId(null);
+                          setTaskStep("tasks");
+                        }
+                      : undefined
+                  }
+                />
+              ) : null}
               {taskStep === "select" && (
                 <VaccineTaskSelectPage
                   selectedPigs={selectedPigs}
                   onSelectionChange={setSelectedPigs}
                   onCreateTask={() => setTaskStep("form")}
-                  onBack={() => setTaskStep("tasks")}
+                  onBack={() => {
+                    if (editingTaskId || taskFlowMode === "supplement") {
+                      setTaskStep("detail");
+                    } else {
+                      setTaskStep("tasks");
+                    }
+                  }}
                 />
               )}
               {taskStep === "form" && (
                 <VaccineTaskWizard
                   step="form"
                   selectedPigs={selectedPigs}
+                  mode={taskFlowMode}
+                  payload={taskDraft}
                   onBack={() => setTaskStep("select")}
                   onNext={(payload) => {
                     setTaskDraft(payload);
@@ -214,10 +317,14 @@ export default function App() {
                 <VaccineTaskWizard
                   step="preview"
                   selectedPigs={selectedPigs}
+                  mode={taskFlowMode}
                   payload={taskDraft}
                   onBack={() => setTaskStep("form")}
                   onFinish={() => {
                     if (taskDraft) {
+                      const editingTask = editingTaskId
+                        ? tasks.find((task) => task.id === editingTaskId)
+                        : undefined;
                       const dosageUnit = String(taskDraft.dosageUnit || "").trim() || "毫克";
                       const cover = selectedPigs.length;
                       const exemptionHitCount =
@@ -241,19 +348,19 @@ export default function App() {
                         (b) => b.brandNameCn === brandLine
                       );
                       const newTask: TaskRow = {
-                        id: generateConsoleTaskId(),
+                        id: editingTaskId || generateConsoleTaskId(),
                         vaccine: taskDraft.vaccineName || "-",
                         brand: brandLine,
                         dosageForm: pres.dosageForm,
-                        administrationRoute: pres.administrationRoute,
+                        administrationRoute: taskDraft.vaccinationMethod || pres.administrationRoute,
                         dosage: dosageStr,
                         schedule: taskDraft.date || "-",
-                        doseTimes: Number(taskDraft.times) > 0 ? Number(taskDraft.times) : 1,
+                        doseTimes: 1,
                         immuneIntervalDays: brandCfg?.immuneIntervalDays,
                         targetCount: cover,
-                        status: "未开始",
-                        creator: "当前用户",
-                        createdAt: "2026-02-10 09:00",
+                        status: "待接种",
+                        creator: editingTask?.creator || "当前用户",
+                        createdAt: editingTask?.createdAt || "2026-02-10 09:00",
                         pigIds: [...selectedPigs],
                         dosageUnit,
                         targetPigGroupLabel: `已选猪只（${cover} 头）`,
@@ -264,12 +371,26 @@ export default function App() {
                         selectedPigs,
                         exemptionHitCount
                       );
-                      setMobilePigTasks((prev) => [...pigLines, ...prev]);
-                      setTasks((prev) => [newTask, ...prev]);
+                      if (editingTaskId) {
+                        setMobilePigTasks((prev) => [
+                          ...pigLines,
+                          ...prev.filter((task) => task.taskId !== editingTaskId && task.batchId !== editingTaskId)
+                        ]);
+                        setTasks((prev) =>
+                          prev.map((task) => (task.id === editingTaskId ? newTask : task))
+                        );
+                        setActiveTaskId(editingTaskId);
+                        setTaskStep("detail");
+                      } else {
+                        setMobilePigTasks((prev) => [...pigLines, ...prev]);
+                        setTasks((prev) => [newTask, ...prev]);
+                        setTaskStep("tasks");
+                      }
                     }
                     setTaskDraft(null);
                     setSelectedPigs([]);
-                    setTaskStep("tasks");
+                    setEditingTaskId(null);
+                    setTaskFlowMode("create");
                   }}
                 />
               )}

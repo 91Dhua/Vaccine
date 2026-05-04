@@ -3775,6 +3775,20 @@ body {
   margin-top: 12px;
 }
 
+.mv-pig-drawer-secondary-action {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+  background: #f8fafc !important;
+}
+
+.mv-pig-drawer-more-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
 .mv-pig-row-ear-title {
   font-size: 14px;
   font-weight: 600;
@@ -3831,6 +3845,51 @@ body {
   flex-shrink: 0;
   color: #dc2626;
   font-size: 16px;
+}
+
+.mv-pig-row-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mv-pig-row-alert-btn:focus-visible {
+  outline: 2px solid rgba(249, 115, 22, 0.28);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.mv-exemption-popover .ant-popover-inner {
+  border-radius: 16px;
+  padding: 10px 12px;
+  max-width: 248px;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.14);
+}
+
+.mv-exemption-popover__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mv-exemption-popover__title {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mv-exemption-popover__text {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #92400e;
+  white-space: pre-line;
 }
 
 .mv-pig-batchbar {
@@ -4187,7 +4246,6 @@ body {
   background: #f1f5f9 !important;
 }
 
-/* 猪只抽屉 · 更多操作弹窗 */
 .mv-pig-more-actions__hint {
   display: block;
   margin-bottom: 12px;
@@ -4199,6 +4257,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.mv-pig-more-actions--inline {
+  gap: 8px;
 }
 
 .mv-pig-more-actions__btn {
@@ -4668,6 +4730,10 @@ body {
 
 .app-shell--mobile .mv-pig-row-alert-icon {
   color: #f97316;
+}
+
+.app-shell--mobile .mv-pig-row-alert-btn {
+  color: inherit;
 }
 
 .app-shell--mobile .mv-pig-batchbar {
@@ -9586,4 +9652,42 @@ body {
   padding: 1px 7px !important;
   font-size: 10px;
   line-height: 16px;
+}
+
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.task-detail-progress-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.task-detail-progress-label {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.task-detail-progress-value {
+  color: #1f2937;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 30px;
+}
+
+.task-detail-section-title {
+  margin-bottom: 16px !important;
+}
+
+@media (max-width: 1200px) {
+  .task-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }

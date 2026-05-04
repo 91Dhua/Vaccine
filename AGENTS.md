@@ -41,13 +41,15 @@ Required PRD sections:
    - Include non-goals when they help avoid unnecessary frontend/backend work.
 
 3. `对象`
-   - Define the user roles and business objects involved.
-   - For each role, explain what they need to decide or operate.
-   - For each business object, clarify its lifecycle and relationship to other objects.
+   - Prioritize user-facing roles, especially `Console 用户` and `Mobile 用户`.
+   - The `对象` section should primarily describe who is using the feature, in what scenario, and what decision or operation they are responsible for.
+   - Avoid filling this section with business entities such as `批次`、`生产母猪`、`仔猪` unless the user explicitly asks for domain-object breakdown.
+   - If business objects must be mentioned, place them inside the relevant feature explanation instead of making them the main focus of the `对象` section.
 
 4. `价值`
    - Explain why the user cares about this feature, not only what the software can do.
-   - Connect the feature to operational value such as reducing missed work, improving batch stability, improving traceability, or making field decisions easier.
+   - The `价值` section should primarily speak to user roles and business outcomes, such as reducing missed work, improving batch stability, improving traceability, or making field decisions easier.
+   - Do not frame `价值` around what the feature does for frontend or backend developers unless the user explicitly asks for an implementation-facing document.
 
 5. `程序流程图`
    - Describe the system-side process using Mermaid when helpful.
@@ -79,3 +81,10 @@ Standing PRD rule:
 - Whenever code changes alter product logic, task state, data fields, validation, navigation, or display behavior, update the corresponding PRD in the same change.
 - If frontend behavior implies backend data or workflow requirements that are not yet logically closed, pause and ask the user for the missing business decision before writing a final PRD.
 - The user does not want to see `字段字典` in documentation. Treat field-name mapping tables as unnecessary unless the user explicitly asks for them.
+
+Additional rule for overview PRDs:
+
+- A `业务总览` or other top-level overview PRD should stay at the summary layer.
+- It should focus on: `背景`、`目标`、`对象`、`价值`、`程序流程图`、`操作流程图`、`模块拆分`.
+- It may additionally include a short `适用范围` or `上下游关系` section if that helps readers understand the overall system boundary.
+- Do not place submodule-level details such as status dictionaries, derived-field formulas, field mappings, or detailed edge cases in the overview PRD; those belong in the child module PRDs.

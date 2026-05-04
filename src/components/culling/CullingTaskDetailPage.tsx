@@ -19,7 +19,6 @@ type RetainedPigletRecord = {
   key: string;
   pigletId: string;
   sowId: string;
-  batch: string;
   location: string;
   gender: string;
   age: string;
@@ -56,15 +55,6 @@ const sowColumns: ColumnsType<SowRecord> = [
   {
     title: "其他观察",
     dataIndex: "observation"
-  },
-  {
-    title: "淘汰建议",
-    dataIndex: "cullingAdvice",
-    render: (value: string) => (
-      <Tag className={value.includes("不建议") ? "culling-detail-tag-soft" : "culling-detail-tag-warn"}>
-        {value}
-      </Tag>
-    )
   }
 ];
 
@@ -105,10 +95,6 @@ const retainedPigletColumns: ColumnsType<RetainedPigletRecord> = [
     sorter: (a, b) => a.sowId.localeCompare(b.sowId)
   },
   {
-    title: "批次",
-    dataIndex: "batch"
-  },
-  {
     title: "位置",
     dataIndex: "location"
   },
@@ -129,7 +115,6 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-1",
     pigletId: "P-260315-001",
     sowId: "DEV000002",
-    batch: "断奶批次 0001",
     location: "A1 · 保育预留栏",
     gender: "母",
     age: "28日龄",
@@ -139,7 +124,6 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-2",
     pigletId: "P-260315-003",
     sowId: "DEV000002",
-    batch: "断奶批次 0001",
     location: "A1 · 保育预留栏",
     gender: "公",
     age: "28日龄",
@@ -149,7 +133,6 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-3",
     pigletId: "P-260315-011",
     sowId: "DEV000004",
-    batch: "断奶批次 0001",
     location: "A2 · 保育预留栏",
     gender: "母",
     age: "27日龄",
@@ -159,7 +142,6 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-4",
     pigletId: "P-260315-015",
     sowId: "DEV000004",
-    batch: "断奶批次 0001",
     location: "A2 · 保育预留栏",
     gender: "公",
     age: "27日龄",
@@ -169,7 +151,6 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-5",
     pigletId: "P-260315-018",
     sowId: "DEV000004",
-    batch: "断奶批次 0001",
     location: "A2 · 保育预留栏",
     gender: "母",
     age: "27日龄",
@@ -185,7 +166,7 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
   const filteredSowData = useMemo(() => {
     const q = sowKeyword.trim();
     if (!q) return sowData;
-    return sowData.filter((item) => `${item.sowId}${item.location}${item.cullingAdvice}`.includes(q));
+    return sowData.filter((item) => `${item.sowId}${item.location}${item.observation}`.includes(q));
   }, [sowKeyword]);
 
   const filteredRetainedPiglets = useMemo(() => {
@@ -209,8 +190,12 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
 
   const checkedTotal = sowData.length;
   const checkedDone = sowData.filter((item) => item.taskStatus === "已检查").length;
-  const cullingTotal = sowData.filter((item) => item.cullingAdvice.includes("建议") && !item.cullingAdvice.includes("不建议")).length;
-  const cullingDone = cullingTotal;
+  const plannedCullingCount = sowData.filter(
+    (item) => item.cullingAdvice.includes("建议") && !item.cullingAdvice.includes("不建议")
+  ).length;
+  const completedCullingCount = sowData.filter(
+    (item) => item.cullingAdvice.includes("建议") && !item.cullingAdvice.includes("不建议")
+  ).length;
   const retainedTarget = 6;
   const retainedDone = retainedPigletData.length;
 
@@ -311,10 +296,10 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
           </div>
           <div className="culling-detail-plan-progress-list">
             <DetailPlanProgress
-              label="淘汰进度"
-              tooltip="已确认淘汰 / 需确认淘汰"
-              done={cullingDone}
-              total={cullingTotal}
+              label="已淘汰 / 计划淘汰"
+              tooltip="已淘汰数量 / 计划淘汰数量"
+              done={completedCullingCount}
+              total={plannedCullingCount}
               unit="头"
               strokeColor="#f97316"
             />
@@ -365,8 +350,8 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
           activeKey={retainedTab}
           onChange={(key) => setRetainedTab(key as "boar" | "gilt")}
           items={[
-            { key: "boar", label: `留种公猪 (${retainedBoarCount})` },
-            { key: "gilt", label: `留种母猪 (${retainedGiltCount})` }
+            { key: "boar", label: `育种公猪 (${retainedBoarCount})` },
+            { key: "gilt", label: `育种母猪 (${retainedGiltCount})` }
           ]}
         />
 

@@ -24,3 +24,5 @@ coverage
 
 # OS / temp
 Thumbs.db
+.vercel
+.env*.local

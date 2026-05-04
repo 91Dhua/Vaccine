@@ -276,7 +276,7 @@ export function VaccineCatalogPage() {
                         width: 130
                       },
                       {
-                        title: "接种途径",
+                        title: "接种方式",
                         dataIndex: "administrationRoutes",
                         width: 140,
                         render: (value?: string[]) =>
@@ -471,7 +471,7 @@ export function VaccineCatalogPage() {
           </Form.Item>
           <Form.Item
             name="administrationRoutes"
-            label="接种途径"
+            label="接种方式"
           >
             <Select
               mode="multiple"
@@ -606,7 +606,7 @@ export function VaccineCatalogPage() {
           </Form.Item>
           <Form.Item
             name="administrationRoutes"
-            label="接种途径"
+            label="接种方式"
           >
             <Select
               mode="multiple"

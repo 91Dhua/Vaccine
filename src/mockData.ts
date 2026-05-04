@@ -97,7 +97,7 @@ export type VaccineCategory = {
     withdrawalPeriodDays?: number;
     /** 免疫间隔期（天）：至少间隔多少天后才能接种下一针/其他疫苗 */
     immuneIntervalDays?: number;
-    /** 接种途径，可多选 */
+    /** 接种方式，可多选 */
     administrationRoutes?: ("IM" | "SC" | "滴鼻" | "饮水" | "喷雾")[];
     /** 疫苗类型 */
     targetPathogen?: "病毒性" | "细菌性" | "寄生虫";
