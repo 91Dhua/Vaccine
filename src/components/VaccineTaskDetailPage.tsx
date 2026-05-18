@@ -1,10 +1,12 @@
-import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Card, Descriptions, Popconfirm, Progress, Table, Tabs, Tag, Typography } from "antd";
+import { ArrowLeftOutlined, QuestionCircleOutlined } from "@ant-design/icons";
+import { Button, Card, Popconfirm, Popover, Progress, Table, Tabs, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { MobileExecutionLog, MobilePigTask } from "../mobileVaccinationUtils";
 import type { TaskRow } from "./VaccineTaskListPage";
 import { getPigMobileMeta } from "../pigMeta";
+import { sampleContainerLabel, samplingMethodLabel } from "../planEffectTracking";
 
 const { Title, Text } = Typography;
 
@@ -27,7 +29,13 @@ type Props = {
   onBack: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  onSupplement?: (pigIds: string[]) => void;
+  onSupplement?: (action: { pigIds: string[]; mode: "pending-only" | "review-full" }) => void;
+};
+
+type DetailInfoItem = {
+  label: string;
+  value: ReactNode;
+  span?: "full";
 };
 
 function buildSyntheticRows(task: TaskRow): DetailPigRow[] {
@@ -96,17 +104,8 @@ function mapPigTaskToDetailRow(task: MobilePigTask): DetailPigRow {
   };
 }
 
-function statusTagColor(status: DetailPigRow["executionStatus"]) {
-  switch (status) {
-    case "已接种":
-      return "green";
-    case "命中豁免":
-      return "orange";
-    case "未接种":
-      return "red";
-    default:
-      return "default";
-  }
+function compareText(a?: string, b?: string): number {
+  return String(a || "").localeCompare(String(b || ""), "zh-Hans-CN");
 }
 
 function toSectionLabelFromWorkshop(workshopLabel?: string): string {
@@ -119,7 +118,31 @@ function toSectionLabelFromWorkshop(workshopLabel?: string): string {
   return raw.replace(" · ", "");
 }
 
-export function VaccineTaskDetailPage({ task, pigTasks, logs, onBack, onEdit, onDelete, onSupplement }: Props) {
+function DetailInfoGrid({ items }: { items: DetailInfoItem[] }) {
+  return (
+    <div className="task-detail-info-grid">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className={`task-detail-info-item${item.span === "full" ? " task-detail-info-item--full" : ""}`}
+        >
+          <div className="task-detail-info-label">{item.label}</div>
+          <div className="task-detail-info-value">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function VaccineTaskDetailPage({
+  task,
+  pigTasks,
+  logs,
+  onBack,
+  onEdit,
+  onDelete,
+  onSupplement
+}: Props) {
   const detailRows = useMemo(
     () => (pigTasks.length > 0 ? pigTasks.map(mapPigTaskToDetailRow) : buildSyntheticRows(task)),
     [pigTasks, task]
@@ -146,29 +169,99 @@ export function VaccineTaskDetailPage({ task, pigTasks, logs, onBack, onEdit, on
   }, [detailRows, pigTasks, task.pigIds]);
 
   const targetSectionText = targetSectionLabels.join("、") || "未分配区块";
+  const planName = task.planName || `${task.vaccine}免疫计划`;
+  const planType = task.planType || "跟批免疫";
+  const planCreatedAt = task.planCreatedAt || task.createdAt;
+  const planStatus = task.planStatus || "启用中";
+  const effectTracking = task.effectTracking;
+  const effectTrackingResult = task.effectTrackingResult;
+  const reviewEnabled = Boolean(effectTracking?.effectTrackingEnabled);
+  const reviewResultAvailable = reviewEnabled && Boolean(effectTrackingResult);
+  const showPendingSupplementAction = task.supplementStatus === "需补打" && task.hasPendingSupplementNeed;
+  const showPendingSupplementCoveredHint = Boolean(task.hasPendingSupplementCoveredByReview);
+  const showReviewRevaccinationAction = task.supplementStatus === "需补打" && task.hasReviewSupplementNeed;
+  const planInfoItems: DetailInfoItem[] = [
+    { label: "计划名称", value: planName },
+    { label: "计划类型", value: planType },
+    { label: "计划状态", value: <Tag color="default">{planStatus}</Tag> },
+    { label: "启用状态", value: <Tag color={planStatus === "停用" ? "default" : "success"}>{planStatus === "停用" ? "停用" : "启用"}</Tag> },
+    { label: "计划创建时间", value: planCreatedAt }
+  ];
+  const taskInfoItems: DetailInfoItem[] = [
+    { label: "任务编号", value: task.id },
+    {
+      label: "任务状态",
+      value: <Tag color={task.status === "待接种" ? "default" : task.status === "进行中" ? "processing" : "success"}>{task.status}</Tag>
+    },
+    { label: "疫苗名称", value: task.vaccine },
+    { label: "品牌名称", value: task.brand || "—" },
+    { label: "接种方式", value: task.administrationRoute || "—" },
+    { label: "剂量", value: task.dosage },
+    { label: "接种日期", value: task.schedule },
+    { label: "目标范围", value: targetSectionText },
+    { label: "创建人/时间", value: `${task.creator} / ${task.createdAt}` },
+    ...(task.status !== "待接种"
+      ? [{ label: "执行人/时间", value: `${task.executor || latestLog?.actor || "—"} / ${task.executedAt || latestLog?.at || "—"}` }]
+      : []),
+    { label: "豁免命中数量", value: `${exemptionRows.length} 头` }
+  ];
+  const reviewItems: DetailInfoItem[] = reviewEnabled
+    ? [
+        { label: "是否启用复核", value: "是" },
+        { label: "目标抗体", value: effectTracking?.targetAntibody || "—" },
+        { label: "采样方式", value: samplingMethodLabel(effectTracking?.samplingMethod) || "—" },
+        { label: "样品容器", value: sampleContainerLabel(effectTracking?.sampleContainer) || "—" },
+        { label: "抽检间隔", value: `${effectTracking?.samplingIntervalDays ?? "—"} 天` },
+        { label: "抽样比例", value: `${effectTracking?.samplingRatioPercent ?? "—"}%` },
+        { label: "抗体合格率阈值", value: `${effectTracking?.qualificationThresholdPercent ?? "—"}%` }
+      ]
+    : [];
+  const reviewResultItems: DetailInfoItem[] = reviewResultAvailable
+    ? [
+        { label: "配置阈值", value: `${effectTracking?.qualificationThresholdPercent ?? "—"}%` },
+        {
+          label: "实际检测结果",
+          value: `${effectTrackingResult?.qualifiedCount ?? 0} / ${effectTrackingResult?.sampledCount ?? 0}`
+        },
+        { label: "实际合格率", value: `${effectTrackingResult?.qualificationRatePercent ?? 0}%` },
+        {
+          label: "结果判定",
+          value: (
+            <Tag color={effectTrackingResult?.result === "合格" ? "success" : "error"}>
+              {effectTrackingResult?.result}
+            </Tag>
+          )
+        }
+      ]
+    : [];
 
   const pendingColumns: ColumnsType<DetailPigRow> = [
     {
       title: "猪只ID",
       dataIndex: "pigId",
-      width: 160
+      width: 160,
+      sorter: (a, b) => compareText(a.pigId, b.pigId)
     },
     {
       title: "房间",
       dataIndex: "roomLabel",
       width: 220,
-      ellipsis: true
+      ellipsis: true,
+      sorter: (a, b) => compareText(a.roomLabel, b.roomLabel)
     },
     {
       title: "栏位",
       dataIndex: "stallNo",
       width: 100,
-      align: "center"
+      align: "center",
+      sorter: (a, b) => compareText(a.stallNo, b.stallNo)
     },
     {
       title: "豁免命中",
       dataIndex: "exemptionLabel",
       ellipsis: true,
+      filters: [{ text: "命中豁免", value: "hit" }, { text: "未命中", value: "none" }],
+      onFilter: (value, record) => value === "hit" ? Boolean(record.exemptionLabel) : !record.exemptionLabel,
       render: (value?: string) => value || "—"
     }
   ];
@@ -177,23 +270,28 @@ export function VaccineTaskDetailPage({ task, pigTasks, logs, onBack, onEdit, on
     {
       title: "猪只ID",
       dataIndex: "pigId",
-      width: 140
+      width: 140,
+      sorter: (a, b) => compareText(a.pigId, b.pigId)
     },
     {
       title: "房间",
       dataIndex: "roomLabel",
       width: 160,
-      ellipsis: true
+      ellipsis: true,
+      sorter: (a, b) => compareText(a.roomLabel, b.roomLabel)
     },
     {
       title: "栏位",
       dataIndex: "stallNo",
-      width: 100
+      width: 100,
+      sorter: (a, b) => compareText(a.stallNo, b.stallNo)
     },
     {
       title: "豁免命中",
       dataIndex: "exemptionLabel",
       ellipsis: true,
+      filters: [{ text: "命中豁免", value: "hit" }, { text: "未命中", value: "none" }],
+      onFilter: (value, record) => value === "hit" ? Boolean(record.exemptionLabel) : !record.exemptionLabel,
       render: (value?: string) => value || "—"
     },
     {
@@ -253,11 +351,6 @@ export function VaccineTaskDetailPage({ task, pigTasks, logs, onBack, onEdit, on
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           {task.status === "待接种" && onEdit ? <Button onClick={onEdit}>编辑任务</Button> : null}
-          {task.status === "已完成" && onSupplement ? (
-            <Button type="primary" onClick={() => onSupplement(supplementPigIds)} disabled={supplementPigIds.length === 0}>
-              补充接种
-            </Button>
-          ) : null}
           {task.status === "待接种" && onDelete ? (
             <Popconfirm
               title="删除接种任务"
@@ -275,62 +368,100 @@ export function VaccineTaskDetailPage({ task, pigTasks, logs, onBack, onEdit, on
       <div className="task-detail-grid">
         <Card className="section-card">
           <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>
-            任务信息
+            所属免疫计划信息
           </Title>
-          <Descriptions column={2} size="small" labelStyle={{ width: 88 }}>
-            <Descriptions.Item label="任务编号">{task.id}</Descriptions.Item>
-            <Descriptions.Item label="疫苗">{task.vaccine}</Descriptions.Item>
-            <Descriptions.Item label="品牌">{task.brand || "—"}</Descriptions.Item>
-            <Descriptions.Item label="剂型">{task.dosageForm || "—"}</Descriptions.Item>
-            <Descriptions.Item label="接种方式">{task.administrationRoute || "—"}</Descriptions.Item>
-            <Descriptions.Item label="剂量">{task.dosage}</Descriptions.Item>
-            <Descriptions.Item label="剂次">{task.doseTimes} 次</Descriptions.Item>
-            <Descriptions.Item label="接种日期">{task.schedule}</Descriptions.Item>
-            <Descriptions.Item label="目标猪只">{task.targetCount} 头</Descriptions.Item>
-            <Descriptions.Item label="创建人">{task.creator}</Descriptions.Item>
-            <Descriptions.Item label="创建时间">{task.createdAt}</Descriptions.Item>
-          </Descriptions>
+          <DetailInfoGrid items={planInfoItems} />
         </Card>
 
         <Card className="section-card">
           <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>
-            任务进度
+            疫苗任务信息
           </Title>
+          <DetailInfoGrid items={taskInfoItems} />
           <div className="task-detail-progress-row">
-            <div>
+            <div className="task-detail-progress-meta">
               <div className="task-detail-progress-label">已接种 / 目标接种</div>
-              <div className="task-detail-progress-value">
-                {vaccinatedRows.length} / {task.targetCount} 头
-              </div>
+              <div className="task-detail-progress-value">{vaccinatedRows.length} / {task.targetCount} 头</div>
             </div>
-            <Tag color={task.status === "待接种" ? "default" : task.status === "进行中" ? "processing" : "success"}>
-              {task.status}
-            </Tag>
+            <Progress
+              percent={progressPercent}
+              strokeColor={task.status === "待接种" ? "#94a3b8" : task.status === "进行中" ? "#1677ff" : "#16a34a"}
+              showInfo={false}
+            />
           </div>
-          <Progress percent={progressPercent} strokeColor={task.status === "待接种" ? "#94a3b8" : task.status === "进行中" ? "#1677ff" : "#16a34a"} showInfo={false} />
-          <Descriptions column={1} size="small" labelStyle={{ width: 110 }} style={{ marginTop: 16 }}>
-            <Descriptions.Item label="目标范围">{targetSectionText}</Descriptions.Item>
-            {task.status !== "待接种" ? (
-              <Descriptions.Item label="执行人">{task.executor || latestLog?.actor || "—"}</Descriptions.Item>
-            ) : null}
-            {task.status !== "待接种" ? (
-              <Descriptions.Item label="执行时间">{task.executedAt || latestLog?.at || "—"}</Descriptions.Item>
-            ) : null}
-            <Descriptions.Item label="命中豁免">{exemptionRows.length} 头</Descriptions.Item>
-          </Descriptions>
         </Card>
       </div>
 
-      <Card className="section-card">
-        <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>
-          目标猪只列表
-        </Title>
-        {task.status === "待接种" ? (
-          <Table rowKey="key" columns={pendingColumns} dataSource={detailRows} pagination={{ pageSize: 8 }} />
-        ) : (
+      {reviewResultAvailable ? (
+        <Card className="section-card">
+          <div className="task-detail-card-head">
+            <Title level={5} className="task-detail-section-title" style={{ marginTop: 0, marginBottom: 0 }}>
+              免疫复核结果
+            </Title>
+            {showReviewRevaccinationAction && onSupplement ? (
+              <Button
+                onClick={() =>
+                  onSupplement({
+                    pigIds: detailRows.map((row) => row.sourcePigId),
+                    mode: "review-full"
+                  })
+                }
+              >
+                重新接种
+              </Button>
+            ) : null}
+          </div>
+          <DetailInfoGrid items={reviewResultItems} />
+        </Card>
+      ) : null}
+
+      {reviewEnabled ? (
+        <Card className="section-card">
+          <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>
+            免疫复核设置
+          </Title>
+          <DetailInfoGrid items={reviewItems} />
+        </Card>
+      ) : null}
+
+      {task.status !== "待接种" ? (
+        <Card className="section-card">
+          <div className="task-detail-card-head">
+            <Title level={5} className="task-detail-section-title" style={{ marginTop: 0, marginBottom: 0 }}>
+              接种猪只列表
+            </Title>
+            {showPendingSupplementAction && onSupplement ? (
+              <Button
+                type="primary"
+                onClick={() => onSupplement({ pigIds: supplementPigIds, mode: "pending-only" })}
+                disabled={supplementPigIds.length === 0}
+              >
+                补充接种
+              </Button>
+            ) : null}
+            {!showPendingSupplementAction && showPendingSupplementCoveredHint ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Button type="primary" disabled>
+                  补充接种
+                </Button>
+                <Popover
+                  trigger="click"
+                  placement="leftTop"
+                  content="本次接种合格率未达到要求，您已经安排了任务内全部猪只重新接种，无需补充接种。"
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<QuestionCircleOutlined />}
+                    aria-label="补充接种说明"
+                  />
+                </Popover>
+              </div>
+            ) : null}
+          </div>
           <Tabs items={tabItems} />
-        )}
-      </Card>
+        </Card>
+      ) : null}
     </div>
   );
 }

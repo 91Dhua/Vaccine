@@ -166,12 +166,16 @@ export function VaccineCatalogPage() {
               title: "疫苗名称(中文)",
               dataIndex: "nameCn",
               width: 200,
+              sorter: (a, b) => a.nameCn.localeCompare(b.nameCn, "zh-Hans-CN"),
               render: (value) => <Text strong>{value}</Text>
             },
-            { title: "疫苗名称(英文)", dataIndex: "nameEn", ellipsis: true },
+            { title: "疫苗名称(英文)", dataIndex: "nameEn", ellipsis: true, sorter: (a, b) => a.nameEn.localeCompare(b.nameEn) },
             {
               title: "目标抗体",
               dataIndex: "targetAntibody",
+              filters: [...new Set(catalog.map((item) => item.targetAntibody).filter(Boolean))].map((item) => ({ text: item, value: item })),
+              onFilter: (value, record) => record.targetAntibody === value,
+              sorter: (a, b) => String(a.targetAntibody || "").localeCompare(String(b.targetAntibody || ""), "zh-Hans-CN"),
               render: (value: string) =>
                 value ? (
                   <Text type="secondary" ellipsis={{ tooltip: value }}>
@@ -248,37 +252,48 @@ export function VaccineCatalogPage() {
                     pagination={false}
                     size="small"
                     columns={[
-                      { title: "品牌名称(中文)", dataIndex: "brandNameCn" },
-                      { title: "品牌名称(英文)", dataIndex: "brandNameEn" },
+                      { title: "品牌名称(中文)", dataIndex: "brandNameCn", sorter: (a, b) => a.brandNameCn.localeCompare(b.brandNameCn, "zh-Hans-CN") },
+                      { title: "品牌名称(英文)", dataIndex: "brandNameEn", sorter: (a, b) => a.brandNameEn.localeCompare(b.brandNameEn) },
                       {
                         title: "剂型",
                         dataIndex: "dosageForm",
-                        width: 140
+                        width: 140,
+                        filters: [...new Set(record.brands.map((item) => item.dosageForm).filter(Boolean))].map((item) => ({ text: String(item), value: String(item) })),
+                        onFilter: (value, row) => row.dosageForm === value
                       },
                       {
                         title: "单次剂量",
                         dataIndex: "standardDosage",
-                        width: 120
+                        width: 120,
+                        sorter: (a, b) => String(a.standardDosage || "").localeCompare(String(b.standardDosage || ""))
                       },
                       {
                         title: "免疫有效期",
                         dataIndex: "durationOfImmunity",
-                        width: 140
+                        width: 140,
+                        sorter: (a, b) => String(a.durationOfImmunity || "").localeCompare(String(b.durationOfImmunity || ""))
                       },
                       {
                         title: "休药期(天)",
                         dataIndex: "withdrawalPeriodDays",
-                        width: 110
+                        width: 110,
+                        sorter: (a, b) => Number(a.withdrawalPeriodDays || 0) - Number(b.withdrawalPeriodDays || 0)
                       },
                       {
                         title: "免疫间隔期(天)",
                         dataIndex: "immuneIntervalDays",
-                        width: 130
+                        width: 130,
+                        sorter: (a, b) => Number(a.immuneIntervalDays || 0) - Number(b.immuneIntervalDays || 0)
                       },
                       {
                         title: "接种方式",
                         dataIndex: "administrationRoutes",
                         width: 140,
+                        filters: [
+                          { text: "肌肉注射(IM)", value: "IM" },
+                          { text: "皮下注射(SC)", value: "SC" }
+                        ],
+                        onFilter: (value, row) => Array.isArray(row.administrationRoutes) && row.administrationRoutes.includes(value as any),
                         render: (value?: string[]) =>
                           Array.isArray(value) && value.length > 0
                             ? value

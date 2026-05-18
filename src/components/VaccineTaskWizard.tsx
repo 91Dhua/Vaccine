@@ -12,6 +12,13 @@ import dayjs from "dayjs";
 import { useEffect, useMemo } from "react";
 import { vaccineCatalog, vaccines } from "../mockData";
 import { resolveTaskVaccinePresentation } from "../mobileVaccinationUtils";
+import {
+  buildEffectTrackingPayload,
+  formatEffectTrackingLine,
+  PlanEffectTrackingSection,
+  PLAN_EFFECT_TRACKING_DEFAULTS,
+  type PlanEffectTrackingStored
+} from "../planEffectTracking";
 
 const { Title, Text } = Typography;
 
@@ -23,13 +30,15 @@ export type VaccineTaskDraft = {
   dosage: number;
   dosageUnit: "毫克" | "毫升";
   date?: string;
+  effectTracking?: PlanEffectTrackingStored;
 };
 
 interface Props {
   step: "form" | "preview";
   selectedPigs: string[];
-  mode?: "create" | "edit" | "supplement";
+  mode?: "create" | "edit" | "supplement" | "quickSupplement";
   payload?: VaccineTaskDraft | null;
+  quickSupplementType?: "pending-only" | "review-full" | null;
   onBack: () => void;
   onNext?: (payload: VaccineTaskDraft) => void;
   onFinish?: () => void;
@@ -48,12 +57,15 @@ export function VaccineTaskWizard({
   selectedPigs,
   mode = "create",
   payload,
+  quickSupplementType = null,
   onBack,
   onNext,
   onFinish
 }: Props) {
   const [form] = Form.useForm();
   const isSupplement = mode === "supplement";
+  const isQuickSupplement = mode === "quickSupplement";
+  const isReviewRevaccination = isQuickSupplement && quickSupplementType === "review-full";
   const watchedVaccineId = Form.useWatch("vaccineId", form);
   const watchedBrand = Form.useWatch("brand", form);
 
@@ -87,7 +99,23 @@ export function VaccineTaskWizard({
       vaccinationMethod: payload?.vaccinationMethod,
       dosage: payload?.dosage ?? 2,
       dosageUnit: payload?.dosageUnit ?? "毫克",
-      date: payload?.date ? dayjs(payload.date) : dayjs("2026-02-09")
+      date: payload?.date ? dayjs(payload.date) : dayjs("2026-02-09"),
+      effectTrackingEnabled:
+        payload?.effectTracking?.effectTrackingEnabled ??
+        PLAN_EFFECT_TRACKING_DEFAULTS.effectTrackingEnabled,
+      samplingMethod:
+        payload?.effectTracking?.samplingMethod ?? PLAN_EFFECT_TRACKING_DEFAULTS.samplingMethod,
+      sampleContainer:
+        payload?.effectTracking?.sampleContainer ?? PLAN_EFFECT_TRACKING_DEFAULTS.sampleContainer,
+      samplingIntervalDays:
+        payload?.effectTracking?.samplingIntervalDays ??
+        PLAN_EFFECT_TRACKING_DEFAULTS.samplingIntervalDays,
+      samplingRatioPercent:
+        payload?.effectTracking?.samplingRatioPercent ??
+        PLAN_EFFECT_TRACKING_DEFAULTS.samplingRatioPercent,
+      qualificationThresholdPercent:
+        payload?.effectTracking?.qualificationThresholdPercent ??
+        PLAN_EFFECT_TRACKING_DEFAULTS.qualificationThresholdPercent
     });
   }, [form, payload, step]);
 
@@ -104,11 +132,21 @@ export function VaccineTaskWizard({
         <div className="page-header">
           <div>
           <Title level={4} style={{ margin: 0 }}>
-              {mode === "edit" ? "编辑接种任务" : isSupplement ? "创建补充接种任务" : "创建接种任务"}
+              {mode === "edit"
+                ? "编辑接种任务"
+                : isQuickSupplement
+                  ? "快捷补打"
+                  : isSupplement
+                    ? "创建补充接种任务"
+                    : "创建接种任务"}
             </Title>
             <Text type="secondary">
               {mode === "edit"
                 ? "预览任务变更并确认保存"
+                : isQuickSupplement
+                  ? isReviewRevaccination
+                    ? "已自动带入本次重新接种的目标猪只与原任务接种信息，确认后可直接重新接种。"
+                    : "已自动带入未接种猪只与原任务接种信息，确认后可直接完成补打。"
                 : isSupplement
                   ? "基于原任务补充创建一条新的接种任务"
                   : "预览任务明细并确认提交"}
@@ -158,10 +196,6 @@ export function VaccineTaskWizard({
                 <div className="preview-value">{payload?.brand}</div>
               </div>
               <div>
-                <Text type="secondary">剂型</Text>
-                <div className="preview-value">{pres.dosageForm ?? "—"}</div>
-              </div>
-              <div>
                 <Text type="secondary">接种方式</Text>
                 <div className="preview-value">
                   {payload?.vaccinationMethod || pres.administrationRoute || "—"}
@@ -173,18 +207,30 @@ export function VaccineTaskWizard({
                   {payload?.dosage} {payload?.dosageUnit || "毫克"}
                 </div>
               </div>
-              <div>
-                <Text type="secondary">剂次</Text>
-                <div className="preview-value">1 次</div>
-              </div>
             </div>
           </div>
+
+          {payload?.effectTracking?.effectTrackingEnabled ? (
+            <div className="confirm-card">
+              <div className="confirm-title">免疫复核设置</div>
+              <div className="preview-grid">
+                <div>
+                  <Text type="secondary">是否启用复核</Text>
+                  <div className="preview-value">是</div>
+                </div>
+                <div>
+                  <Text type="secondary">复核配置</Text>
+                  <div className="preview-value">{formatEffectTrackingLine(payload.effectTracking)}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </Card>
 
         <div className="form-actions">
           <Button onClick={onBack}>上一步</Button>
           <Button type="primary" onClick={onFinish}>
-            完成
+            {isQuickSupplement ? (isReviewRevaccination ? "重新接种" : "完成补打") : "完成"}
           </Button>
         </div>
       </div>
@@ -196,11 +242,21 @@ export function VaccineTaskWizard({
       <div className="page-header">
         <div>
           <Title level={4} style={{ margin: 0 }}>
-            {mode === "edit" ? "编辑接种任务" : isSupplement ? "创建补充接种任务" : "创建接种任务"}
+            {mode === "edit"
+              ? "编辑接种任务"
+              : isQuickSupplement
+                ? "快捷补打"
+                : isSupplement
+                  ? "创建补充接种任务"
+                  : "创建接种任务"}
           </Title>
           <Text type="secondary">
             {mode === "edit"
               ? "调整接种信息并保存任务"
+              : isQuickSupplement
+                ? isReviewRevaccination
+                  ? "已自动带入原任务的接种信息，用户只需确认新的接种日期并发起重新接种"
+                  : "已自动带入原任务的接种信息，用户只需确认新的接种日期"
               : isSupplement
                 ? "沿用原任务的接种信息，只需选择新的接种日期"
                 : "填写接种信息并生成任务"}
@@ -217,7 +273,12 @@ export function VaccineTaskWizard({
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ date: dayjs("2026-02-09"), dosage: 2, dosageUnit: "毫克" }}
+          initialValues={{
+            date: dayjs("2026-02-09"),
+            dosage: 2,
+            dosageUnit: "毫克",
+            ...PLAN_EFFECT_TRACKING_DEFAULTS
+          }}
         >
           <div className="form-grid">
             <Form.Item
@@ -239,7 +300,7 @@ export function VaccineTaskWizard({
             </Form.Item>
             <Form.Item
               name="brand"
-              label="品牌(剂型)"
+              label="品牌"
             >
               <Select
                 placeholder="选择品牌"
@@ -293,6 +354,8 @@ export function VaccineTaskWizard({
               <DatePicker style={{ width: "100%" }} />
             </Form.Item>
           </div>
+
+          {!isSupplement ? <PlanEffectTrackingSection form={form} /> : null}
         </Form>
         <div className="form-actions">
           <Button onClick={onBack}>取消</Button>
@@ -308,7 +371,8 @@ export function VaccineTaskWizard({
                 date: values.date?.format("YYYY-MM-DD"),
                 vaccineName: vaccine?.name || "",
                 brand: values.brand,
-                vaccinationMethod: values.vaccinationMethod
+                vaccinationMethod: values.vaccinationMethod,
+                effectTracking: buildEffectTrackingPayload(values)
               });
             }}
           >

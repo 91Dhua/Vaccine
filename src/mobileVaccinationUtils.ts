@@ -337,5 +337,68 @@ export function filterTasksByLocation(
 export function seedMobileTasksFromConsole(tasks: TaskRow[]): MobilePigTask[] {
   return tasks
     .filter((t) => t.pigIds && t.pigIds.length > 0)
-    .flatMap((t) => buildMobilePigTasksFromBatch(t, t.pigIds!, t.exemptionHitCount));
+    .flatMap((t) => applySeedExecutionState(t, buildMobilePigTasksFromBatch(t, t.pigIds!, t.exemptionHitCount)));
+}
+
+function applySeedExecutionState(row: TaskRow, tasks: MobilePigTask[]): MobilePigTask[] {
+  if (row.status === "待接种") return tasks;
+
+  const total = tasks.length;
+  if (total === 0) return tasks;
+
+  if (row.status === "进行中") {
+    const completedCount = Math.max(1, Math.floor(total * 0.65));
+    return tasks.map((task, index) => {
+      if (index < completedCount) {
+        return {
+          ...task,
+          status: "completed",
+          exceptionPending: false,
+          actualAt: row.executedAt || row.createdAt,
+          executor: row.executor || "当前执行人",
+          completionMode: "full",
+          completionSubtype: "normal"
+        };
+      }
+      if (task.exemptionHit) {
+        return {
+          ...task,
+          status: "suspended",
+          exceptionPending: true,
+          exemptionReason: "命中豁免规则，待补打。"
+        };
+      }
+      return task;
+    });
+  }
+
+  const pendingCount = Math.max(2, Math.ceil(total * 0.15));
+  const completedCutoff = Math.max(0, total - pendingCount);
+  return tasks.map((task, index) => {
+    if (index < completedCutoff) {
+      return {
+        ...task,
+        status: "completed",
+        exceptionPending: false,
+        actualAt: row.executedAt || row.createdAt,
+        executor: row.executor || "当前执行人",
+        completionMode: "full",
+        completionSubtype: "normal"
+      };
+    }
+    if (task.exemptionHit) {
+      return {
+        ...task,
+        status: "suspended",
+        exceptionPending: true,
+        exemptionReason: "命中豁免规则，待补打。"
+      };
+    }
+    return {
+      ...task,
+      status: "skipped",
+      exceptionPending: false,
+      remark: "任务完成时未接种，需补打。"
+    };
+  });
 }

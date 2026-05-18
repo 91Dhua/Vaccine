@@ -1375,12 +1375,6 @@ export function MobileVaccinationPage({
                     </em>
                   </span>
                   <span className="mv-unit-progress__meta-chip">
-                    <AppstoreOutlined className="mv-unit-progress__meta-icon" />
-                    <em className="mv-unit-progress__meta-value" title={`剂型：${fieldOrDash(unit?.dosageForm)}`}>
-                      {fieldOrDash(unit?.dosageForm)}
-                    </em>
-                  </span>
-                  <span className="mv-unit-progress__meta-chip">
                     <DeploymentUnitOutlined className="mv-unit-progress__meta-icon" />
                     <em
                       className="mv-unit-progress__meta-value"
@@ -1681,22 +1675,12 @@ export function MobileVaccinationPage({
                     <span className="mv-task-detail__config-v">{fieldOrDash(unit?.vaccineBrand)}</span>
                   </div>
                   <div className="mv-task-detail__config-row">
-                    <span className="mv-task-detail__config-k">剂型</span>
-                    <span className="mv-task-detail__config-v">{fieldOrDash(unit?.dosageForm)}</span>
-                  </div>
-                  <div className="mv-task-detail__config-row">
                     <span className="mv-task-detail__config-k">接种方式</span>
                     <span className="mv-task-detail__config-v">{fieldOrDash(unit?.administrationRoute)}</span>
                   </div>
                   <div className="mv-task-detail__config-row">
                     <span className="mv-task-detail__config-k">剂量</span>
                     <span className="mv-task-detail__config-v">{unit?.dosage ?? "—"}</span>
-                  </div>
-                  <div className="mv-task-detail__config-row">
-                    <span className="mv-task-detail__config-k">剂次</span>
-                    <span className="mv-task-detail__config-v">
-                      {unit?.doseTimes != null ? `${unit.doseTimes} 次` : "—"}
-                    </span>
                   </div>
                   <div className="mv-task-detail__config-row">
                     <span className="mv-task-detail__config-k">间隔</span>

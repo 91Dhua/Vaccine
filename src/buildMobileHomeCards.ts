@@ -14,14 +14,12 @@ function countPending(ts: MobilePigTask[]): number {
   ).length;
 }
 
-/** 首页接种卡副标题：疫苗种类 + 品牌、剂型、接种方式、剂量（中间用 · 分隔） */
+/** 首页接种卡副标题：疫苗种类 + 品牌、接种方式、剂量（中间用 · 分隔） */
 function formatVaccinationCardSubtitle(t: MobilePigTask): string {
   const name = t.vaccineName.trim() || "—";
   const extras: string[] = [];
   const brand = t.vaccineBrand?.trim();
   if (brand) extras.push(brand);
-  const form = t.dosageForm?.trim();
-  if (form) extras.push(form);
   const route = t.administrationRoute?.trim();
   if (route) extras.push(route);
   const dose = resolveDosageLabel(t);

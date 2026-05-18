@@ -81,6 +81,7 @@ Standing PRD rule:
 - Whenever code changes alter product logic, task state, data fields, validation, navigation, or display behavior, update the corresponding PRD in the same change.
 - If frontend behavior implies backend data or workflow requirements that are not yet logically closed, pause and ask the user for the missing business decision before writing a final PRD.
 - The user does not want to see `字段字典` in documentation. Treat field-name mapping tables as unnecessary unless the user explicitly asks for them.
+- Maintain strict display-source consistency: if the user does not fill or configure a value in the corresponding create/edit flow, do not surface that value later in the related preview, list, detail, or task-result views unless the user has explicitly asked for a derived/system-generated field.
 
 Additional rule for overview PRDs:
 
@@ -88,3 +89,18 @@ Additional rule for overview PRDs:
 - It should focus on: `背景`、`目标`、`对象`、`价值`、`程序流程图`、`操作流程图`、`模块拆分`.
 - It may additionally include a short `适用范围` or `上下游关系` section if that helps readers understand the overall system boundary.
 - Do not place submodule-level details such as status dictionaries, derived-field formulas, field mappings, or detailed edge cases in the overview PRD; those belong in the child module PRDs.
+
+## 列表表头规范
+
+- 以后涉及列表表头时，默认检查哪些字段需要 `筛选`、哪些字段需要 `排序`，不要只做静态表头。
+- `筛选` 适合用于枚举型、分类型、结果型字段，例如状态、类型、判定结果、目标抗体。
+- `排序` 适合用于时间、数量、比例、编号、名称等字段。
+- `filter` 与 `sort` 的 icon 统一放在字段标题右侧，保持所有列表交互位置一致。
+- 做列表时要主动检查：当前表头是否缺少必要的筛选或排序能力，并在实现后自查交互是否一致。
+
+## 模拟数据规则
+
+- 以后只要新增页面、状态流转、关键交互或功能逻辑，都需要同步补充对应的模拟数据，方便用户直接在页面里验证流程。
+- 模拟数据至少要覆盖当前功能涉及的主要状态、主要分支和关键异常场景，不能只放一条过于单薄的数据。
+- 当用户明确提出“需要几条数据看逻辑”时，默认补充多条可操作样机数据，而不是只口头说明。
+- 完成改动后，要自查当前页面是否已经有足够的 mock data 支撑用户验证。

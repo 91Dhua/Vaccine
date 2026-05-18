@@ -128,12 +128,12 @@ export function VaccineTaskSelectPage({
           rowSelection={rowSelection}
           pagination={false}
           columns={[
-            { title: "猪只ID", dataIndex: "pigId" },
-            { title: "栏位", dataIndex: "stall" },
-            { title: "Zone", dataIndex: "zone" },
-            { title: "Unit", dataIndex: "unit" },
-            { title: "状态", dataIndex: "status" },
-            { title: "当前任务", dataIndex: "currentTask" }
+            { title: "猪只ID", dataIndex: "pigId", sorter: (a, b) => a.pigId.localeCompare(b.pigId) },
+            { title: "栏位", dataIndex: "stall", sorter: (a, b) => a.stall.localeCompare(b.stall) },
+            { title: "Zone", dataIndex: "zone", filters: zoneOptions.map((item) => ({ text: item.label, value: item.value })), onFilter: (value, record) => record.zone === value, sorter: (a, b) => a.zone.localeCompare(b.zone) },
+            { title: "Unit", dataIndex: "unit", filters: unitOptions.map((item) => ({ text: item.label, value: item.value })), onFilter: (value, record) => record.unit === value, sorter: (a, b) => a.unit.localeCompare(b.unit) },
+            { title: "状态", dataIndex: "status", filters: [{ text: "正常", value: "正常" }, { text: "待观察", value: "待观察" }], onFilter: (value, record) => record.status === value },
+            { title: "当前任务", dataIndex: "currentTask", filters: [{ text: "有任务", value: "assigned" }, { text: "无任务", value: "empty" }], onFilter: (value, record) => value === "assigned" ? record.currentTask !== "-" : record.currentTask === "-" }
           ]}
         />
       </Card>

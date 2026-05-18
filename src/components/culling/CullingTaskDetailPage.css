@@ -214,10 +214,50 @@
 
 .culling-detail-plan-progress {
   min-width: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
 }
 
 .culling-detail-progress--compact {
   margin: 8px 0 0;
+}
+
+.culling-detail-plan-progress-list--standalone {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.culling-detail-progress-summary {
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: #f8fbff;
+  border: 1px solid #e6edf5;
+}
+
+.culling-detail-plan-progress.is-clickable {
+  cursor: pointer;
+}
+
+.culling-detail-plan-progress.is-clickable:hover .culling-detail-progress-value,
+.culling-detail-plan-progress.is-clickable:hover .culling-detail-progress-arrow {
+  color: #2563eb;
+}
+
+.culling-detail-progress-row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.culling-detail-progress-arrow {
+  color: #94a3b8;
+  font-size: 12px;
+  transition: color 0.2s ease;
 }
 
 .culling-detail-record-card {
@@ -246,6 +286,16 @@
 
 .culling-detail-search .ant-input-affix-wrapper {
   border-radius: 12px;
+}
+
+.culling-detail-search--wide {
+  width: 360px;
+}
+
+.culling-detail-search--wide .ant-input-affix-wrapper {
+  min-height: 38px;
+  border-radius: 999px;
+  padding-inline: 14px;
 }
 
 .culling-detail-link {
@@ -313,5 +363,144 @@
 
   .culling-detail-section-head {
     flex-direction: column;
+  }
+}
+
+
+.culling-detail-section-head--stack {
+  align-items: flex-start;
+}
+
+.culling-detail-section-subtitle {
+  margin: 8px 0 0;
+  color: #7b8aa1;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.culling-detail-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.culling-detail-stat-card {
+  border-radius: 18px;
+  padding: 16px 18px;
+  border: 1px solid #e6edf5;
+  background: #f8fbff;
+}
+
+.culling-detail-stat-card--slate {
+  background: linear-gradient(180deg, #fcfdff 0%, #f8fbff 100%);
+}
+
+.culling-detail-stat-card--orange {
+  background: linear-gradient(180deg, #fffaf5 0%, #fff3e8 100%);
+  border-color: #fed7aa;
+}
+
+.culling-detail-stat-card--green {
+  background: linear-gradient(180deg, #f6fff9 0%, #ecfdf3 100%);
+  border-color: #bbf7d0;
+}
+
+.culling-detail-stat-card--rose {
+  background: linear-gradient(180deg, #fffafb 0%, #fff1f2 100%);
+  border-color: #fecdd3;
+}
+
+.culling-detail-stat-label {
+  color: #7b8aa1;
+  font-size: 13px;
+  line-height: 20px;
+  margin-bottom: 8px;
+}
+
+.culling-detail-stat-value {
+  color: #111827;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+.culling-detail-toolbar--split {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.culling-detail-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.culling-detail-chip {
+  border: 1px solid #d8e2ec;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+  line-height: 20px;
+  transition: all 0.2s ease;
+}
+
+.culling-detail-chip:hover {
+  border-color: #94a3b8;
+}
+
+.culling-detail-chip.is-active {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.culling-detail-tag-neutral {
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+}
+
+.culling-detail-tag-source-plan {
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.culling-detail-tag-source-live {
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.culling-detail-tag-pending {
+  border: none;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .culling-detail-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .culling-detail-kpi-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -20,6 +20,13 @@ export type PlanEffectTrackingStored = PlanEffectTrackingFormValues & {
   targetAntibody?: string;
 };
 
+export type PlanEffectTrackingResultStored = {
+  sampledCount: number;
+  qualifiedCount: number;
+  qualificationRatePercent: number;
+  result: "合格" | "不合格";
+};
+
 export const PLAN_EFFECT_TRACKING_DEFAULTS: PlanEffectTrackingFormValues = {
   effectTrackingEnabled: false,
   samplingMethod: undefined,
@@ -29,13 +36,13 @@ export const PLAN_EFFECT_TRACKING_DEFAULTS: PlanEffectTrackingFormValues = {
   qualificationThresholdPercent: 80
 };
 
-const SAMPLING_METHOD_OPTIONS = [
+export const SAMPLING_METHOD_OPTIONS = [
   { label: "耳静脉采血", value: "EAR_VEIN" },
   { label: "前腔静脉采血", value: "FRONT_VENA" },
   { label: "尾静脉采血", value: "TAIL_VEIN" }
 ] as const;
 
-const SAMPLE_CONTAINER_OPTIONS = [
+export const SAMPLE_CONTAINER_OPTIONS = [
   { label: "试剂袋（血）", value: "REAGENT_BAG_BLOOD" },
   { label: "试剂袋", value: "REAGENT_BAG" },
   { label: "采样血管", value: "BLOOD_TUBE" }
@@ -47,11 +54,11 @@ export function getTargetAntibodyByVaccineId(vaccineId?: string | null): string 
   return cat?.targetAntibody?.trim() ?? "";
 }
 
-function samplingMethodLabel(v?: string): string | undefined {
+export function samplingMethodLabel(v?: string): string | undefined {
   return SAMPLING_METHOD_OPTIONS.find((x) => x.value === v)?.label;
 }
 
-function sampleContainerLabel(v?: string): string | undefined {
+export function sampleContainerLabel(v?: string): string | undefined {
   return SAMPLE_CONTAINER_OPTIONS.find((x) => x.value === v)?.label;
 }
 
