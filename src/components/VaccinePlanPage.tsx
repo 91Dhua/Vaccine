@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import type { ColumnsType } from "antd/es/table";
 import {
   Alert,
   Badge,
@@ -27,9 +28,11 @@ import {
   Typography
 } from "antd";
 import {
+  ArrowLeftOutlined,
   CalendarOutlined,
   DeleteOutlined,
   EditOutlined,
+  EyeOutlined,
   LeftOutlined,
   PlusOutlined,
   QuestionCircleOutlined
@@ -48,8 +51,11 @@ import {
   buildEffectTrackingPayload,
   formatEffectTrackingLine,
   mergeEffectTrackingInitial,
+  sampleContainerLabel,
+  samplingMethodLabel,
   type PlanEffectTrackingStored
 } from "../planEffectTracking";
+import type { TaskRow } from "./VaccineTaskListPage";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -232,6 +238,10 @@ function buildSimpleOnlyPigRuleConditions(
 
 function pigTypeSelectionEqual(a?: string, b?: string) {
   return (a || undefined) === (b || undefined);
+}
+
+function compareText(a?: string, b?: string): number {
+  return String(a || "").localeCompare(String(b || ""), "zh-Hans-CN");
 }
 
 function ensurePigTypeCondition(
@@ -2600,6 +2610,16 @@ const massPlanList = [
     dosageUnit: "毫克",
     exclusion: "分娩结束后 5-7 天",
     enabled: true,
+    createdBy: "李国强",
+    createdAt: "2024/08/18",
+    updatedBy: "李国强",
+    updatedAt: "2024/09/01",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "SOW" },
+      { field: "PARITY", operator: "BETWEEN", value: [2, 7] },
+      { field: "PIG_SOURCE", operator: "IN", value: ["SELF_BRED"] }
+    ],
     /** 接种任务已下发至执行端，禁止关闭启用 */
     workOrdersDispatched: true
   },
@@ -2614,6 +2634,16 @@ const massPlanList = [
     dosageUnit: "毫克",
     exclusion: "哺乳期前 7 天",
     enabled: true,
+    createdBy: "赵敏",
+    createdAt: "2024/10/12",
+    updatedBy: "赵敏",
+    updatedAt: "2024/10/18",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "PIGLET" },
+      { field: "AGE_YEARS", operator: "BETWEEN", value: [21, 35] },
+      { field: "WEIGHT_KG", operator: "GTE", value: 6 }
+    ],
     /** 已有部分猪只完成接种，关闭启用需二次确认 */
     partialVaccinationProgress: true
   },
@@ -2628,6 +2658,16 @@ const massPlanList = [
     dosageUnit: "毫克",
     exclusion: "无",
     enabled: false,
+    createdBy: "李国强",
+    createdAt: "2024/02/09",
+    updatedBy: "李国强",
+    updatedAt: "2024/02/09",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "SOW" },
+      { field: "AGE_YEARS", operator: "GTE", value: 180 },
+      { field: "BREED", operator: "IN", value: ["长白", "大白"] }
+    ],
     effectTracking: {
       effectTrackingEnabled: true,
       targetAntibody: "伪狂犬病毒 gE 抗体",
@@ -2648,7 +2688,16 @@ const massPlanList = [
     dosage: 1,
     dosageUnit: "毫克",
     exclusion: "无",
-    enabled: true
+    enabled: true,
+    createdBy: "周晨",
+    createdAt: "2024/01/04",
+    updatedBy: "周晨",
+    updatedAt: "2024/01/06",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "BOAR" },
+      { field: "AGE_YEARS", operator: "GTE", value: 240 }
+    ]
   }
 ];
 
@@ -2664,6 +2713,15 @@ const routinePlanList = [
     dosage: 1,
     dosageUnit: "毫克",
     enabled: true,
+    createdBy: "王敏",
+    createdAt: "2024/03/02",
+    updatedBy: "王敏",
+    updatedAt: "2024/03/06",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "PIGLET" },
+      { field: "AGE_YEARS", operator: "BETWEEN", value: [14, 45] }
+    ],
     workOrdersDispatched: true,
     exclusion: "无",
     effectTracking: {
@@ -2687,6 +2745,16 @@ const routinePlanList = [
     dosage: 2,
     dosageUnit: "毫克",
     enabled: true,
+    createdBy: "陈晓",
+    createdAt: "2024/04/15",
+    updatedBy: "陈晓",
+    updatedAt: "2024/04/20",
+    pigRuleLogic: "AND",
+    pigRuleConditions: [
+      { field: "PIG_TYPE", operator: "IN", value: "SOW" },
+      { field: "PARITY", operator: "LTE", value: 6 },
+      { field: "PIG_SOURCE", operator: "NOT_IN", value: ["PURCHASED_OR_TRANSFER"] }
+    ],
     partialVaccinationProgress: true,
     exclusion: "无"
   }
@@ -2760,7 +2828,260 @@ type RoutinePlanRow = {
   workOrdersDispatched?: boolean;
   partialVaccinationProgress?: boolean;
   effectTracking?: PlanEffectTrackingStored;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
 };
+
+type PlanDetailKind = "MASS" | "ROUTINE";
+
+type PlanDetailTarget = {
+  type: PlanDetailKind;
+  id: string;
+} | null;
+
+type PlanTaskRow = {
+  id: string;
+  schedule: string;
+  status: TaskRow["status"];
+  targetCount: number;
+  executor: string;
+};
+
+function labelFromPigRuleValue(value: unknown): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return "—";
+  return pigTypeOptions.find((item) => item.value === raw)?.label || String(raw);
+}
+
+function normalizePlanConditions(record: any): PigRuleCondition[] {
+  if (Array.isArray(record?.pigRuleConditions) && record.pigRuleConditions.length > 0) {
+    return record.pigRuleConditions;
+  }
+  const pigTypeValue =
+    pigTypeOptions.find((item) => item.label === record?.pigType)?.value || record?.pigType;
+  return [
+    { field: "PIG_TYPE", operator: "IN", value: pigTypeValue },
+    { field: "AGE_YEARS", operator: "LTE", value: undefined },
+    { field: "PARITY", operator: "LTE", value: undefined }
+  ];
+}
+
+function buildPlanTaskRows(record: any, type: PlanDetailKind, tasks: TaskRow[] = []): PlanTaskRow[] {
+  const name = String(record?.name || "免疫计划");
+  const vaccine = String(record?.vaccine || "");
+  const planTypeLabel = type === "MASS" ? "普免计划" : "跟批免疫";
+  const exactMatches = tasks.filter((task) => task.planName === name);
+  const fallbackMatches = tasks.filter((task) => {
+    const sameVaccine = vaccine && task.vaccine === vaccine;
+    const samePlanType = !task.planType || task.planType.includes(planTypeLabel);
+    return sameVaccine && samePlanType;
+  });
+  const matchedTasks = exactMatches.length > 0 ? exactMatches : fallbackMatches;
+
+  return matchedTasks.map((task) => ({
+    id: task.id,
+    schedule: task.schedule,
+    status: task.status,
+    targetCount: task.targetCount,
+    executor: task.executor || "未分配"
+  }));
+}
+
+function PlanDetailInfoGrid({
+  items
+}: {
+  items: Array<{ label: string; value: ReactNode }>;
+}) {
+  return (
+    <div className="plan-detail-info-grid">
+      {items.map((item) => (
+        <div key={item.label} className="plan-detail-info-item">
+          <div className="plan-detail-info-label">{item.label}</div>
+          <div className="plan-detail-info-value">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlanDetailSection({
+  title,
+  children
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="section-card plan-detail-section" bordered={false}>
+      <Title level={5} className="plan-detail-section-title">
+        {title}
+      </Title>
+      {children}
+    </Card>
+  );
+}
+
+function VaccinePlanDetailPage({
+  type,
+  record,
+  tasks,
+  onOpenTask,
+  onBack,
+  onEdit
+}: {
+  type: PlanDetailKind;
+  record: any;
+  tasks?: TaskRow[];
+  onOpenTask?: (taskId: string) => void;
+  onBack: () => void;
+  onEdit: () => void;
+}) {
+  const conditions = normalizePlanConditions(record);
+  const pigTypeValue = extractPigTypeValues(conditions)[0];
+  const targetPigGroup = labelFromPigRuleValue(pigTypeValue || record?.pigType);
+  const advancedSummary = summarizePigRuleConditions(conditions, record?.pigRuleLogic || "AND");
+  const effectTracking = record?.effectTracking as PlanEffectTrackingStored | undefined;
+  const planTasks = buildPlanTaskRows(record, type, tasks);
+  const vaccineInfoItems = [
+    { label: "疫苗名称", value: record?.vaccine || "—" },
+    { label: "品牌名称", value: record?.vaccineBrand || "—" },
+    { label: "接种方式", value: record?.vaccinationMethod || "—" },
+    { label: "剂量", value: `${record?.dosage ?? "—"} ${record?.dosageUnit || ""}`.trim() }
+  ];
+  const taskSettingItems =
+    type === "MASS"
+      ? [
+          { label: "首次接种日期", value: String(record?.execute || "—").split("/")[0] || "—" },
+          { label: "是否重复接种", value: record?.cycle && record.cycle !== "单次" ? "是" : "否" },
+          { label: "重复规则", value: record?.cycle || "—" },
+          { label: "执行时间", value: record?.execute || "—" }
+        ]
+      : [
+          { label: "触发规则", value: record?.triggerRule || "—" },
+          { label: "下发时间", value: record?.dispatchTime || "—" },
+          { label: "是否重复接种", value: "否" },
+          { label: "适用生产线", value: record?.line || "—" }
+        ];
+
+  const taskColumns: ColumnsType<PlanTaskRow> = [
+    {
+      title: "任务ID",
+      dataIndex: "id",
+      width: 180,
+      ellipsis: true,
+      sorter: (a, b) => compareText(a.id, b.id),
+      render: (value: string) =>
+        onOpenTask ? (
+          <Button type="link" style={{ paddingInline: 0 }} onClick={() => onOpenTask(value)}>
+            {value}
+          </Button>
+        ) : (
+          value
+        )
+    },
+    { title: "接种日期", dataIndex: "schedule", width: 160, sorter: (a, b) => compareText(a.schedule, b.schedule) },
+    {
+      title: "任务状态",
+      dataIndex: "status",
+      width: 120,
+      filters: [
+        { text: "待接种", value: "待接种" },
+        { text: "进行中", value: "进行中" },
+        { text: "已完成", value: "已完成" }
+      ],
+      onFilter: (value, row) => row.status === value,
+      render: (value: PlanTaskRow["status"]) => (
+        <Tag color={value === "待接种" ? "default" : value === "进行中" ? "processing" : "success"}>{value}</Tag>
+      )
+    },
+    { title: "目标猪只", dataIndex: "targetCount", width: 110, sorter: (a, b) => a.targetCount - b.targetCount, render: (value) => `${value} 头` },
+    { title: "操作人", dataIndex: "executor", width: 120, sorter: (a, b) => compareText(a.executor, b.executor) }
+  ];
+
+  return (
+    <div className="plan-detail-page">
+      <div className="plan-detail-header">
+        <div>
+          <div className="plan-detail-title-row">
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack} className="plan-detail-back-btn" />
+            <Title level={4} className="plan-detail-title">
+              免疫计划详情
+            </Title>
+          </div>
+          <div className="plan-detail-breadcrumb">首页 · 免疫计划 · 免疫计划详情</div>
+        </div>
+        <Button type="primary" ghost icon={<EditOutlined />} onClick={onEdit}>
+          编辑
+        </Button>
+      </div>
+
+      <PlanDetailSection title="免疫计划信息">
+        <PlanDetailInfoGrid
+          items={[
+            { label: "免疫计划类型", value: type === "MASS" ? "普免计划" : "跟批免疫计划" },
+            { label: "免疫计划状态", value: <Tag>{record?.enabled ? "未开始" : "已停用"}</Tag> },
+            { label: "启用状态", value: <Tag color={record?.enabled ? "success" : "default"}>{record?.enabled ? "启用" : "停用"}</Tag> },
+            { label: "免疫计划名称", value: record?.name || "—" },
+            { label: "目标免疫猪群", value: targetPigGroup },
+            { label: "创建人/时间", value: `${record?.createdBy || "—"} ${record?.createdAt || "—"}` },
+            { label: "最后一次更新", value: `${record?.updatedBy || record?.createdBy || "—"} ${record?.updatedAt || record?.createdAt || "—"}` }
+          ]}
+        />
+      </PlanDetailSection>
+
+      <PlanDetailSection title="猪只高级筛选条件">
+        <div className="plan-detail-filter-row">
+          <Tag color="blue">{targetPigGroup}</Tag>
+          <Text type="secondary">满足以下 {advancedSummary.logicLabel} 条件</Text>
+        </div>
+        <div className="plan-detail-filter-tags">
+          {advancedSummary.tags.length > 0 ? (
+            advancedSummary.tags.map((tag) => <Tag key={tag}>{tag}</Tag>)
+          ) : (
+            <Tag>仅按目标免疫猪群筛选</Tag>
+          )}
+        </div>
+      </PlanDetailSection>
+
+      <PlanDetailSection title="疫苗信息">
+        <PlanDetailInfoGrid items={vaccineInfoItems} />
+      </PlanDetailSection>
+
+      <PlanDetailSection title="疫苗任务设置">
+        <PlanDetailInfoGrid items={taskSettingItems} />
+      </PlanDetailSection>
+
+      {effectTracking?.effectTrackingEnabled ? (
+        <PlanDetailSection title="免疫复核设置">
+          <PlanDetailInfoGrid
+            items={[
+              { label: "是否免疫复核", value: "是" },
+              { label: "目标抗体", value: effectTracking.targetAntibody || "—" },
+              { label: "采样方式", value: samplingMethodLabel(effectTracking.samplingMethod) || "—" },
+              { label: "样品容器", value: sampleContainerLabel(effectTracking.sampleContainer) || "—" },
+              { label: "抽检间隔", value: `${effectTracking.samplingIntervalDays ?? "—"} 天` },
+              { label: "抽样比例", value: `${effectTracking.samplingRatioPercent ?? "—"}%` },
+              { label: "合格率阈值", value: `${effectTracking.qualificationThresholdPercent ?? "—"}%` }
+            ]}
+          />
+        </PlanDetailSection>
+      ) : null}
+
+      <PlanDetailSection title="计划所属疫苗任务">
+        <Table
+          rowKey="id"
+          columns={taskColumns}
+          dataSource={planTasks}
+          pagination={false}
+          locale={{ emptyText: "暂无关联疫苗任务" }}
+          scroll={{ x: "max-content" }}
+        />
+      </PlanDetailSection>
+    </div>
+  );
+}
 
 function MassPlanForm({
   onSubmit,
@@ -4029,10 +4350,16 @@ function RoutinePlanForm({
   );
 }
 
-export function VaccinePlanPage() {
+export function VaccinePlanPage({
+  tasks = [],
+  onOpenTask
+}: {
+  tasks?: TaskRow[];
+  onOpenTask?: (taskId: string) => void;
+}) {
   const [createOpen, setCreateOpen] = useState(false);
   const [planType, setPlanType] = useState<PlanType | null>(null);
-  const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar">("list");
+  const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar" | "detail">("list");
   const [draft, setDraft] = useState<any>(null);
   const [massPlans, setMassPlans] = useState<any[]>(massPlanList);
   const [routinePlans, setRoutinePlans] = useState<RoutinePlanRow[]>(routinePlanList);
@@ -4047,6 +4374,7 @@ export function VaccinePlanPage() {
   const [routineEditMode, setRoutineEditMode] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [readonlyMassConfig, setReadonlyMassConfig] = useState(false);
+  const [planDetailTarget, setPlanDetailTarget] = useState<PlanDetailTarget>(null);
   const massConfigBackToAnnualCalRef = useRef(false);
   const massCalEyePrevEditingIdRef = useRef<string | null>(null);
 
@@ -4065,6 +4393,26 @@ export function VaccinePlanPage() {
     if (annualCalOverlay) return annualCalOverlay.dayMap;
     return annualDayMap;
   }, [annualCalOverlay, annualDayMap]);
+
+  const activePlanDetailRecord = useMemo(() => {
+    if (!planDetailTarget) return null;
+    return planDetailTarget.type === "MASS"
+      ? massPlans.find((item) => item.id === planDetailTarget.id) || null
+      : routinePlans.find((item) => item.id === planDetailTarget.id) || null;
+  }, [massPlans, planDetailTarget, routinePlans]);
+
+  const openPlanDetail = (type: PlanDetailKind, id: string) => {
+    setPlanDetailTarget({ type, id });
+    setMode("detail");
+  };
+
+  const editPlanFromDetail = () => {
+    if (!planDetailTarget) return;
+    setEditingPlanId(planDetailTarget.id);
+    setPlanType(planDetailTarget.type);
+    setReadonlyMassConfig(false);
+    setMode("config");
+  };
 
   const exitAnnualCalendar = useCallback(() => {
     setAnnualCalOverlay(null);
@@ -4205,7 +4553,7 @@ export function VaccinePlanPage() {
                     pagination={false}
                     size="middle"
                     className="vaccine-plan-table"
-                    scroll={{ x: 1320 }}
+                    scroll={{ x: "max-content" }}
                     columns={[
                       { title: "计划名称", dataIndex: "name", ellipsis: true, width: 160 },
                       {
@@ -4228,21 +4576,30 @@ export function VaccinePlanPage() {
                         width: 110,
                         render: (v: string) => v || "-"
                       },
-                      {
-                        title: "剂量",
-                        dataIndex: "dosage",
-                        width: 100,
-                        render: (_, record) =>
-                          `${record.dosage} ${record.dosageUnit || ""}`.trim()
-                      },
                       { title: "执行时间", dataIndex: "execute", ellipsis: true, width: 160 },
                       {
-                        title: "效果追踪",
+                        title: "免疫复核",
                         key: "effectTracking",
                         width: 220,
                         ellipsis: true,
                         render: (_: unknown, record: any) =>
                           formatEffectTrackingLine(record.effectTracking)
+                      },
+                      {
+                        title: "最后一次更新",
+                        key: "updatedAt",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.updatedAt || a.createdAt, b.updatedAt || b.createdAt),
+                        render: (_: unknown, record: any) =>
+                          `${record.updatedBy || record.createdBy || "-"} / ${record.updatedAt || record.createdAt || "-"}`
+                      },
+                      {
+                        title: "创建人/时间",
+                        key: "creatorAt",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.createdAt, b.createdAt),
+                        render: (_: unknown, record: any) =>
+                          `${record.createdBy || "-"} / ${record.createdAt || "-"}`
                       },
                       {
                         title: "启用",
@@ -4273,6 +4630,23 @@ export function VaccinePlanPage() {
                               }
                             />
                           )
+                      },
+                      {
+                        title: "查看",
+                        key: "view",
+                        width: 76,
+                        align: "center",
+                        fixed: "right",
+                        render: (_: unknown, record: any) => (
+                          <Tooltip title="查看计划详情">
+                            <Button
+                              type="text"
+                              icon={<EyeOutlined />}
+                              className="icon-btn"
+                              onClick={() => openPlanDetail("MASS", record.id)}
+                            />
+                          </Tooltip>
+                        )
                       }
                     ]}
                   />
@@ -4288,18 +4662,10 @@ export function VaccinePlanPage() {
                     pagination={false}
                     size="middle"
                     className="vaccine-plan-table"
-                    scroll={{ x: 1320 }}
+                    scroll={{ x: "max-content" }}
                     columns={[
                       { title: "计划名称", dataIndex: "name", ellipsis: true, width: 180 },
                       { title: "适用生产线", dataIndex: "line", ellipsis: true, width: 140 },
-                      {
-                        title: "效果追踪",
-                        key: "effectTracking",
-                        width: 220,
-                        ellipsis: true,
-                        render: (_: unknown, record: RoutinePlanRow) =>
-                          formatEffectTrackingLine(record.effectTracking)
-                      },
                       {
                         title: "目标免疫群体",
                         dataIndex: "pigType",
@@ -4321,13 +4687,30 @@ export function VaccinePlanPage() {
                         render: (v: string) => v || "-"
                       },
                       {
-                        title: "剂量",
-                        dataIndex: "dosage",
-                        width: 100,
-                        render: (_, record) =>
-                          `${record.dosage ?? ""} ${record.dosageUnit || ""}`.trim()
+                        title: "免疫复核",
+                        key: "effectTracking",
+                        width: 220,
+                        ellipsis: true,
+                        render: (_: unknown, record: RoutinePlanRow) =>
+                          formatEffectTrackingLine(record.effectTracking)
                       },
                       { title: "执行时间", dataIndex: "dispatchTime", ellipsis: true },
+                      {
+                        title: "最后一次更新",
+                        key: "updatedAt",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.updatedAt || a.createdAt, b.updatedAt || b.createdAt),
+                        render: (_: unknown, record: RoutinePlanRow) =>
+                          `${record.updatedBy || record.createdBy || "-"} / ${record.updatedAt || record.createdAt || "-"}`
+                      },
+                      {
+                        title: "创建人/时间",
+                        key: "creatorAt",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.createdAt, b.createdAt),
+                        render: (_: unknown, record: RoutinePlanRow) =>
+                          `${record.createdBy || "-"} / ${record.createdAt || "-"}`
+                      },
                       {
                         title: "启用",
                         dataIndex: "enabled",
@@ -4354,6 +4737,23 @@ export function VaccinePlanPage() {
                               }
                             />
                           )
+                      },
+                      {
+                        title: "查看",
+                        key: "view",
+                        width: 76,
+                        align: "center",
+                        fixed: "right",
+                        render: (_: unknown, record: RoutinePlanRow) => (
+                          <Tooltip title="查看计划详情">
+                            <Button
+                              type="text"
+                              icon={<EyeOutlined />}
+                              className="icon-btn"
+                              onClick={() => openPlanDetail("ROUTINE", record.id)}
+                            />
+                          </Tooltip>
+                        )
                       }
                     ]}
                   />
@@ -4363,6 +4763,20 @@ export function VaccinePlanPage() {
           />
         </Card>
       )}
+
+      {mode === "detail" && planDetailTarget && activePlanDetailRecord ? (
+        <VaccinePlanDetailPage
+          type={planDetailTarget.type}
+          record={activePlanDetailRecord}
+          tasks={tasks}
+          onOpenTask={onOpenTask}
+          onBack={() => {
+            setPlanDetailTarget(null);
+            setMode("list");
+          }}
+          onEdit={editPlanFromDetail}
+        />
+      ) : null}
 
       {mode === "annual-calendar" && (
         <Card className="section-card plan-annual-cal-card plan-annual-cal-card--fit">
@@ -4539,7 +4953,7 @@ export function VaccinePlanPage() {
               </div>
             </div>
             <div>
-              <Text type="secondary">效果追踪</Text>
+              <Text type="secondary">免疫复核</Text>
               <div className="preview-value">
                 {formatEffectTrackingLine(buildEffectTrackingPayload(draft))}
               </div>
@@ -4694,7 +5108,7 @@ export function VaccinePlanPage() {
               </div>
             </div>
             <div>
-              <Text type="secondary">效果追踪</Text>
+              <Text type="secondary">免疫复核</Text>
               <div className="preview-value">
                 {formatEffectTrackingLine(buildEffectTrackingPayload(draft))}
               </div>

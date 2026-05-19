@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnsType } from "antd/es/table";
-import { Button, Card, Popconfirm, Segmented, Space, Table, Tabs, Tag, Typography } from "antd";
+import { Button, Card, Popconfirm, Segmented, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { PlanEffectTrackingResultStored, PlanEffectTrackingStored } from "../planEffectTracking";
 
 const { Title, Text } = Typography;
@@ -24,6 +25,7 @@ export type TaskRow = {
   immuneIntervalDays?: number;
   targetCount: number;
   status: "待接种" | "进行中" | "已完成";
+  createType: "自动" | "手动";
   creator: string;
   createdAt: string;
   executor?: string;
@@ -62,6 +64,10 @@ function compareNumber(a?: number, b?: number): number {
 
 function compareDateText(a?: string, b?: string): number {
   return new Date(String(a || "")).getTime() - new Date(String(b || "")).getTime();
+}
+
+function resolveCreateType(row: TaskRow): TaskRow["createType"] {
+  return row.createType || (row.planName ? "自动" : "手动");
 }
 
 interface Props {
@@ -109,9 +115,26 @@ function taskTableColumns(
       render: (value) => <Tag color="green">{value} 头</Tag>
     }
   ];
+  const createTypeColumn: ColumnsType<TaskRow>[number] = {
+    title: "创建类型",
+    dataIndex: "createType",
+    key: "createType",
+    width: 110,
+    filters: [
+      { text: "自动", value: "自动" },
+      { text: "手动", value: "手动" }
+    ],
+    onFilter: (value, record) => resolveCreateType(record) === value,
+    sorter: (a, b) => compareText(resolveCreateType(a), resolveCreateType(b)),
+    render: (_, row) => {
+      const createType = resolveCreateType(row);
+      return <Tag color={createType === "自动" ? "processing" : "default"}>{createType}</Tag>;
+    }
+  };
   if (status === "待接种") {
     return [
       ...base,
+      createTypeColumn,
       {
         title: "创建人/时间",
         key: "creatorAt",
@@ -122,18 +145,20 @@ function taskTableColumns(
       {
         title: "操作",
         key: "actions",
-        width: 180,
+        width: 100,
+        align: "center",
         fixed: "right",
         render: (_, row) =>
           (
             <Space size={12}>
-              <Button
-                type="link"
-                style={{ paddingInline: 0 }}
-                onClick={() => onViewTask?.(row.id)}
-              >
-                查看详情
-              </Button>
+              <Tooltip title="查看详情">
+                <Button
+                  type="text"
+                  icon={<EyeOutlined />}
+                  className="icon-btn"
+                  onClick={() => onViewTask?.(row.id)}
+                />
+              </Tooltip>
               {onDeleteTask ? (
                 <Popconfirm
                   title="删除接种任务"
@@ -142,9 +167,9 @@ function taskTableColumns(
                   cancelText="取消"
                   onConfirm={() => onDeleteTask(row.id)}
                 >
-                  <Button type="link" danger style={{ paddingInline: 0 }}>
-                    删除
-                  </Button>
+                  <Tooltip title="删除">
+                    <Button type="text" danger icon={<DeleteOutlined />} className="icon-btn" />
+                  </Tooltip>
                 </Popconfirm>
               ) : null}
             </Space>
@@ -206,6 +231,9 @@ function taskTableColumns(
       render: (_, row) => `${row.executor || "-"} / ${row.executedAt || "-"}`
     },
     {
+      ...createTypeColumn
+    },
+    {
       title: "创建人/时间",
       key: "createdAt2",
       width: 200,
@@ -214,16 +242,18 @@ function taskTableColumns(
     {
       title: "操作",
       key: "actions",
-      width: 120,
+      width: 76,
+      align: "center",
       fixed: "right",
       render: (_, row) => (
-        <Button
-          type="link"
-          style={{ paddingInline: 0 }}
-          onClick={() => onViewTask?.(row.id)}
-        >
-          查看详情
-        </Button>
+        <Tooltip title="查看详情">
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            className="icon-btn"
+            onClick={() => onViewTask?.(row.id)}
+          />
+        </Tooltip>
       )
     }
   ];

@@ -59,6 +59,7 @@ const SEED_TASKS: TaskRow[] = [
     doseTimes: 1,
     targetCount: 16,
     status: "待接种",
+    createType: "手动",
     creator: "王敏",
     createdAt: "2026-02-09 09:20",
     pigIds: [
@@ -97,6 +98,7 @@ const SEED_TASKS: TaskRow[] = [
     intervalUnit: "小时",
     targetCount: 80,
     status: "进行中",
+    createType: "手动",
     creator: "李刚",
     createdAt: "2026-02-08 15:10",
     executor: "周婷",
@@ -123,6 +125,7 @@ const SEED_TASKS: TaskRow[] = [
     doseTimes: 1,
     targetCount: 12,
     status: "已完成",
+    createType: "自动",
     creator: "赵磊",
     createdAt: "2026-01-18 11:30",
     executor: "陈雨",
@@ -175,6 +178,7 @@ const SEED_TASKS: TaskRow[] = [
     doseTimes: 1,
     targetCount: 10,
     status: "已完成",
+    createType: "自动",
     creator: "徐倩",
     createdAt: "2026-01-24 16:20",
     executor: "陈晓",
@@ -219,6 +223,7 @@ const SEED_TASKS: TaskRow[] = [
     doseTimes: 1,
     targetCount: 8,
     status: "已完成",
+    createType: "自动",
     creator: "孙晴",
     createdAt: "2026-02-01 10:15",
     executor: "顾晨",
@@ -261,6 +266,7 @@ const SEED_TASKS: TaskRow[] = [
     schedule: "2026-02-06",
     targetCount: 6,
     status: "已完成",
+    createType: "自动",
     creator: "林悦",
     createdAt: "2026-02-04 15:40",
     executor: "徐亮",
@@ -439,7 +445,14 @@ export default function App() {
       <Layout>
         <Content className="app-content">
           {activeKey === "plan" ? (
-            <VaccinePlanPage />
+            <VaccinePlanPage
+              tasks={tasksWithSupplementState}
+              onOpenTask={(taskId) => {
+                setActiveTaskId(taskId);
+                setTaskStep("detail");
+                setConsoleActiveKey("task");
+              }}
+            />
           ) : activeKey === "culling-plan" ? (
             <CullingPlanPage onOpenTaskDetail={() => setConsoleActiveKey("culling-detail")} />
           ) : activeKey === "culling-detail" ? (
@@ -469,13 +482,19 @@ export default function App() {
                 const sampledCount = samples.length;
                 const qualificationRatePercent = sampledCount > 0 ? Math.round((qualifiedCount / sampledCount) * 100) : 0;
                 const result = qualificationRatePercent >= linkedReviewTask.thresholdPercent ? "合格" : "不合格";
+                const uploadedCount = samples.filter(
+                  (item) => item.result && String(item.measurementValue || "").trim()
+                ).length;
 
                 setReviewSamplingTasks((prev) =>
                   prev.map((task) =>
                     task.id === reviewTaskId
                       ? {
                           ...task,
-                          status: "已检测",
+                          status:
+                            linkedReviewTask.reviewCategory === "抗体检测" && uploadedCount < sampledCount
+                              ? "待检测"
+                              : "已检测",
                           measurementUnit,
                           samples,
                           positiveCount: qualifiedCount,
@@ -525,9 +544,11 @@ export default function App() {
                     id: reviewTaskId,
                     vaccinationTaskId: "",
                     vaccinationTaskType: "原始接种",
+                    reviewCategory: "抗体检测",
                     targetAntibody,
                     sampledCount: pigIds.length,
                     thresholdPercent,
+                    creator: "实验室人员",
                     createdAt,
                     status: "待采样",
                     samplingMethod,
@@ -743,6 +764,7 @@ export default function App() {
                         immuneIntervalDays: brandCfg?.immuneIntervalDays,
                         targetCount: cover,
                         status: "待接种",
+                        createType: editingTask?.createType || "手动",
                         creator: editingTask?.creator || "当前用户",
                         createdAt: editingTask?.createdAt || "2026-02-10 09:00",
                         pigIds: [...selectedPigs],

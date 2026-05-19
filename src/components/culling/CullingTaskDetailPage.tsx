@@ -18,15 +18,15 @@ type RetainedPigletRecord = {
   key: string;
   pigletId: string;
   sowId: string;
+  sireId: string;
   location: string;
   gender: string;
   age: string;
   weight: string;
 };
 
-type CullingDecisionStatus = "确认淘汰" | "已淘汰" | "不淘汰";
+type CullingDecisionStatus = "计划淘汰" | "已淘汰" | "不淘汰";
 type CullingDecisionSource = "建议淘汰" | "现场新增" | "无";
-type CullingDisposition = "未处理" | "售卖" | "转移" | "场内屠宰" | "死亡" | "-";
 type CullingDecisionRecord = {
   key: string;
   sowId: string;
@@ -34,8 +34,8 @@ type CullingDecisionRecord = {
   location: string;
   status: CullingDecisionStatus;
   source: CullingDecisionSource;
+  assignedBy: string;
   rejectReason: string;
-  disposition: CullingDisposition;
 };
 
 type DetailSubPage = "main" | "culling" | "retained";
@@ -105,10 +105,10 @@ const cullingDecisionData: CullingDecisionRecord[] = [
     sowId: "DEV000004",
     pigType: "生产母猪",
     location: "A2 · 断奶舍",
-    status: "确认淘汰",
+    status: "计划淘汰",
     source: "建议淘汰",
-    rejectReason: "-",
-    disposition: "未处理"
+    assignedBy: "王敏",
+    rejectReason: "-"
   },
   {
     key: "cull-2",
@@ -117,8 +117,8 @@ const cullingDecisionData: CullingDecisionRecord[] = [
     location: "A3 · 配怀舍",
     status: "已淘汰",
     source: "建议淘汰",
-    rejectReason: "-",
-    disposition: "售卖"
+    assignedBy: "王敏",
+    rejectReason: "-"
   },
   {
     key: "cull-3",
@@ -127,18 +127,18 @@ const cullingDecisionData: CullingDecisionRecord[] = [
     location: "B1 · 配怀舍",
     status: "不淘汰",
     source: "建议淘汰",
-    rejectReason: "现场复核体况恢复良好，建议继续留群观察",
-    disposition: "-"
+    assignedBy: "赵磊",
+    rejectReason: "现场复核体况恢复良好，建议继续留群观察"
   },
   {
     key: "cull-4",
     sowId: "DEV000012",
     pigType: "生产母猪",
     location: "B2 · 断奶舍",
-    status: "确认淘汰",
+    status: "计划淘汰",
     source: "现场新增",
-    rejectReason: "-",
-    disposition: "未处理"
+    assignedBy: "刘婷",
+    rejectReason: "-"
   },
   {
     key: "cull-5",
@@ -147,8 +147,8 @@ const cullingDecisionData: CullingDecisionRecord[] = [
     location: "C1 · 断奶舍",
     status: "已淘汰",
     source: "无",
-    rejectReason: "-",
-    disposition: "转移"
+    assignedBy: "-",
+    rejectReason: "-"
   }
 ];
 
@@ -163,6 +163,11 @@ const retainedPigletColumns: ColumnsType<RetainedPigletRecord> = [
     title: "母猪ID",
     dataIndex: "sowId",
     sorter: (a, b) => a.sowId.localeCompare(b.sowId)
+  },
+  {
+    title: "父系ID",
+    dataIndex: "sireId",
+    sorter: (a, b) => a.sireId.localeCompare(b.sireId)
   },
   {
     title: "位置",
@@ -186,6 +191,7 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-1",
     pigletId: "P-260315-001",
     sowId: "DEV000002",
+    sireId: "BOAR-118",
     location: "A1 · 保育预留栏",
     gender: "母",
     age: "28日龄",
@@ -195,6 +201,7 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-2",
     pigletId: "P-260315-003",
     sowId: "DEV000002",
+    sireId: "BOAR-118",
     location: "A1 · 保育预留栏",
     gender: "公",
     age: "28日龄",
@@ -204,6 +211,7 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-3",
     pigletId: "P-260315-011",
     sowId: "DEV000004",
+    sireId: "BOAR-125",
     location: "A2 · 保育预留栏",
     gender: "母",
     age: "27日龄",
@@ -213,6 +221,7 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-4",
     pigletId: "P-260315-015",
     sowId: "DEV000004",
+    sireId: "BOAR-125",
     location: "A2 · 保育预留栏",
     gender: "公",
     age: "27日龄",
@@ -222,6 +231,7 @@ const retainedPigletData: RetainedPigletRecord[] = [
     key: "piglet-5",
     pigletId: "P-260315-018",
     sowId: "DEV000004",
+    sireId: "BOAR-125",
     location: "A2 · 保育预留栏",
     gender: "母",
     age: "27日龄",
@@ -252,13 +262,13 @@ const cullingDecisionColumns: ColumnsType<CullingDecisionRecord> = [
     title: "淘汰状态",
     dataIndex: "status",
     filters: [
-      { text: "确认淘汰", value: "确认淘汰" },
+      { text: "计划淘汰", value: "计划淘汰" },
       { text: "已淘汰", value: "已淘汰" },
       { text: "不淘汰", value: "不淘汰" }
     ],
     onFilter: (value, record) => record.status === value,
     render: (value: CullingDecisionStatus) => {
-      if (value === "确认淘汰") return <Tag className="culling-detail-tag-cull-pending">确认淘汰</Tag>;
+      if (value === "计划淘汰") return <Tag className="culling-detail-tag-cull-pending">计划淘汰</Tag>;
       if (value === "已淘汰") return <Tag className="culling-detail-tag-cull-done">已淘汰</Tag>;
       return <Tag className="culling-detail-tag-neutral">不淘汰</Tag>;
     }
@@ -282,29 +292,15 @@ const cullingDecisionColumns: ColumnsType<CullingDecisionRecord> = [
       )
   },
   {
-    title: "不淘汰原因",
-    dataIndex: "rejectReason",
+    title: "指定人",
+    dataIndex: "assignedBy",
+    sorter: (a, b) => a.assignedBy.localeCompare(b.assignedBy, "zh-Hans-CN"),
     render: (value: string) => value || "-"
   },
   {
-    title: "后续去向",
-    dataIndex: "disposition",
-    filters: [
-      { text: "未处理", value: "未处理" },
-      { text: "售卖", value: "售卖" },
-      { text: "转移", value: "转移" },
-      { text: "场内屠宰", value: "场内屠宰" },
-      { text: "死亡", value: "死亡" }
-    ],
-    onFilter: (value, record) => record.disposition === value,
-    render: (value: CullingDisposition) => {
-      if (value === "未处理") return <Tag className="culling-detail-tag-pending">未处理</Tag>;
-      if (value === "售卖") return <Tag className="culling-detail-tag-soft">售卖</Tag>;
-      if (value === "转移") return <Tag className="culling-detail-tag-soft">转移</Tag>;
-      if (value === "场内屠宰") return <Tag className="culling-detail-tag-warn">场内屠宰</Tag>;
-      if (value === "死亡") return <Tag className="culling-detail-tag-neutral">死亡</Tag>;
-      return "-";
-    }
+    title: "不淘汰原因",
+    dataIndex: "rejectReason",
+    render: (value: string) => value || "-"
   }
 ];
 
@@ -325,7 +321,7 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
   const filteredCullingDecisions = useMemo(() => {
     const q = cullingKeyword.trim();
     const statusFiltered = cullingDecisionData.filter((item) => {
-      if (cullingView === "need") return item.status === "确认淘汰";
+      if (cullingView === "need") return item.status === "计划淘汰";
       if (cullingView === "done") return item.status === "已淘汰";
       if (cullingView === "rejected") return item.status === "不淘汰" && item.source === "建议淘汰";
       return true;
@@ -349,7 +345,7 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
   const checkedTotal = sowData.length;
   const checkedDone = sowData.filter((item) => item.taskStatus === "已检查").length;
   const plannedCullingCount = 4;
-  const confirmedCullingCount = cullingDecisionData.filter((item) => item.status === "确认淘汰").length;
+  const confirmedCullingCount = cullingDecisionData.filter((item) => item.status === "计划淘汰").length;
   const completedCullingCount = cullingDecisionData.filter((item) => item.status === "已淘汰").length;
   const rejectedSuggestedCount = cullingDecisionData.filter((item) => item.status === "不淘汰" && item.source === "建议淘汰").length;
   const retainedTarget = 6;
@@ -545,7 +541,7 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
 
           <div className="culling-detail-kpi-grid">
             <ResultStatCard label="计划淘汰" value={`${plannedCullingCount} 头`} tone="slate" />
-            <ResultStatCard label="确认淘汰" value={`${confirmedCullingCount} 头`} tone="orange" />
+            <ResultStatCard label="计划淘汰" value={`${confirmedCullingCount} 头`} tone="orange" />
             <ResultStatCard label="已淘汰" value={`${completedCullingCount} 头`} tone="green" />
             <ResultStatCard label="建议淘汰但未淘汰" value={`${rejectedSuggestedCount} 头`} tone="rose" />
           </div>
@@ -560,7 +556,7 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
             />
             <div className="culling-detail-filter-chips">
               <button type="button" className={`culling-detail-chip ${cullingView === "all" ? "is-active" : ""}`} onClick={() => setCullingView("all")}>全部</button>
-              <button type="button" className={`culling-detail-chip ${cullingView === "need" ? "is-active" : ""}`} onClick={() => setCullingView("need")}>仅看确认淘汰</button>
+              <button type="button" className={`culling-detail-chip ${cullingView === "need" ? "is-active" : ""}`} onClick={() => setCullingView("need")}>仅看计划淘汰</button>
               <button type="button" className={`culling-detail-chip ${cullingView === "done" ? "is-active" : ""}`} onClick={() => setCullingView("done")}>仅看已淘汰</button>
               <button type="button" className={`culling-detail-chip ${cullingView === "rejected" ? "is-active" : ""}`} onClick={() => setCullingView("rejected")}>仅看建议淘汰但未淘汰</button>
             </div>

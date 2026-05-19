@@ -1600,6 +1600,103 @@ body {
   padding-bottom: 12px;
 }
 
+.plan-detail-page {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.plan-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.plan-detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-detail-back-btn {
+  padding-inline: 0 !important;
+}
+
+.plan-detail-title {
+  margin: 0 !important;
+}
+
+.plan-detail-breadcrumb {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.plan-detail-section {
+  border-radius: 16px;
+}
+
+.plan-detail-section .ant-card-body {
+  padding: 24px;
+}
+
+.plan-detail-section-title {
+  margin-top: 0 !important;
+  margin-bottom: 22px !important;
+  color: #0f172a;
+}
+
+.plan-detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px 56px;
+}
+
+.plan-detail-info-label {
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.plan-detail-info-value {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.plan-detail-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.plan-detail-filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .plan-detail-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .plan-detail-header {
+    flex-direction: column;
+  }
+
+  .plan-detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .plan-type-select {
   padding: 12px 8px;
 }
@@ -2038,7 +2135,7 @@ body {
   background: #f1f5f9 !important;
 }
 
-/* 疫苗计划 · 效果追踪配置块 */
+/* 疫苗计划 · 免疫复核配置块 */
 .effect-tracking-block {
   margin-bottom: 24px;
   padding: 16px 18px;

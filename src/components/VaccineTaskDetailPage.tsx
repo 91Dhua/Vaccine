@@ -201,7 +201,7 @@ export function VaccineTaskDetailPage({
     { label: "目标范围", value: targetSectionText },
     { label: "创建人/时间", value: `${task.creator} / ${task.createdAt}` },
     ...(task.status !== "待接种"
-      ? [{ label: "执行人/时间", value: `${task.executor || latestLog?.actor || "—"} / ${task.executedAt || latestLog?.at || "—"}` }]
+      ? [{ label: "操作人/时间", value: `${task.executor || latestLog?.actor || "—"} / ${task.executedAt || latestLog?.at || "—"}` }]
       : []),
     { label: "豁免命中数量", value: `${exemptionRows.length} 头` }
   ];
@@ -295,7 +295,7 @@ export function VaccineTaskDetailPage({
       render: (value?: string) => value || "—"
     },
     {
-      title: "执行人/时间",
+      title: "操作人/时间",
       key: "executorAt",
       width: 220,
       render: (_, row) => (row.executor || row.actualAt ? `${row.executor || "—"} / ${row.actualAt || "—"}` : "—")
