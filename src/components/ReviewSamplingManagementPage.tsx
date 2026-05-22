@@ -561,27 +561,25 @@ function reviewListColumns(
               ]
             : []),
           {
-            title: "阳性 / 已检测样本",
-            key: "positiveSummary",
+            title: "当前合格率",
+            dataIndex: "qualificationRatePercent",
+            key: "qualificationRatePercent",
             width: 150,
             sorter: (a, b) =>
-              compareNumber(summarizeSamples(a.samples, a.thresholdPercent).positiveCount, summarizeSamples(b.samples, b.thresholdPercent).positiveCount),
+              compareNumber(summarizeSamples(a.samples, a.thresholdPercent).qualificationRatePercent, summarizeSamples(b.samples, b.thresholdPercent).qualificationRatePercent),
             render: (_, row) => {
               const summary = summarizeSamples(row.samples, row.thresholdPercent);
-              return `${summary.positiveCount} / ${countUploadedSamples(row.samples)}`;
+              const uploadedCount = countUploadedSamples(row.samples);
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontWeight: 600 }}>{summary.qualificationRatePercent}%</span>
+                  <Text type="secondary">{`阳性 ${summary.positiveCount} / 已检测 ${uploadedCount}`}</Text>
+                </div>
+              );
             }
           },
           {
-            title: "合格率",
-            dataIndex: "qualificationRatePercent",
-            key: "qualificationRatePercent",
-            width: 100,
-            sorter: (a, b) =>
-              compareNumber(summarizeSamples(a.samples, a.thresholdPercent).qualificationRatePercent, summarizeSamples(b.samples, b.thresholdPercent).qualificationRatePercent),
-            render: (_, row) => `${summarizeSamples(row.samples, row.thresholdPercent).qualificationRatePercent}%`
-          },
-          {
-            title: "判定结果",
+            title: completedCategory === "抗体检测" ? "检测结果" : "判定结果",
             dataIndex: "result",
             key: "result",
             width: 110,
@@ -610,19 +608,23 @@ function reviewListColumns(
 
   const listBase =
     completedCategory === "抗体检测"
-      ? base.filter((column) => column.key !== "sampleContainer")
+      ? base.filter((column) => column.key !== "sampleContainer" && column.key !== "sampledCount")
       : base;
 
   return [
     ...listBase,
     ...completedOnly,
-    {
-      title: "创建时间",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      width: 160,
-      sorter: (a, b) => compareDateText(a.createdAt, b.createdAt)
-    },
+    ...(completedCategory === "抗体检测"
+      ? []
+      : [
+          {
+            title: "创建时间",
+            dataIndex: "createdAt",
+            key: "createdAt",
+            width: 160,
+            sorter: (a, b) => compareDateText(a.createdAt, b.createdAt)
+          }
+        ]),
     {
       title: "操作",
       key: "actions",
@@ -682,6 +684,65 @@ function SummaryGrid({
   summary: ReviewSummary;
   showFilled: boolean;
 }) {
+  const isAntibodyTask = task.reviewCategory === "抗体检测";
+  const uploadedCount = countUploadedSamples(task.samples);
+  const uploadProgress = calculateUploadProgressPercent(task.samples);
+  if (isAntibodyTask) {
+    return (
+      <Card className="section-card">
+        <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>
+          {title}
+        </Title>
+        <div className="review-sampling-antibody-summary">
+          <div className="review-sampling-antibody-summary__progress">
+            <div>
+              <div className="review-sampling-summary-label">检测进度</div>
+              <div className="review-sampling-antibody-summary__progress-value">
+                {uploadedCount} / {summary.totalCount} 份
+              </div>
+            </div>
+            <div className="review-sampling-antibody-summary__progress-bar">
+              <div className="review-sampling-antibody-summary__progress-percent">{uploadProgress}%</div>
+              <Progress
+                percent={uploadProgress}
+                size="small"
+                showInfo={false}
+                strokeColor={uploadProgress === 100 ? "#16a34a" : "#1677ff"}
+              />
+            </div>
+          </div>
+          <div className="review-sampling-antibody-summary__metrics">
+            <div className="review-sampling-antibody-summary__metric review-sampling-antibody-summary__metric--primary">
+              <div className="review-sampling-summary-label">当前合格率</div>
+              <div className="review-sampling-antibody-summary__metric-value">
+                {summary.qualificationRatePercent}%
+              </div>
+              <Text type="secondary">阳性 {summary.positiveCount} / 已检测 {uploadedCount}</Text>
+            </div>
+            <div className="review-sampling-antibody-summary__metric">
+              <div className="review-sampling-summary-label">阳性数</div>
+              <div className="review-sampling-summary-value">{summary.positiveCount} 头</div>
+            </div>
+            <div className="review-sampling-antibody-summary__metric">
+              <div className="review-sampling-summary-label">阴性数</div>
+              <div className="review-sampling-summary-value">{summary.negativeCount} 头</div>
+            </div>
+            <div className="review-sampling-antibody-summary__metric">
+              <div className="review-sampling-summary-label">阈值</div>
+              <div className="review-sampling-summary-value">{task.thresholdPercent}%</div>
+            </div>
+            <div className="review-sampling-antibody-summary__metric">
+              <div className="review-sampling-summary-label">检测结果</div>
+              <div className="review-sampling-summary-value">
+                <Tag color={summary.result === "合格" ? "success" : "error"}>{summary.result}</Tag>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="section-card">
       <Title level={5} className="task-detail-section-title" style={{ marginTop: 0 }}>

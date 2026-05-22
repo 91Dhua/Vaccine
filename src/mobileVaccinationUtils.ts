@@ -342,11 +342,12 @@ export function seedMobileTasksFromConsole(tasks: TaskRow[]): MobilePigTask[] {
 
 function applySeedExecutionState(row: TaskRow, tasks: MobilePigTask[]): MobilePigTask[] {
   if (row.status === "待接种") return tasks;
+  if (row.status === "已取消") return [];
 
   const total = tasks.length;
   if (total === 0) return tasks;
 
-  if (row.status === "进行中") {
+  if (row.status === "接种中") {
     const completedCount = Math.max(1, Math.floor(total * 0.65));
     return tasks.map((task, index) => {
       if (index < completedCount) {

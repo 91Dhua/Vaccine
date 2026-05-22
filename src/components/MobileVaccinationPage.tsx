@@ -7,7 +7,6 @@ import {
   HomeOutlined,
   LeftOutlined,
   MedicineBoxOutlined,
-  MoreOutlined,
   RightOutlined,
   SearchOutlined,
   TagOutlined,
@@ -231,7 +230,6 @@ function PigSlotDrawer({
   executeForced,
   setExecuteForced,
   appendLog,
-  removeTask,
   updateTask,
   modalContainer
 }: {
@@ -243,20 +241,9 @@ function PigSlotDrawer({
   executeForced: boolean;
   setExecuteForced: (v: boolean) => void;
   appendLog: (entry: Omit<MobileExecutionLog, "id">) => void;
-  removeTask: (id: string) => void;
   updateTask: (id: string, patch: Partial<MobilePigTask>) => void;
   modalContainer: () => HTMLElement;
 }) {
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
-  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
-
-  const pigMoreActionItems = [
-    { key: "pending-1", label: "待定操作 1" },
-    { key: "pending-2", label: "待定操作 2" },
-    { key: "pending-3", label: "待定操作 3" },
-    { key: "pending-4", label: "待定操作 4" }
-  ] as const;
-
   const actionsLocked =
     task.status === "completed" || task.status === "skipped" || task.status === "suspended";
   const drawerStatus = pigRowListStatus(task);
@@ -292,13 +279,6 @@ function PigSlotDrawer({
               </Tag>
             </div>
           </div>
-          <Button
-            type="text"
-            className="mv-pig-drawer__more-btn"
-            icon={<MoreOutlined />}
-            aria-label="更多操作"
-            onClick={() => setMoreActionsOpen((prev) => !prev)}
-          />
         </div>
       </div>
 
@@ -372,24 +352,6 @@ function PigSlotDrawer({
               <Button
                 block
                 size="large"
-                danger
-                disabled={actionsLocked}
-                onClick={() => setRemoveConfirmOpen(true)}
-              >
-                移出接种列表
-              </Button>
-              <Button
-                block
-                size="large"
-                className="mv-pig-drawer-secondary-action"
-                icon={<MoreOutlined />}
-                onClick={() => setMoreActionsOpen((prev) => !prev)}
-              >
-                更多
-              </Button>
-              <Button
-                block
-                size="large"
                 type="primary"
                 disabled={actionsLocked}
                 onClick={() => {
@@ -417,54 +379,9 @@ function PigSlotDrawer({
                 {task.exemptionHit ? "仍然接种" : "接种"}
               </Button>
             </div>
-
-            {moreActionsOpen ? (
-              <div className="mv-pig-drawer-more-panel">
-                <Text type="secondary" className="mv-pig-more-actions__hint">
-                  更多操作入口先按占位展示，后续再替换为正式文案。
-                </Text>
-                <div className="mv-pig-more-actions mv-pig-more-actions--inline">
-                  {pigMoreActionItems.map((item) => (
-                    <Button
-                      key={item.key}
-                      block
-                      size="large"
-                      className="mv-pig-more-actions__btn"
-                      onClick={() => {
-                        message.info(`「${item.label}」待后续确认`);
-                      }}
-                    >
-                      {item.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </>
         )}
       </div>
-
-      <Modal
-        title="移出接种列表"
-        open={removeConfirmOpen}
-        getContainer={modalContainer}
-        okText="确认移出"
-        cancelText="取消"
-        okButtonProps={{ danger: true }}
-        destroyOnClose
-        onCancel={() => setRemoveConfirmOpen(false)}
-        onOk={() => {
-          removeTask(task.id);
-          setRemoveConfirmOpen(false);
-          onClose();
-          message.success("已移出接种列表");
-          return Promise.resolve();
-        }}
-      >
-        <Text type="secondary">
-          确认将耳标 {task.earTag} 从接种列表移除？移除后将不再参与本次接种。
-        </Text>
-      </Modal>
     </Drawer>
   );
 }
@@ -787,22 +704,6 @@ export function MobileVaccinationPage({
   const updateTask = useCallback(
     (id: string, patch: Partial<MobilePigTask>) => {
       setPigTasks((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-    },
-    [setPigTasks]
-  );
-
-  const removeTask = useCallback(
-    (id: string) => {
-      setPigTasks((prev) => prev.filter((p) => p.id !== id));
-    },
-    [setPigTasks]
-  );
-
-  const removeTasks = useCallback(
-    (ids: string[]) => {
-      if (!ids.length) return;
-      const set = new Set(ids);
-      setPigTasks((prev) => prev.filter((p) => !set.has(p.id)));
     },
     [setPigTasks]
   );
@@ -1293,7 +1194,6 @@ export function MobileVaccinationPage({
             executeForced={executeForced}
             setExecuteForced={setExecuteForced}
             appendLog={appendLog}
-            removeTask={removeTask}
             updateTask={updateTask}
             modalContainer={modalContainer}
           />
@@ -1581,13 +1481,6 @@ export function MobileVaccinationPage({
             <span className="mv-pig-batchbar__count">已选 {pigListSelectedIds.length} 头</span>
             <div className="mv-pig-batchbar__actions">
               <Button
-                onClick={() => clearPigSelection()}
-                className="mv-pig-batchbar__ghost"
-                disabled={pigListSelectedIds.length === 0}
-              >
-                清空
-              </Button>
-              <Button
                 type="primary"
                 disabled={pigListSelectedIds.length === 0}
                 onClick={() => {
@@ -1614,25 +1507,6 @@ export function MobileVaccinationPage({
                 }}
               >
                 接种
-              </Button>
-              <Button
-                danger
-                disabled={pigListSelectedIds.length === 0}
-                onClick={() => {
-                  Modal.confirm({
-                    title: "批量移出确认",
-                    content: `确认将已选 ${pigListSelectedIds.length} 头从接种列表移除？`,
-                    okText: "确认移出",
-                    okButtonProps: { danger: true },
-                    getContainer: modalContainer,
-                    onOk: () => {
-                      removeTasks(pigListSelectedIds);
-                      clearPigSelection();
-                    }
-                  });
-                }}
-              >
-                移出接种列表
               </Button>
             </div>
           </div>
@@ -1857,7 +1731,6 @@ export function MobileVaccinationPage({
             executeForced={executeForced}
             setExecuteForced={setExecuteForced}
             appendLog={appendLog}
-            removeTask={removeTask}
             updateTask={updateTask}
             modalContainer={modalContainer}
           />

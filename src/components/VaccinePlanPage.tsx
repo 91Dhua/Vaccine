@@ -403,8 +403,8 @@ function PigRuleBuilder({
   lockedPigTypeValue?: string;
 }) {
   const conditions: PigRuleCondition[] = Form.useWatch("pigRuleConditions", form) || [];
-
-  const coverage = useMemo(() => estimateCoverage(conditions), [conditions]);
+  const pigRuleLogic = Form.useWatch("pigRuleLogic", form);
+  const conditionLogicText = pigRuleLogic === "OR" ? "任一" : "全部";
 
   return (
     <Card
@@ -672,7 +672,7 @@ function PigRuleBuilder({
             }}
           />
           <Text>
-            当前规则预计涵盖 <Text strong>{coverage.toLocaleString()}</Text> 头猪只
+            到了任务时间，符合<Text strong>{conditionLogicText}</Text>条件的猪只将会被加入接种任务
           </Text>
         </div>
         <Tooltip
@@ -1367,6 +1367,16 @@ function parseMassExecuteToDates(execute: string | undefined, year: number): Day
     if (d.isValid() && d.year() === year) out.push(d);
   }
   return dedupeSortDates(out);
+}
+
+function getNextMassVaccinationTime(execute: string | undefined, baseDate = dayjs()): string {
+  const currentYear = baseDate.year();
+  const today = baseDate.startOf("day");
+  const thisYearDates = parseMassExecuteToDates(execute, currentYear);
+  const nextThisYear = thisYearDates.find((d) => !d.startOf("day").isBefore(today));
+  if (nextThisYear) return nextThisYear.format("YYYY-MM-DD");
+  const nextYearDate = parseMassExecuteToDates(execute, currentYear + 1)[0];
+  return nextYearDate ? nextYearDate.format("YYYY-MM-DD") : "—";
 }
 
 function buildMassPlansYearIndex(plans: any[], year: number): Map<string, PlanDayMassTask[]> {
@@ -2598,14 +2608,41 @@ function MassScheduleDatesSection({
   );
 }
 
-const massPlanList = [
+type MassPlanRow = {
+  id: string;
+  name: string;
+  pigType: string;
+  cycle: string;
+  execute: string;
+  nextVaccinationTime: string;
+  vaccine: string;
+  vaccineBrand?: string;
+  vaccinationMethod?: string;
+  dosage: number;
+  dosageUnit: string;
+  exclusion?: string;
+  enabled: boolean;
+  workOrdersDispatched?: boolean;
+  partialVaccinationProgress?: boolean;
+  effectTracking?: PlanEffectTrackingStored;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  pigRuleLogic?: string;
+  pigRuleConditions?: PigRuleCondition[];
+};
+
+const massPlanList: MassPlanRow[] = [
   {
     id: "mass-001",
     name: "2024 秋季普免",
     pigType: "生产母猪",
     cycle: "每年",
     execute: "10-01/12-15",
+    nextVaccinationTime: getNextMassVaccinationTime("10-01/12-15"),
     vaccine: "非瘟灭活疫苗",
+    vaccinationMethod: "肌肉注射",
     dosage: 2,
     dosageUnit: "毫克",
     exclusion: "分娩结束后 5-7 天",
@@ -2629,7 +2666,9 @@ const massPlanList = [
     pigType: "仔猪",
     cycle: "每季度",
     execute: "01-01/04-01/07-01/10-01",
+    nextVaccinationTime: getNextMassVaccinationTime("01-01/04-01/07-01/10-01"),
     vaccine: "蓝耳二联疫苗",
+    vaccinationMethod: "肌肉注射",
     dosage: 1,
     dosageUnit: "毫克",
     exclusion: "哺乳期前 7 天",
@@ -2653,7 +2692,9 @@ const massPlanList = [
     pigType: "生产母猪",
     cycle: "每年",
     execute: "04-01/10-01",
+    nextVaccinationTime: getNextMassVaccinationTime("04-01/10-01"),
     vaccine: "伪狂犬疫苗",
+    vaccinationMethod: "肌肉注射",
     dosage: 1.5,
     dosageUnit: "毫克",
     exclusion: "无",
@@ -2684,7 +2725,9 @@ const massPlanList = [
     pigType: "生产公猪",
     cycle: "每年",
     execute: "01-01/10-01",
+    nextVaccinationTime: getNextMassVaccinationTime("01-01/10-01"),
     vaccine: "圆环疫苗",
+    vaccinationMethod: "肌肉注射",
     dosage: 1,
     dosageUnit: "毫克",
     exclusion: "无",
@@ -2834,6 +2877,17 @@ type RoutinePlanRow = {
   updatedAt?: string;
 };
 
+function renderVaccineMethodCell(record: { vaccine?: string; vaccinationMethod?: string }) {
+  return (
+    <div className="plan-vaccine-method-cell">
+      <div className="plan-vaccine-method-primary">{record.vaccine || "—"}</div>
+      <Text type="secondary" className="plan-vaccine-method-secondary">
+        {record.vaccinationMethod || "—"}
+      </Text>
+    </div>
+  );
+}
+
 type PlanDetailKind = "MASS" | "ROUTINE";
 
 type PlanDetailTarget = {
@@ -2843,6 +2897,7 @@ type PlanDetailTarget = {
 
 type PlanTaskRow = {
   id: string;
+  productionLineBatch?: string;
   schedule: string;
   status: TaskRow["status"];
   targetCount: number;
@@ -2882,6 +2937,7 @@ function buildPlanTaskRows(record: any, type: PlanDetailKind, tasks: TaskRow[] =
 
   return matchedTasks.map((task) => ({
     id: task.id,
+    productionLineBatch: task.productionLineBatch,
     schedule: task.schedule,
     status: task.status,
     targetCount: task.targetCount,
@@ -2981,6 +3037,19 @@ function VaccinePlanDetailPage({
           value
         )
     },
+    ...(type === "ROUTINE"
+      ? [
+          {
+            title: "生产线-批次",
+            dataIndex: "productionLineBatch",
+            width: 180,
+            ellipsis: true,
+            sorter: (a, b) => compareText(a.productionLineBatch, b.productionLineBatch),
+            render: (value?: string) => value || "—"
+          }
+        ]
+      : []),
+    { title: "目标猪只", dataIndex: "targetCount", width: 110, sorter: (a, b) => a.targetCount - b.targetCount, render: (value) => `${value} 头` },
     { title: "接种日期", dataIndex: "schedule", width: 160, sorter: (a, b) => compareText(a.schedule, b.schedule) },
     {
       title: "任务状态",
@@ -2988,15 +3057,15 @@ function VaccinePlanDetailPage({
       width: 120,
       filters: [
         { text: "待接种", value: "待接种" },
-        { text: "进行中", value: "进行中" },
-        { text: "已完成", value: "已完成" }
+        { text: "接种中", value: "接种中" },
+        { text: "已完成", value: "已完成" },
+        { text: "已取消", value: "已取消" }
       ],
       onFilter: (value, row) => row.status === value,
       render: (value: PlanTaskRow["status"]) => (
-        <Tag color={value === "待接种" ? "default" : value === "进行中" ? "processing" : "success"}>{value}</Tag>
+        <Tag color={value === "待接种" ? "default" : value === "接种中" ? "processing" : value === "已取消" ? "error" : "success"}>{value}</Tag>
       )
     },
-    { title: "目标猪只", dataIndex: "targetCount", width: 110, sorter: (a, b) => a.targetCount - b.targetCount, render: (value) => `${value} 头` },
     { title: "操作人", dataIndex: "executor", width: 120, sorter: (a, b) => compareText(a.executor, b.executor) }
   ];
 
@@ -4361,7 +4430,7 @@ export function VaccinePlanPage({
   const [planType, setPlanType] = useState<PlanType | null>(null);
   const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar" | "detail">("list");
   const [draft, setDraft] = useState<any>(null);
-  const [massPlans, setMassPlans] = useState<any[]>(massPlanList);
+  const [massPlans, setMassPlans] = useState<MassPlanRow[]>(massPlanList);
   const [routinePlans, setRoutinePlans] = useState<RoutinePlanRow[]>(routinePlanList);
   const [annualCalYear, setAnnualCalYear] = useState(() => dayjs().year());
   const [annualCalOverlay, setAnnualCalOverlay] = useState<{
@@ -4562,45 +4631,31 @@ export function VaccinePlanPage({
                         width: 120,
                         render: (text: string) => <Tag>{text}</Tag>
                       },
-                      { title: "疫苗", dataIndex: "vaccine", ellipsis: true, width: 140 },
                       {
-                        title: "品牌",
-                        dataIndex: "vaccineBrand",
-                        ellipsis: true,
-                        width: 120,
-                        render: (v: string) => v || "-"
+                        title: "疫苗 / 接种方式",
+                        key: "vaccineMethod",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.vaccine, b.vaccine),
+                        render: (_: unknown, record: MassPlanRow) => renderVaccineMethodCell(record)
                       },
-                      {
-                        title: "接种方式",
-                        dataIndex: "vaccinationMethod",
-                        width: 110,
-                        render: (v: string) => v || "-"
-                      },
-                      { title: "执行时间", dataIndex: "execute", ellipsis: true, width: 160 },
                       {
                         title: "免疫复核",
                         key: "effectTracking",
-                        width: 220,
-                        ellipsis: true,
+                        width: 110,
+                        filters: [
+                          { text: "已开启", value: "enabled" },
+                          { text: "未开启", value: "disabled" }
+                        ],
+                        onFilter: (value, record) =>
+                          (record.effectTracking?.effectTrackingEnabled ? "enabled" : "disabled") === value,
                         render: (_: unknown, record: any) =>
-                          formatEffectTrackingLine(record.effectTracking)
+                          record.effectTracking?.effectTrackingEnabled ? (
+                            <Tag color="success">已开启</Tag>
+                          ) : (
+                            <Tag>未开启</Tag>
+                          )
                       },
-                      {
-                        title: "最后一次更新",
-                        key: "updatedAt",
-                        width: 180,
-                        sorter: (a, b) => compareText(a.updatedAt || a.createdAt, b.updatedAt || b.createdAt),
-                        render: (_: unknown, record: any) =>
-                          `${record.updatedBy || record.createdBy || "-"} / ${record.updatedAt || record.createdAt || "-"}`
-                      },
-                      {
-                        title: "创建人/时间",
-                        key: "creatorAt",
-                        width: 180,
-                        sorter: (a, b) => compareText(a.createdAt, b.createdAt),
-                        render: (_: unknown, record: any) =>
-                          `${record.createdBy || "-"} / ${record.createdAt || "-"}`
-                      },
+                      { title: "下次接种时间", dataIndex: "nextVaccinationTime", ellipsis: true, width: 150 },
                       {
                         title: "启用",
                         dataIndex: "enabled",
@@ -4665,52 +4720,38 @@ export function VaccinePlanPage({
                     scroll={{ x: "max-content" }}
                     columns={[
                       { title: "计划名称", dataIndex: "name", ellipsis: true, width: 180 },
-                      { title: "适用生产线", dataIndex: "line", ellipsis: true, width: 140 },
                       {
                         title: "目标免疫群体",
                         dataIndex: "pigType",
                         width: 120,
                         render: (text: string) => <Tag>{text}</Tag>
                       },
-                      { title: "疫苗", dataIndex: "vaccine", ellipsis: true, width: 140 },
                       {
-                        title: "品牌",
-                        dataIndex: "vaccineBrand",
-                        ellipsis: true,
-                        width: 120,
-                        render: (v: string) => v || "-"
-                      },
-                      {
-                        title: "接种方式",
-                        dataIndex: "vaccinationMethod",
-                        width: 110,
-                        render: (v: string) => v || "-"
+                        title: "疫苗 / 接种方式",
+                        key: "vaccineMethod",
+                        width: 180,
+                        sorter: (a, b) => compareText(a.vaccine, b.vaccine),
+                        render: (_: unknown, record: RoutinePlanRow) => renderVaccineMethodCell(record)
                       },
                       {
                         title: "免疫复核",
                         key: "effectTracking",
-                        width: 220,
-                        ellipsis: true,
+                        width: 110,
+                        filters: [
+                          { text: "已开启", value: "enabled" },
+                          { text: "未开启", value: "disabled" }
+                        ],
+                        onFilter: (value, record) =>
+                          (record.effectTracking?.effectTrackingEnabled ? "enabled" : "disabled") === value,
                         render: (_: unknown, record: RoutinePlanRow) =>
-                          formatEffectTrackingLine(record.effectTracking)
+                          record.effectTracking?.effectTrackingEnabled ? (
+                            <Tag color="success">已开启</Tag>
+                          ) : (
+                            <Tag>未开启</Tag>
+                          )
                       },
-                      { title: "执行时间", dataIndex: "dispatchTime", ellipsis: true },
-                      {
-                        title: "最后一次更新",
-                        key: "updatedAt",
-                        width: 180,
-                        sorter: (a, b) => compareText(a.updatedAt || a.createdAt, b.updatedAt || b.createdAt),
-                        render: (_: unknown, record: RoutinePlanRow) =>
-                          `${record.updatedBy || record.createdBy || "-"} / ${record.updatedAt || record.createdAt || "-"}`
-                      },
-                      {
-                        title: "创建人/时间",
-                        key: "creatorAt",
-                        width: 180,
-                        sorter: (a, b) => compareText(a.createdAt, b.createdAt),
-                        render: (_: unknown, record: RoutinePlanRow) =>
-                          `${record.createdBy || "-"} / ${record.createdAt || "-"}`
-                      },
+                      { title: "执行时间", dataIndex: "dispatchTime", ellipsis: true, width: 160 },
+                      { title: "适用生产线", dataIndex: "line", ellipsis: true, width: 140 },
                       {
                         title: "启用",
                         dataIndex: "enabled",
@@ -4969,16 +5010,18 @@ export function VaccinePlanPage({
                     extractPigTypeValues(draft?.pigRuleConditions || [])
                       .map((val: string) => pigTypeOptions.find((o) => o.value === val)?.label)
                       .filter(Boolean)[0] || "";
+                  const execute = Array.isArray(draft.scheduleDates)
+                    ? draft.scheduleDates
+                        .filter((d: any) => d && dayjs.isDayjs(d))
+                        .map((d: Dayjs) => d.format("MM-DD"))
+                        .join("/")
+                    : (draft.scheduleDates || []).join("/");
                   const planPayload = {
                     name: draft.name,
                     cycle: "每年",
                     pigType: pigTypeLabel,
-                    execute: Array.isArray(draft.scheduleDates)
-                      ? draft.scheduleDates
-                          .filter((d: any) => d && dayjs.isDayjs(d))
-                          .map((d: Dayjs) => d.format("MM-DD"))
-                          .join("/")
-                      : (draft.scheduleDates || []).join("/"),
+                    execute,
+                    nextVaccinationTime: getNextMassVaccinationTime(execute),
                     vaccine:
                       vaccines.find((v) => v.id === draft.vaccineId)?.name || "",
                     vaccineBrand: draft.vaccineBrand || "",

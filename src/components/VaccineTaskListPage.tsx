@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
 import type { ColumnsType } from "antd/es/table";
-import { Button, Card, Popconfirm, Segmented, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Popconfirm, Progress, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
 import { DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { PlanEffectTrackingResultStored, PlanEffectTrackingStored } from "../planEffectTracking";
 
@@ -23,8 +22,10 @@ export type TaskRow = {
   intervalUnit?: string;
   /** 免疫间隔期（天）：用于 mobile 执行前提醒 */
   immuneIntervalDays?: number;
+  /** 任务结束时实际完成接种的猪只数 */
+  actualVaccinatedCount?: number;
   targetCount: number;
-  status: "待接种" | "进行中" | "已完成";
+  status: "待接种" | "接种中" | "已完成" | "已取消";
   createType: "自动" | "手动";
   creator: string;
   createdAt: string;
@@ -38,6 +39,10 @@ export type TaskRow = {
   needsSupplement?: boolean;
   planName?: string;
   planType?: string;
+  /** 跟批自动任务所属生产线与批次，例如「一线-保育-BY202602-A01」 */
+  productionLineBatch?: string;
+  /** 任务详情猪只列表展示用批次与生产线，例如「BY202602-A01-一线-保育」 */
+  batchProductionLine?: string;
   planScope?: string;
   dispatchRule?: string;
   planCreatedAt?: string;
@@ -46,7 +51,7 @@ export type TaskRow = {
   effectTrackingResult?: PlanEffectTrackingResultStored;
   supplementSourceTaskId?: string;
   supplementMode?: "pending-only" | "review-full";
-  supplementStatus?: "需补打" | "补打处理中" | "补打已完成";
+  supplementStatus?: "需补打" | "已安排补打";
   supplementReason?: string;
   hasPendingSupplementNeed?: boolean;
   hasReviewSupplementNeed?: boolean;
@@ -68,6 +73,56 @@ function compareDateText(a?: string, b?: string): number {
 
 function resolveCreateType(row: TaskRow): TaskRow["createType"] {
   return row.createType || (row.planName ? "自动" : "手动");
+}
+
+function resolveActualVaccinatedCount(row: TaskRow): number {
+  if (typeof row.actualVaccinatedCount === "number") {
+    return row.actualVaccinatedCount;
+  }
+  if (row.status === "已完成") {
+    return Math.max(0, row.targetCount - (row.exemptionHitCount ?? 0));
+  }
+  return 0;
+}
+
+function renderActualPlannedVaccination(row: TaskRow) {
+  const actual = resolveActualVaccinatedCount(row);
+  const planned = Math.max(row.targetCount, 0);
+  const percent = planned > 0 ? Math.min(100, Math.round((actual / planned) * 100)) : 0;
+
+  return (
+    <div className="task-vaccination-progress-cell">
+      <div className="task-vaccination-progress-value">{actual} / {planned} 头</div>
+      <Progress percent={percent} size="small" showInfo={false} strokeColor="#1677ff" />
+    </div>
+  );
+}
+
+function renderTaskVaccineMethodCell(record: TaskRow) {
+  return (
+    <div className="plan-vaccine-method-cell">
+      <div className="plan-vaccine-method-primary">{record.vaccine || "—"}</div>
+      <Text type="secondary" className="plan-vaccine-method-secondary">
+        {record.administrationRoute || "—"}
+      </Text>
+    </div>
+  );
+}
+
+function renderCreateTypeCell(row: TaskRow) {
+  const createType = resolveCreateType(row);
+  if (createType === "自动") {
+    return <Tag color="processing">自动</Tag>;
+  }
+
+  return (
+    <div className="task-create-meta-cell">
+      <div className="task-create-meta-primary">{row.creator || "—"}</div>
+      <Text type="secondary" className="task-create-meta-secondary">
+        {row.createdAt || "—"}
+      </Text>
+    </div>
+  );
 }
 
 interface Props {
@@ -93,18 +148,13 @@ function taskTableColumns(
       sorter: (a, b) => compareText(a.id, b.id),
       render: (text: string) => text?.trim() || "—"
     },
-    { title: "疫苗", dataIndex: "vaccine", key: "vaccine", width: 140, ellipsis: true, sorter: (a, b) => compareText(a.vaccine, b.vaccine) },
-    { title: "品牌", dataIndex: "brand", key: "brand", width: 120, ellipsis: true, sorter: (a, b) => compareText(a.brand, b.brand) },
     {
-      title: "接种方式",
-      dataIndex: "administrationRoute",
-      key: "administrationRoute",
-      width: 140,
-      ellipsis: true,
-      sorter: (a, b) => compareText(a.administrationRoute, b.administrationRoute),
-      render: (v) => v || "—"
+      title: "疫苗 / 接种方式",
+      key: "vaccineMethod",
+      width: 180,
+      sorter: (a, b) => compareText(a.vaccine, b.vaccine),
+      render: (_, row) => renderTaskVaccineMethodCell(row)
     },
-    { title: "剂量", dataIndex: "dosage", key: "dosage", width: 120, sorter: (a, b) => compareText(a.dosage, b.dosage) },
     { title: "接种日期", dataIndex: "schedule", key: "schedule", width: 120, sorter: (a, b) => compareDateText(a.schedule, b.schedule) },
     {
       title: "目标猪只",
@@ -116,32 +166,22 @@ function taskTableColumns(
     }
   ];
   const createTypeColumn: ColumnsType<TaskRow>[number] = {
-    title: "创建类型",
+    title: "创建人",
     dataIndex: "createType",
     key: "createType",
-    width: 110,
+    width: 150,
     filters: [
       { text: "自动", value: "自动" },
       { text: "手动", value: "手动" }
     ],
     onFilter: (value, record) => resolveCreateType(record) === value,
     sorter: (a, b) => compareText(resolveCreateType(a), resolveCreateType(b)),
-    render: (_, row) => {
-      const createType = resolveCreateType(row);
-      return <Tag color={createType === "自动" ? "processing" : "default"}>{createType}</Tag>;
-    }
+    render: (_, row) => renderCreateTypeCell(row)
   };
   if (status === "待接种") {
     return [
       ...base,
       createTypeColumn,
-      {
-        title: "创建人/时间",
-        key: "creatorAt",
-        width: 200,
-        sorter: (a, b) => compareDateText(a.createdAt, b.createdAt),
-        render: (_, row) => `${row.creator} / ${row.createdAt}`
-      },
       {
         title: "操作",
         key: "actions",
@@ -162,7 +202,7 @@ function taskTableColumns(
               {onDeleteTask ? (
                 <Popconfirm
                   title="删除接种任务"
-                  description="删除后会同步移除该任务下发到 Mobile 的接种数据。"
+                  description="删除后任务状态将变为已取消，并同步移除该任务下发到 Mobile 的接种数据。"
                   okText="删除"
                   cancelText="取消"
                   onConfirm={() => onDeleteTask(row.id)}
@@ -177,67 +217,24 @@ function taskTableColumns(
       }
     ];
   }
-  const supplementColumns: ColumnsType<TaskRow> =
+  const completionColumns: ColumnsType<TaskRow> =
     status === "已完成"
       ? [
           {
-            title: "补打状态",
-            dataIndex: "supplementStatus",
-            key: "supplementStatus",
-            width: 120,
-            filters: [
-              { text: "需补打", value: "需补打" },
-              { text: "补打处理中", value: "补打处理中" },
-              { text: "补打已完成", value: "补打已完成" }
-            ],
-            onFilter: (value, record) => record.supplementStatus === value,
-            render: (value?: TaskRow["supplementStatus"]) =>
-              value ? (
-                <Tag
-                  color={
-                    value === "需补打" ? "gold" : value === "补打处理中" ? "processing" : "success"
-                  }
-                >
-                  {value}
-                </Tag>
-              ) : (
-                "—"
-              )
-          },
-          {
-            title: "补打原因",
-            dataIndex: "supplementReason",
-            key: "supplementReason",
-            width: 180,
-            ellipsis: true,
-            filters: [
-              { text: "未接种", value: "未接种" },
-              { text: "复核不合格", value: "复核不合格" }
-            ],
-            onFilter: (value, record) => String(record.supplementReason || "").includes(String(value)),
-            render: (value?: string) => value || "—"
+            title: "实际接种 / 计划接种",
+            key: "actualPlannedVaccination",
+            width: 170,
+            sorter: (a, b) => compareNumber(resolveActualVaccinatedCount(a), resolveActualVaccinatedCount(b)),
+            render: (_, row) => renderActualPlannedVaccination(row)
           }
         ]
       : [];
 
   return [
     ...base,
-    ...supplementColumns,
-    {
-      title: "执行人/时间",
-      key: "executorAt",
-      width: 200,
-      sorter: (a, b) => compareDateText(a.executedAt, b.executedAt),
-      render: (_, row) => `${row.executor || "-"} / ${row.executedAt || "-"}`
-    },
+    ...completionColumns,
     {
       ...createTypeColumn
-    },
-    {
-      title: "创建人/时间",
-      key: "createdAt2",
-      width: 200,
-      render: (_, row) => `${row.creator} / ${row.createdAt}`
     },
     {
       title: "操作",
@@ -260,17 +257,10 @@ function taskTableColumns(
 }
 
 export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, tasks }: Props) {
-  const [completedFilter, setCompletedFilter] = useState<"all" | "needSupplement">("all");
-  const completedRows = useMemo(() => {
-    const rows = tasks.filter((task) => task.status === "已完成");
-    return completedFilter === "needSupplement"
-      ? rows.filter((task) => task.supplementStatus === "需补打")
-      : rows;
-  }, [completedFilter, tasks]);
   const tabItems = [
     { key: "待接种", label: "待接种", rows: tasks.filter((task) => task.status === "待接种"), status: "待接种" as const },
-    { key: "进行中", label: "进行中", rows: tasks.filter((task) => task.status === "进行中"), status: "进行中" as const },
-    { key: "已完成", label: "已完成", rows: completedRows, status: "已完成" as const }
+    { key: "接种中", label: "接种中", rows: tasks.filter((task) => task.status === "接种中"), status: "接种中" as const },
+    { key: "已完成", label: "已完成", rows: tasks.filter((task) => task.status === "已完成"), status: "已完成" as const }
   ];
   return (
     <div>
@@ -293,28 +283,14 @@ export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, ta
             key: tab.key,
             label: tab.label,
             children: (
-              <>
-                {tab.key === "已完成" ? (
-                  <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
-                    <Segmented
-                      value={completedFilter}
-                      onChange={(value) => setCompletedFilter(value as "all" | "needSupplement")}
-                      options={[
-                        { label: "全部", value: "all" },
-                        { label: "仅看需补打", value: "needSupplement" }
-                      ]}
-                    />
-                  </div>
-                ) : null}
-                <Table<TaskRow>
-                  rowKey="id"
-                  dataSource={tab.rows}
-                  pagination={false}
-                  scroll={{ x: "max-content" }}
-                  locale={{ emptyText: "暂无任务" }}
-                  columns={taskTableColumns(tab.status, onViewTask, onDeleteTask)}
-                />
-              </>
+              <Table<TaskRow>
+                rowKey="id"
+                dataSource={tab.rows}
+                pagination={false}
+                scroll={{ x: "max-content" }}
+                locale={{ emptyText: "暂无任务" }}
+                columns={taskTableColumns(tab.status, onViewTask, onDeleteTask)}
+              />
             )
           }))}
         />

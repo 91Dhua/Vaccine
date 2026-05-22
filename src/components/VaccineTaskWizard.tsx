@@ -66,6 +66,8 @@ export function VaccineTaskWizard({
   const isSupplement = mode === "supplement";
   const isQuickSupplement = mode === "quickSupplement";
   const isReviewRevaccination = isQuickSupplement && quickSupplementType === "review-full";
+  const shouldManuallySelectDate = isQuickSupplement;
+  const lockPrefilledTaskInfo = isSupplement || isQuickSupplement;
   const watchedVaccineId = Form.useWatch("vaccineId", form);
   const watchedBrand = Form.useWatch("brand", form);
 
@@ -99,7 +101,7 @@ export function VaccineTaskWizard({
       vaccinationMethod: payload?.vaccinationMethod,
       dosage: payload?.dosage ?? 2,
       dosageUnit: payload?.dosageUnit ?? "毫克",
-      date: payload?.date ? dayjs(payload.date) : dayjs("2026-02-09"),
+      date: payload?.date ? dayjs(payload.date) : shouldManuallySelectDate ? undefined : dayjs("2026-02-09"),
       effectTrackingEnabled:
         payload?.effectTracking?.effectTrackingEnabled ??
         PLAN_EFFECT_TRACKING_DEFAULTS.effectTrackingEnabled,
@@ -117,7 +119,7 @@ export function VaccineTaskWizard({
         payload?.effectTracking?.qualificationThresholdPercent ??
         PLAN_EFFECT_TRACKING_DEFAULTS.qualificationThresholdPercent
     });
-  }, [form, payload, step]);
+  }, [form, payload, shouldManuallySelectDate, step]);
 
   if (step === "preview") {
     const brandLine = String(payload?.brand ?? "").trim();
@@ -135,7 +137,9 @@ export function VaccineTaskWizard({
               {mode === "edit"
                 ? "编辑接种任务"
                 : isQuickSupplement
-                  ? "快捷补打"
+                  ? isReviewRevaccination
+                    ? "重新接种"
+                    : "快捷补打"
                   : isSupplement
                     ? "创建补充接种任务"
                     : "创建接种任务"}
@@ -179,10 +183,6 @@ export function VaccineTaskWizard({
           <div className="confirm-card">
             <div className="confirm-title">接种信息</div>
             <div className="preview-grid">
-              <div>
-                <Text type="secondary">任务编号</Text>
-                <div className="preview-value">提交后由系统自动分配（如 VT-…）</div>
-              </div>
               <div>
                 <Text type="secondary">接种日期</Text>
                 <div className="preview-value">{payload?.date}</div>
@@ -230,7 +230,7 @@ export function VaccineTaskWizard({
         <div className="form-actions">
           <Button onClick={onBack}>上一步</Button>
           <Button type="primary" onClick={onFinish}>
-            {isQuickSupplement ? (isReviewRevaccination ? "重新接种" : "完成补打") : "完成"}
+            {isQuickSupplement ? (isReviewRevaccination ? "确认接种" : "完成补打") : "完成"}
           </Button>
         </div>
       </div>
@@ -245,7 +245,9 @@ export function VaccineTaskWizard({
             {mode === "edit"
               ? "编辑接种任务"
               : isQuickSupplement
-                ? "快捷补打"
+                ? isReviewRevaccination
+                  ? "重新接种"
+                  : "快捷补打"
                 : isSupplement
                   ? "创建补充接种任务"
                   : "创建接种任务"}
@@ -292,7 +294,7 @@ export function VaccineTaskWizard({
                   value: v.id,
                   label: v.name
                 }))}
-                disabled={isSupplement}
+                disabled={lockPrefilledTaskInfo}
                 onChange={() => {
                   form.setFieldsValue({ brand: undefined, vaccinationMethod: undefined });
                 }}
@@ -305,7 +307,7 @@ export function VaccineTaskWizard({
               <Select
                 placeholder="选择品牌"
                 options={brandOptions}
-                disabled={!watchedVaccineId || isSupplement}
+                disabled={!watchedVaccineId || lockPrefilledTaskInfo}
                 onChange={(brandName) => {
                   const brand = vaccineCatalog
                     .find((item) => item.vaccineId === watchedVaccineId)
@@ -327,7 +329,7 @@ export function VaccineTaskWizard({
               <Select
                 placeholder={watchedBrand ? "选择接种方式" : "请先选择品牌"}
                 options={vaccinationMethodOptions}
-                disabled={!watchedBrand || isSupplement}
+                disabled={!watchedBrand || lockPrefilledTaskInfo}
               />
             </Form.Item>
             <Form.Item
@@ -335,7 +337,7 @@ export function VaccineTaskWizard({
               label="剂量"
               rules={[{ required: true, message: "请输入剂量" }]}
             >
-              <InputNumber min={0.5} step={0.5} style={{ width: "100%" }} disabled={isSupplement} />
+              <InputNumber min={0.5} step={0.5} style={{ width: "100%" }} disabled={lockPrefilledTaskInfo} />
             </Form.Item>
             <Form.Item
               name="dosageUnit"
@@ -343,19 +345,23 @@ export function VaccineTaskWizard({
               rules={[{ required: true, message: "请选择单位" }]}
             >
               <Select
-                disabled={isSupplement}
+                disabled={lockPrefilledTaskInfo}
                 options={[
                   { label: "毫克", value: "毫克" },
                   { label: "毫升", value: "毫升" }
                 ]}
               />
             </Form.Item>
-            <Form.Item name="date" label="接种日期">
+            <Form.Item
+              name="date"
+              label="接种日期"
+              rules={[{ required: true, message: "请选择接种日期" }]}
+            >
               <DatePicker style={{ width: "100%" }} />
             </Form.Item>
           </div>
 
-          {!isSupplement ? <PlanEffectTrackingSection form={form} /> : null}
+          {!lockPrefilledTaskInfo ? <PlanEffectTrackingSection form={form} /> : null}
         </Form>
         <div className="form-actions">
           <Button onClick={onBack}>取消</Button>

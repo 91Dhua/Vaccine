@@ -97,7 +97,7 @@ const SEED_TASKS: TaskRow[] = [
     intervalValue: 12,
     intervalUnit: "小时",
     targetCount: 80,
-    status: "进行中",
+    status: "接种中",
     createType: "手动",
     creator: "李刚",
     createdAt: "2026-02-08 15:10",
@@ -295,6 +295,65 @@ const SEED_TASKS: TaskRow[] = [
       samplingRatioPercent: 6,
       qualificationThresholdPercent: 78
     }
+  },
+  {
+    id: "VT-DEMO-R001",
+    vaccine: "蓝耳二联疫苗",
+    brand: "百利",
+    dosageForm: "活疫苗（冻干苗）",
+    administrationRoute: "肌内注射",
+    dosage: "1 毫克",
+    schedule: "2026-02-12",
+    doseTimes: 1,
+    targetCount: 36,
+    status: "接种中",
+    createType: "自动",
+    creator: "系统",
+    createdAt: "2026-02-09 06:00",
+    executor: "周婷",
+    executedAt: "2026-02-12 09:30",
+    dosageUnit: "毫克",
+    targetPigGroupLabel: "仔猪",
+    exemptionHitCount: 1,
+    planName: "保育线仔猪跟批免疫",
+    planType: "跟批免疫",
+    productionLineBatch: "一线-保育-BY202602-A01",
+    batchProductionLine: "BY202602-A01-一线-保育",
+    planCreatedAt: "2024-03-02 00:00",
+    planStatus: "启用中",
+    effectTracking: {
+      effectTrackingEnabled: true,
+      targetAntibody: "猪繁殖与呼吸综合征病毒抗体",
+      samplingMethod: "FRONT_VENA",
+      sampleContainer: "REAGENT_BAG_BLOOD",
+      samplingIntervalDays: 21,
+      samplingRatioPercent: 5,
+      qualificationThresholdPercent: 80
+    }
+  },
+  {
+    id: "VT-DEMO-R002",
+    vaccine: "非瘟灭活疫苗",
+    brand: "佰特生物",
+    dosageForm: "油佐剂灭活疫苗",
+    administrationRoute: "肌内注射",
+    dosage: "2 毫克",
+    schedule: "2026-02-18",
+    doseTimes: 1,
+    targetCount: 24,
+    status: "待接种",
+    createType: "自动",
+    creator: "系统",
+    createdAt: "2026-02-15 06:00",
+    dosageUnit: "毫克",
+    targetPigGroupLabel: "生产母猪",
+    exemptionHitCount: 1,
+    planName: "繁育线母猪跟批免疫",
+    planType: "跟批免疫",
+    productionLineBatch: "三线-繁育-PZ202602-B03",
+    batchProductionLine: "PZ202602-B03-三线-繁育",
+    planCreatedAt: "2024-04-15 00:00",
+    planStatus: "启用中"
   }
 ];
 
@@ -339,37 +398,23 @@ export default function App() {
     const reviewUnhandled = currentReviewReason && !reviewSupplementTask;
     const hasUnhandled = pendingUnhandled || reviewUnhandled;
 
-    const processing =
-      !hasUnhandled &&
-      ((currentPendingReason && !!pendingSupplementTask && pendingSupplementTask.status !== "已完成") ||
-        (currentReviewReason && !!reviewSupplementTask && reviewSupplementTask.status !== "已完成"));
-
-    const completed =
-      !hasUnhandled &&
-      !processing &&
-      ((hasPendingIssue && (!!reviewSupplementTask || pendingSupplementTask?.status === "已完成")) ||
-        (hasReviewIssue && reviewSupplementTask?.status === "已完成"));
+    const hasArrangedSupplement = Boolean(pendingSupplementTask || reviewSupplementTask);
 
     const supplementStatus: TaskRow["supplementStatus"] = hasUnhandled
       ? "需补打"
-      : processing
-        ? "补打处理中"
-        : completed
-          ? "补打已完成"
-          : undefined;
+      : hasArrangedSupplement
+        ? "已安排补打"
+        : undefined;
 
     const supplementReason =
-      supplementStatus === "需补打" || supplementStatus === "补打处理中"
-        ? [currentPendingReason ? "未接种" : null, currentReviewReason ? "复核不合格" : null]
+      supplementStatus
+        ? [
+            (currentPendingReason || (hasPendingIssue && (pendingSupplementTask || reviewSupplementTask))) ? "未接种" : null,
+            (currentReviewReason || (hasReviewIssue && reviewSupplementTask)) ? "复核不合格" : null
+          ]
             .filter(Boolean)
             .join("、") || undefined
-        : supplementStatus === "补打已完成"
-          ? hasReviewIssue && reviewSupplementTask?.status === "已完成"
-            ? "复核不合格"
-            : hasPendingIssue && (pendingSupplementTask?.status === "已完成" || reviewSupplementTask?.status === "已完成")
-              ? "未接种"
-              : undefined
-          : undefined;
+        : undefined;
 
     const arrangedSupplementPigIds = Array.from(
       new Set(
@@ -581,7 +626,9 @@ export default function App() {
                     setTaskStep("detail");
                   }}
                   onDeleteTask={(taskId) => {
-                    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+                    setTasks((prev) =>
+                      prev.map((task) => (task.id === taskId ? { ...task, status: "已取消" } : task))
+                    );
                     setMobilePigTasks((prev) =>
                       prev.filter((task) => task.taskId !== taskId && task.batchId !== taskId)
                     );
@@ -648,11 +695,11 @@ export default function App() {
                               vaccinationMethod: activeTask.administrationRoute,
                               dosage: dosageValue,
                               dosageUnit: activeTask.dosage.includes("毫升") ? "毫升" : "毫克",
-                              date: dayjs().format("YYYY-MM-DD"),
+                              date: undefined,
                               effectTracking: activeTask.effectTracking
                             });
                             setSelectedPigs(targetPigIds);
-                            setTaskStep("preview");
+                            setTaskStep("form");
                           };
 
                           if (mode === "review-full" && arrangedPigIds.size > 0) {
@@ -677,7 +724,11 @@ export default function App() {
                   onDelete={
                     activeTask.status === "待接种"
                       ? () => {
-                        setTasks((prev) => prev.filter((task) => task.id !== activeTask.id));
+                        setTasks((prev) =>
+                          prev.map((task) =>
+                            task.id === activeTask.id ? { ...task, status: "已取消" } : task
+                          )
+                        );
                           setMobilePigTasks((prev) =>
                             prev.filter((task) => task.taskId !== activeTask.id && task.batchId !== activeTask.id)
                           );
@@ -710,7 +761,7 @@ export default function App() {
                   mode={taskFlowMode}
                   payload={taskDraft}
                   quickSupplementType={supplementContext?.mode ?? null}
-                  onBack={() => setTaskStep("select")}
+                  onBack={() => setTaskStep(taskFlowMode === "quickSupplement" ? "detail" : "select")}
                   onNext={(payload) => {
                     setTaskDraft(payload);
                     setTaskStep("preview");
@@ -724,7 +775,7 @@ export default function App() {
                   mode={taskFlowMode}
                   payload={taskDraft}
                   quickSupplementType={supplementContext?.mode ?? null}
-                  onBack={() => setTaskStep(taskFlowMode === "quickSupplement" ? "detail" : "form")}
+                  onBack={() => setTaskStep("form")}
                   onFinish={() => {
                     if (taskDraft) {
                       const editingTask = editingTaskId

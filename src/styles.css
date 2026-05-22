@@ -1600,6 +1600,67 @@ body {
   padding-bottom: 12px;
 }
 
+.plan-vaccine-method-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.plan-vaccine-method-primary,
+.plan-vaccine-method-secondary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-vaccine-method-primary {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.plan-vaccine-method-secondary {
+  font-size: 12px;
+}
+
+.task-vaccination-progress-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.task-vaccination-progress-value {
+  color: #0f172a;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.task-vaccination-progress-cell .ant-progress {
+  line-height: 1;
+}
+
+.task-create-meta-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-create-meta-primary,
+.task-create-meta-secondary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-create-meta-primary {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.task-create-meta-secondary {
+  font-size: 12px;
+}
+
 .plan-detail-page {
   max-width: 1180px;
   margin: 0 auto;
@@ -2908,7 +2969,9 @@ body {
   padding-right: 0;
   margin-top: 4px;
   padding-bottom: 10px;
-  scrollbar-width: none;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.38) transparent;
 }
 
 .mv-piglist-scroll--with-endbar {
@@ -2916,21 +2979,21 @@ body {
 }
 
 .mv-piglist-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-.mv-piglist-scroll:hover {
-  scrollbar-width: thin;
-}
-
-.mv-piglist-scroll:hover::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
+}
+
+.mv-piglist-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mv-piglist-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.38);
+  border-radius: 999px;
 }
 
 .mv-piglist-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.45);
-  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.52);
 }
 
 .mv-piglist-page-title {
@@ -3494,6 +3557,8 @@ body {
 }
 
 .mv-list--piglist {
+  box-sizing: border-box;
+  width: 100%;
   padding-bottom: 16px;
 }
 
@@ -3772,6 +3837,8 @@ body {
 }
 
 .mv-pig-stall-groups {
+  box-sizing: border-box;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -9851,10 +9918,63 @@ body {
   margin-bottom: 16px;
 }
 
+.task-detail-review-result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
+  gap: 16px;
+}
+
+.task-detail-review-result-panel {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.task-detail-review-result-panel--primary {
+  background: #ffffff;
+}
+
+.task-detail-review-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-detail-review-result-value {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+}
+
+.task-detail-review-result-value span {
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
 @media (max-width: 768px) {
   .task-detail-card-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .task-detail-review-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-detail-review-result-value {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 }
 
@@ -9936,6 +10056,10 @@ body {
   grid-column: 1 / -1;
 }
 
+.review-sampling-summary-item--progress {
+  grid-column: span 2;
+}
+
 .review-sampling-summary-label {
   margin-bottom: 8px;
   color: rgba(0, 0, 0, 0.45);
@@ -9955,6 +10079,79 @@ body {
   margin-inline-end: 0;
 }
 
+.review-sampling-antibody-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.review-sampling-antibody-summary__progress {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.65fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: end;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.review-sampling-antibody-summary__progress-value {
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 700;
+}
+
+.review-sampling-antibody-summary__progress-bar {
+  min-width: 0;
+}
+
+.review-sampling-antibody-summary__progress-percent {
+  margin-bottom: 4px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.review-sampling-antibody-summary__metrics {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-sampling-antibody-summary__metric {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.review-sampling-antibody-summary__metric--primary {
+  background: #f8fbff;
+  border-color: #dbeafe;
+}
+
+.review-sampling-antibody-summary__metric-value {
+  margin-bottom: 2px;
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 700;
+}
+
+.review-sampling-summary-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #1f2937;
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 500;
+}
+
 .review-sampling-detail-actions {
   display: flex;
   align-items: center;
@@ -9966,12 +10163,33 @@ body {
   .review-sampling-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .review-sampling-antibody-summary__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .review-sampling-antibody-summary__metric--primary {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 768px) {
   .review-sampling-summary-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .review-sampling-summary-item--progress {
+    grid-column: auto;
+  }
+
+  .review-sampling-antibody-summary__progress,
+  .review-sampling-antibody-summary__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .review-sampling-antibody-summary__progress-percent {
+    text-align: left;
   }
 
   .review-sampling-detail-actions {
