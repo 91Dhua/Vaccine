@@ -752,7 +752,7 @@ function completedAntibodySampleColumns(
             type="text"
             icon={<EyeOutlined />}
             onClick={() => onOpen(row.reviewTaskId, "view")}
-            aria-label={`查看${row.earTag}的抗体检测详情`}
+            aria-label={`查看${row.earTag}的免疫复核详情`}
           />
         </Tooltip>
       )
@@ -1324,14 +1324,14 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
               返回复核任务列表
             </Button>
             <Title level={4} style={{ margin: 0 }}>
-              {isSampling ? "复核采样详情" : isPending ? (isDynamicAntibodyUpload ? "抗体检测结果上传" : "复核结果上传") : "复核结果详情"}
+              {isSampling ? "复核采样详情" : isPending ? (isDynamicAntibodyUpload ? "免疫复核结果上传" : "复核结果上传") : "复核结果详情"}
             </Title>
             <Text type="secondary">
               {isSampling
                 ? "查看本轮待采样任务的样品范围与采样要求。"
                 : isPending
                   ? isDynamicAntibodyUpload
-                    ? "抗体检测支持分批上传样品结果，系统会实时更新检测进度和当前判定。"
+                    ? "免疫复核支持分批上传样品结果，系统会实时更新检测进度和当前判定。"
                     : "逐条录入样品结果，系统会自动计算合格率并回写接种任务。"
                   : "查看已提交的复核结果汇总与单样品明细。"}
             </Text>
@@ -1474,7 +1474,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
           <Title level={4} style={{ margin: 0 }}>
             免疫复核采样结果管理
           </Title>
-          <Text type="secondary">按常规检测和抗体检测查看已检测结果，结果提交后自动回写接种任务。</Text>
+          <Text type="secondary">按常规检测和免疫复核查看已检测结果，结果提交后自动回写接种任务。</Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>创建采样</Button>
       </div>
@@ -1488,7 +1488,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
               className="review-sampling-entry-card"
               onClick={() => {
                 if (item.key === "病毒") {
-                  message.info("病毒采样创建入口暂未开放，这次先完成抗体采样任务。");
+                  message.info("病毒采样创建入口暂未开放，这次先完成免疫复核采样任务。");
                   return;
                 }
                 setCreateModalOpen(false);
@@ -1529,7 +1529,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
                     },
                     {
                       key: "completed-antibody",
-                      label: `抗体检测 (${completedAntibodySampleRows.length})`,
+                      label: `免疫复核 (${completedAntibodySampleRows.length})`,
                       children: (
                         <Table
                           rowKey="rowId"
@@ -1537,7 +1537,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
                           pagination={false}
                           size="small"
                           scroll={{ x: "max-content" }}
-                          locale={{ emptyText: "暂无抗体检测样品" }}
+                          locale={{ emptyText: "暂无免疫复核样品" }}
                           columns={reviewColumns.completedAntibody}
                         />
                       )
