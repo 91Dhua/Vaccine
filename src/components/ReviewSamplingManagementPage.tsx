@@ -73,6 +73,14 @@ export type ReviewSamplingTaskRow = {
   result?: PlanEffectTrackingResultStored["result"];
 };
 
+type CompletedAntibodySampleRow = ReviewSamplingSampleRow & {
+  rowId: string;
+  reviewTaskId: string;
+  targetAntibody: string;
+  sampleContainer?: PlanEffectTrackingStored["sampleContainer"];
+  creator?: string;
+};
+
 type ReviewSummary = {
   totalCount: number;
   filledCount: number;
@@ -263,7 +271,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-01-sample-1",
           sampleId: "RS-AB-260518-01-01",
           pigId: "pig-1000",
-          earTag: "A-1000",
+          earTag: "A10030",
           roomLabel: "生产一区母猪车间",
           stallNo: "A01",
           targetAntibody: "蓝耳病毒抗体",
@@ -274,7 +282,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-01-sample-2",
           sampleId: "RS-AB-260518-01-02",
           pigId: "pig-1001",
-          earTag: "A-1001",
+          earTag: "A10031",
           roomLabel: "生产一区母猪车间",
           stallNo: "A02",
           targetAntibody: "蓝耳病毒抗体",
@@ -285,7 +293,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-01-sample-3",
           sampleId: "RS-AB-260518-01-03",
           pigId: "pig-1002",
-          earTag: "A-1002",
+          earTag: "A10032",
           roomLabel: "生产一区母猪车间",
           stallNo: "A03",
           targetAntibody: "蓝耳病毒抗体",
@@ -296,7 +304,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-01-sample-4",
           sampleId: "RS-AB-260518-01-04",
           pigId: "pig-1003",
-          earTag: "A-1003",
+          earTag: "A10033",
           roomLabel: "生产一区母猪车间",
           stallNo: "A04",
           targetAntibody: "蓝耳病毒抗体"
@@ -305,7 +313,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-01-sample-5",
           sampleId: "RS-AB-260518-01-05",
           pigId: "pig-1004",
-          earTag: "A-1004",
+          earTag: "A10034",
           roomLabel: "生产一区母猪车间",
           stallNo: "A05",
           targetAntibody: "蓝耳病毒抗体"
@@ -330,7 +338,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-02-sample-1",
           sampleId: "RS-AB-260518-02-01",
           pigId: "pig-1005",
-          earTag: "A-1005",
+          earTag: "A10035",
           roomLabel: "生产一区母猪车间",
           stallNo: "B01",
           targetAntibody: "猪瘟病毒抗体",
@@ -341,7 +349,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-02-sample-2",
           sampleId: "RS-AB-260518-02-02",
           pigId: "pig-1006",
-          earTag: "A-1006",
+          earTag: "A10036",
           roomLabel: "生产一区母猪车间",
           stallNo: "B02",
           targetAntibody: "猪瘟病毒抗体",
@@ -352,7 +360,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-02-sample-3",
           sampleId: "RS-AB-260518-02-03",
           pigId: "pig-1007",
-          earTag: "A-1007",
+          earTag: "A10037",
           roomLabel: "生产一区母猪车间",
           stallNo: "B03",
           targetAntibody: "猪瘟病毒抗体",
@@ -363,7 +371,7 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
           id: "RS-AB-260518-02-sample-4",
           sampleId: "RS-AB-260518-02-04",
           pigId: "pig-1008",
-          earTag: "A-1008",
+          earTag: "A10038",
           roomLabel: "生产一区母猪车间",
           stallNo: "B04",
           targetAntibody: "猪瘟病毒抗体",
@@ -673,6 +681,85 @@ function reviewListColumns(
   ];
 }
 
+function completedAntibodySampleColumns(
+  onOpen: (taskId: string, mode: ReviewDetailMode) => void
+): ColumnsType<CompletedAntibodySampleRow> {
+  return [
+    {
+      title: "检测项目",
+      dataIndex: "targetAntibody",
+      key: "targetAntibody",
+      width: 110,
+      ellipsis: true,
+      filters: [
+        ...new Set([
+          "非洲猪瘟病毒抗体",
+          "伪狂犬病毒抗体",
+          "圆环病毒抗体",
+          "蓝耳病毒抗体",
+          "猪瘟病毒抗体"
+        ])
+      ].map((item) => ({ text: item, value: item })),
+      onFilter: (value, record) => record.targetAntibody === value,
+      sorter: (a, b) => compareText(a.targetAntibody, b.targetAntibody)
+    },
+    {
+      title: "样品容器",
+      dataIndex: "sampleContainer",
+      key: "sampleContainer",
+      width: 72,
+      filters: [
+        ...new Set(["REAGENT_BAG_BLOOD", "REAGENT_BAG", "BLOOD_TUBE"])
+      ].map((item) => ({ text: sampleContainerLabel(item) || item, value: item })),
+      onFilter: (value, record) => record.sampleContainer === value,
+      sorter: (a, b) => compareText(sampleContainerLabel(a.sampleContainer), sampleContainerLabel(b.sampleContainer)),
+      render: (value?: PlanEffectTrackingStored["sampleContainer"]) => sampleContainerLabel(value) || "—"
+    },
+    {
+      title: "采样目标",
+      key: "sampleTarget",
+      width: 132,
+      sorter: (a, b) => compareText(a.earTag, b.earTag),
+      render: (_, row) => <span style={{ fontWeight: 600 }}>{row.earTag}</span>
+    },
+    {
+      title: "创建人",
+      dataIndex: "creator",
+      key: "creator",
+      width: 64,
+      sorter: (a, b) => compareText(a.creator, b.creator),
+      render: (value?: string) => value || "—"
+    },
+    {
+      title: "检测结果",
+      dataIndex: "result",
+      key: "result",
+      width: 74,
+      filters: [
+        { text: "阳性", value: "阳性" },
+        { text: "阴性", value: "阴性" }
+      ],
+      onFilter: (value, record) => record.result === value,
+      render: (value?: ReviewSampleResult) => value ? <Tag color={value === "阳性" ? "success" : "default"}>{value}</Tag> : "—"
+    },
+    {
+      title: "查看按钮",
+      key: "actions",
+      width: 72,
+      render: (_, row) => (
+        <Tooltip title="查看详情">
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            onClick={() => onOpen(row.reviewTaskId, "view")}
+            aria-label={`查看${row.earTag}的抗体检测详情`}
+          />
+        </Tooltip>
+      )
+    }
+  ];
+}
+
 function SummaryGrid({
   title,
   task,
@@ -858,7 +945,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
 
     return {
       completedRegular: enhanceCompletedColumns("常规检测"),
-      completedAntibody: enhanceCompletedColumns("抗体检测")
+      completedAntibody: completedAntibodySampleColumns(openDetail)
     };
   }, [onOpenVaccinationTask]);
   const completedRows = useMemo(
@@ -872,6 +959,20 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
   const completedAntibodyRows = useMemo(
     () => completedRows.filter((item) => item.reviewCategory === "抗体检测"),
     [completedRows]
+  );
+  const completedAntibodySampleRows = useMemo<CompletedAntibodySampleRow[]>(
+    () =>
+      completedAntibodyRows.flatMap((task) =>
+        task.samples.map((sample) => ({
+          ...sample,
+          rowId: `${task.id}-${sample.id}`,
+          reviewTaskId: task.id,
+          targetAntibody: task.targetAntibody,
+          sampleContainer: task.sampleContainer,
+          creator: task.creator
+        }))
+      ),
+    [completedAntibodyRows]
   );
 
   const pendingSummary = useMemo(
@@ -1428,14 +1529,15 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
                     },
                     {
                       key: "completed-antibody",
-                      label: `抗体检测 (${completedAntibodyRows.length})`,
+                      label: `抗体检测 (${completedAntibodySampleRows.length})`,
                       children: (
                         <Table
-                          rowKey="id"
-                          dataSource={completedAntibodyRows}
+                          rowKey="rowId"
+                          dataSource={completedAntibodySampleRows}
                           pagination={false}
+                          size="small"
                           scroll={{ x: "max-content" }}
-                          locale={{ emptyText: "暂无抗体检测任务" }}
+                          locale={{ emptyText: "暂无抗体检测样品" }}
                           columns={reviewColumns.completedAntibody}
                         />
                       )

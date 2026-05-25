@@ -38,7 +38,7 @@ export function VaccinationHomeCard({
       className="mv-mission-card mv-mission-card--pressable mv-mission-card--vaccination"
       role="button"
       tabIndex={0}
-      aria-label={`${card.title}，点击选择房间`}
+      aria-label={`${card.title}，点击选择房间查看疫苗任务`}
       onClick={() => onOpen(card)}
       onKeyDown={(event) => handleCardKeyDown(event, () => onOpen(card))}
     >
@@ -59,7 +59,7 @@ export function VaccinationHomeCard({
 
       <div className="mv-vaccine-card__progress">
         <div className="mv-vaccine-card__progress-row">
-          <span className="mv-vaccine-card__progress-label">接种进度</span>
+          <span className="mv-vaccine-card__progress-label">疫苗任务进度</span>
           <span className="mv-vaccine-card__progress-value">
             <em>{done}</em> / {total} 头
           </span>
@@ -68,7 +68,7 @@ export function VaccinationHomeCard({
           <div className="mv-mission-card__progress-fill" style={{ width: `${pct}%` }} />
         </div>
         <div className="mv-vaccine-card__hint">
-          <span>{scopeMode === "room" ? "点击进入本单元接种任务" : "点击选择单元进入接种任务"}</span>
+          <span>{scopeMode === "room" ? "点击进入本单元疫苗任务" : "点击选择单元进入疫苗任务"}</span>
           <RightOutlined />
         </div>
       </div>

@@ -1,5 +1,4 @@
 import {
-  AppstoreOutlined,
   BellOutlined,
   DeploymentUnitOutlined,
   ExclamationCircleFilled,
@@ -7,6 +6,7 @@ import {
   HomeOutlined,
   LeftOutlined,
   MedicineBoxOutlined,
+  MoreOutlined,
   RightOutlined,
   SearchOutlined,
   TagOutlined,
@@ -166,7 +166,7 @@ function matchesRetryList(t: MobilePigTask): boolean {
   return t.isRetry && t.status !== "completed" && t.status !== "skipped";
 }
 
-/** 接种任务卡进度：已完成头数 / 总头数 */
+/** 疫苗任务卡进度：已完成头数 / 总头数 */
 function vaccinationCardProgress(card: MobileHomeTaskCard): {
   done: number;
   total: number;
@@ -180,20 +180,13 @@ function vaccinationCardProgress(card: MobileHomeTaskCard): {
   return { done, total, pct };
 }
 
-/** 房间猪只列表卡片右上角状态文案与颜色 */
+/** 房间猪只列表卡片右上角状态文案与颜色：移动端现场只区分待接种 / 已接种 */
 function pigRowListStatus(t: MobilePigTask): {
   label: string;
   color: string;
-  tone: "pending" | "completed" | "skipped" | "suspended" | "deferred";
+  tone: "pending" | "completed";
 } {
   if (t.status === "completed") return { label: "已接种", color: "green", tone: "completed" };
-  if (t.status === "skipped") return { label: "已跳过", color: "orange", tone: "skipped" };
-  if (t.status === "suspended") return { label: "已暂缓", color: "default", tone: "suspended" };
-  if (t.deferUntil?.trim()) {
-    const p = dayjs(t.deferUntil);
-    const ts = p.isValid() ? p.format("YYYY-MM-DD HH:mm:ss") : t.deferUntil.trim();
-    return { label: `${ts}后可接种`, color: "processing", tone: "deferred" };
-  }
   return { label: "待接种", color: "default", tone: "pending" };
 }
 
@@ -412,12 +405,12 @@ export function MobileVaccinationPage({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [executeForced, setExecuteForced] = useState(false);
   const [pigListSearch, setPigListSearch] = useState("");
-  const [pigListView, setPigListView] = useState<"list" | "grid">("list");
   const [pigListStatusFilter, setPigListStatusFilter] = useState<"all" | "incomplete" | "done">(
     "all"
   );
   const [pigListFilterOpen, setPigListFilterOpen] = useState(false);
   const [pigListSelectedIds, setPigListSelectedIds] = useState<string[]>([]);
+  const [pigMoreActionsOpen, setPigMoreActionsOpen] = useState(false);
   /** 房间内：免疫任务（猪只列表）| vaccine（任务详情，Tab 文案均为「免疫任务」） */
   const [pigListRoomTab, setPigListRoomTab] = useState<"immunity" | "vaccine">("immunity");
   const [endTaskModalOpen, setEndTaskModalOpen] = useState(false);
@@ -464,7 +457,6 @@ export function MobileVaccinationPage({
   useEffect(() => {
     if (!pigListBatchId || !pigListRoomId) return;
     setPigListSearch("");
-    setPigListView("list");
     setPigListStatusFilter("all");
     setPigListFilterOpen(false);
     setPigListSelectedIds([]);
@@ -476,9 +468,9 @@ export function MobileVaccinationPage({
   const pigListDisplayedTasks = useMemo(() => {
     let list = pigListUnitTasks;
     if (pigListStatusFilter === "incomplete") {
-      list = list.filter((t) => t.status !== "completed" && t.status !== "skipped");
+      list = list.filter((t) => t.status !== "completed");
     } else if (pigListStatusFilter === "done") {
-      list = list.filter((t) => t.status === "completed" || t.status === "skipped");
+      list = list.filter((t) => t.status === "completed");
     }
     if (pigListSearch.trim()) {
       list = list.filter((t) => pigListSearchMatches(t, pigListSearch));
@@ -504,9 +496,7 @@ export function MobileVaccinationPage({
   const pigListUnitMeta = useMemo(() => {
     if (!pigListUnitTasks.length) return null;
     const ref = pigListUnitTasks.find((t) => !t.isRetry) ?? pigListUnitTasks[0];
-    const done = pigListUnitTasks.filter(
-      (t) => t.status === "completed" || t.status === "skipped"
-    ).length;
+    const done = pigListUnitTasks.filter((t) => t.status === "completed").length;
     return {
       taskId: ref.taskId,
       doseTimes: ref.doseTimes,
@@ -527,30 +517,27 @@ export function MobileVaccinationPage({
 
   const roomTaskStatusSummary = useMemo(() => {
     const completed = pigListUnitTasks.filter((t) => t.status === "completed").length;
-    const skipped = pigListUnitTasks.filter((t) => t.status === "skipped").length;
-    const suspended = pigListUnitTasks.filter((t) => t.status === "suspended").length;
-    const pending = pigListUnitTasks.filter((t) => t.status === "pending").length;
-    const inProgress = pigListUnitTasks.filter((t) => t.status === "in_progress").length;
-    const deferred = pigListUnitTasks.filter(
-      (t) => t.status === "pending" && !!t.deferUntil?.trim()
-    ).length;
-    const unfinished = pigListUnitTasks.length - completed - skipped;
-    const done = completed + skipped;
+    const pending = pigListUnitTasks.length - completed;
     return {
       total: pigListUnitTasks.length,
       completed,
-      skipped,
-      suspended,
       pending,
-      inProgress,
-      deferred,
-      done,
-      unfinished,
-      allDone: pigListUnitTasks.length > 0 && unfinished === 0
+      done: completed,
+      unfinished: pending,
+      allDone: pigListUnitTasks.length > 0 && pending === 0
     };
   }, [pigListUnitTasks]);
 
   const pigListSelectedSet = useMemo(() => new Set(pigListSelectedIds), [pigListSelectedIds]);
+  const pigListRoomSelectableIds = useMemo(
+    () => pigListUnitTasks.map((task) => task.id),
+    [pigListUnitTasks]
+  );
+  const pigListRoomAllSelected =
+    pigListRoomSelectableIds.length > 0 &&
+    pigListRoomSelectableIds.every((id) => pigListSelectedSet.has(id));
+  const pigListRoomPartSelected =
+    pigListRoomSelectableIds.some((id) => pigListSelectedSet.has(id)) && !pigListRoomAllSelected;
 
   const togglePigSelected = useCallback((id: string, checked: boolean) => {
     setPigListSelectedIds((prev) => {
@@ -560,6 +547,17 @@ export function MobileVaccinationPage({
       return Array.from(set);
     });
   }, []);
+
+  const toggleRoomSelected = useCallback((checked: boolean) => {
+    setPigListSelectedIds((prev) => {
+      const set = new Set(prev);
+      for (const id of pigListRoomSelectableIds) {
+        if (checked) set.add(id);
+        else set.delete(id);
+      }
+      return Array.from(set);
+    });
+  }, [pigListRoomSelectableIds]);
 
   const clearPigSelection = useCallback(() => setPigListSelectedIds([]), []);
 
@@ -814,7 +812,7 @@ export function MobileVaccinationPage({
       if (incomplete.length === 0 && retryOnlyIncomplete.length === 0) {
         Modal.info({
           title: "本间状态",
-          content: "本间本批次接种任务均已结束，无需再次完成。",
+          content: "本间本批次疫苗任务均已结束，无需再次完成。",
           getContainer: modalContainer
         });
         return;
@@ -1233,14 +1231,7 @@ export function MobileVaccinationPage({
                 setPigListRoomId(null);
               }}
             />
-            <Button
-              type="primary"
-              className="mv-piglist-toolbar__complete"
-              onClick={() => confirmRoomComplete(pigListRoomId, pigListBatchId)}
-              style={{ visibility: pigListRoomTab === "immunity" ? "visible" : "hidden" }}
-            >
-              本间完成
-            </Button>
+            <span />
           </div>
           <Title level={5} className="mv-piglist-page-title">
             疫苗任务
@@ -1291,7 +1282,7 @@ export function MobileVaccinationPage({
                   </span>
                 </div>
                 <div className="mv-unit-progress__stats-row">
-                  <span className="mv-unit-progress__stats-label">（已接种+已跳过）/ 应接种</span>
+                  <span className="mv-unit-progress__stats-label">已接种 / 应接种</span>
                   <span className="mv-unit-progress__stats-value">
                     {unit ? `${unit.done} / ${unit.total}` : "—"}
                   </span>
@@ -1336,8 +1327,8 @@ export function MobileVaccinationPage({
                   style={{ display: "flex", flexDirection: "column", gap: 8 }}
                 >
                   <Radio value="all">全部状态</Radio>
-                  <Radio value="incomplete">仅未完成</Radio>
-                  <Radio value="done">仅已接种 / 已跳过</Radio>
+                  <Radio value="incomplete">仅待接种</Radio>
+                  <Radio value="done">仅已接种</Radio>
                 </Radio.Group>
               }
             >
@@ -1348,20 +1339,6 @@ export function MobileVaccinationPage({
                 aria-label="筛选"
               />
             </Popover>
-            <Radio.Group
-              className="mv-piglist-view-toggle"
-              value={pigListView}
-              onChange={(e) => setPigListView(e.target.value as "list" | "grid")}
-              optionType="button"
-              buttonStyle="solid"
-            >
-              <Radio.Button value="list" aria-label="列表视图">
-                <UnorderedListOutlined />
-              </Radio.Button>
-              <Radio.Button value="grid" aria-label="宫格视图">
-                <AppstoreOutlined />
-              </Radio.Button>
-            </Radio.Group>
           </div>
           <Text type="secondary" className="mv-piglist-list-hint">
             {pigListUnitTasks.length === 0
@@ -1370,6 +1347,16 @@ export function MobileVaccinationPage({
                 ? `共 ${pigListUnitTasks.length} 头 · 点击卡片登记该猪只接种信息`
                 : `匹配 ${pigListDisplayedTasks.length} 头（全部 ${pigListUnitTasks.length} 头）· 点击卡片登记`}
           </Text>
+          <div className="mv-piglist-select-all-row">
+            <Checkbox
+              className="mv-pig-room-select-all"
+              checked={pigListRoomAllSelected}
+              indeterminate={pigListRoomPartSelected}
+              disabled={pigListRoomSelectableIds.length === 0}
+              onChange={(e) => toggleRoomSelected(e.target.checked)}
+              aria-label="全选本房间全部猪只"
+            />
+          </div>
           <div className="mv-pig-stall-groups">
             {pigListUnitTasks.length === 0 ? (
               <Card className="mv-card mv-empty">
@@ -1409,11 +1396,8 @@ export function MobileVaccinationPage({
                       }}
                     />
                   </div>
-                  <div
-                    className={`mv-list mv-list--piglist${pigListView === "grid" ? " mv-list--piglist-grid" : ""}`}
-                  >
-                    {pigListView === "list"
-                      ? group.tasks.map((t) => {
+                  <div className="mv-list mv-list--piglist">
+                    {group.tasks.map((t) => {
                           const rowSt = pigRowListStatus(t);
                           return (
                             <div
@@ -1444,33 +1428,6 @@ export function MobileVaccinationPage({
                               />
                             </div>
                           );
-                        })
-                      : group.tasks.map((t) => {
-                          const rowSt = pigRowListStatus(t);
-                          return (
-                            <div
-                              key={t.id}
-                              className={`mv-pig-grid-card ${t.isRetry ? "mv-pig-grid-card--retry" : ""}${pigListSelectedSet.has(t.id) ? " mv-pig-card--selected" : ""}`}
-                            >
-                              {t.isRetry ? <span className="mv-pig-grid-card__retry">补打</span> : null}
-                              <div className="mv-pig-grid-card__ear">
-                                {t.earTag}
-                                <ExemptionHitPopover task={t} />
-                              </div>
-                              <Tag
-                                className={`mv-pig-grid-card__tag mv-pig-status-tone--${rowSt.tone}${rowSt.label.includes("后可接种") ? " mv-pig-grid-card__tag--long" : ""}`}
-                                color={rowSt.color}
-                              >
-                                {rowSt.label}
-                              </Tag>
-                              <Checkbox
-                                checked={pigListSelectedSet.has(t.id)}
-                                className="mv-pig-card-select mv-pig-card-select--grid"
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => togglePigSelected(t.id, e.target.checked)}
-                              />
-                            </div>
-                          );
                         })}
                   </div>
                 </section>
@@ -1481,35 +1438,113 @@ export function MobileVaccinationPage({
             <span className="mv-pig-batchbar__count">已选 {pigListSelectedIds.length} 头</span>
             <div className="mv-pig-batchbar__actions">
               <Button
+                className="mv-pig-batchbar__more"
+                icon={<MoreOutlined />}
+                onClick={() => setPigMoreActionsOpen(true)}
+                aria-label="更多操作"
+              />
+              <Button
                 type="primary"
                 disabled={pigListSelectedIds.length === 0}
                 onClick={() => {
-                  const set = new Set(pigListSelectedIds);
-                  const at = dayjs().format("YYYY-MM-DD HH:mm");
-                  setPigTasks((prev) =>
-                    prev.map((t) =>
-                      set.has(t.id)
-                        ? {
-                            ...t,
-                            status: "completed",
-                            exceptionPending: false,
-                            deferUntil: undefined,
-                            actualAt: at,
-                            executor: "现场用户（批量）",
-                            completionMode: "full",
-                            completionSubtype: "normal"
-                          }
-                        : t
-                    )
-                  );
-                  clearPigSelection();
-                  message.success("已完成批量接种");
+                  const selectedIds = [...pigListSelectedIds];
+                  const selectedCount = selectedIds.length;
+                  Modal.confirm({
+                    title: "确认接种",
+                    content: `确认完成 ${selectedCount} 头猪只的疫苗接种？`,
+                    okText: "确认接种",
+                    cancelText: "取消",
+                    centered: true,
+                    getContainer: modalContainer,
+                    onOk: () => {
+                      const set = new Set(selectedIds);
+                      const at = dayjs().format("YYYY-MM-DD HH:mm");
+                      setPigTasks((prev) =>
+                        prev.map((t) =>
+                          set.has(t.id)
+                            ? {
+                                ...t,
+                                status: "completed",
+                                exceptionPending: false,
+                                deferUntil: undefined,
+                                actualAt: at,
+                                executor: "现场用户（批量）",
+                                completionMode: "full",
+                                completionSubtype: "normal"
+                              }
+                            : t
+                        )
+                      );
+                      clearPigSelection();
+                      message.success(`已完成 ${selectedCount} 头猪只接种`);
+                    }
+                  });
                 }}
               >
                 接种
               </Button>
             </div>
           </div>
+          <Modal
+            title={null}
+            open={pigMoreActionsOpen}
+            footer={null}
+            closable={false}
+            width="100%"
+            centered={false}
+            className="mv-more-action-sheet"
+            rootClassName="mv-more-action-sheet-root"
+            getContainer={modalContainer}
+            onCancel={() => setPigMoreActionsOpen(false)}
+          >
+            <div className="mv-more-action-sheet__head">
+              <span>更多操作</span>
+              <Button
+                type="text"
+                aria-label="关闭更多操作"
+                className="mv-more-action-sheet__close"
+                onClick={() => setPigMoreActionsOpen(false)}
+              >
+                ×
+              </Button>
+            </div>
+            <button
+              type="button"
+              className="mv-more-action-sheet__item"
+              onClick={() => {
+                setPigMoreActionsOpen(false);
+                message.info("已进入上报异常流程");
+              }}
+            >
+              <ExclamationCircleFilled />
+              <span>上报异常</span>
+              <RightOutlined />
+            </button>
+            <button
+              type="button"
+              className="mv-more-action-sheet__item"
+              onClick={() => {
+                setPigMoreActionsOpen(false);
+                message.info("已进入上报死亡流程");
+              }}
+            >
+              <ToolOutlined />
+              <span>上报死亡</span>
+              <RightOutlined />
+            </button>
+            <button
+              type="button"
+              className="mv-more-action-sheet__item"
+              onClick={() => {
+                setPigMoreActionsOpen(false);
+                message.info("已进入转移流程");
+              }}
+            >
+              <DeploymentUnitOutlined />
+              <span>转移</span>
+              <RightOutlined />
+            </button>
+          </Modal>
             </>
           ) : (
             <div className="mv-task-detail">
@@ -1529,7 +1564,7 @@ export function MobileVaccinationPage({
                   <div className="mv-unit-progress__fill" style={{ width: `${unitPct}%` }} />
                 </div>
                 <Text type="secondary" className="mv-task-detail__block-desc">
-                  本间本批次应接种头数中，已完成接种或已跳过的数量占比。
+                  本间本批次应接种头数中，已接种数量占比。
                 </Text>
               </Card>
 
@@ -1596,22 +1631,7 @@ export function MobileVaccinationPage({
                     <Tag color="green">已接种</Tag>
                     <Text type="secondary">已经顺利打完疫苗的猪只。系统已自动记录打针时间。</Text>
                   </div>
-                  <div className="mv-task-detail__legend-item">
-                    <Tag>已暂缓</Tag>
-                    <Text type="secondary">
-                      猪只今天状态不好（如生病、服药），暂时不能打。先缓一缓，等身体恢复后系统会再次提醒您补打。
-                    </Text>
-                  </div>
-                  <div className="mv-task-detail__legend-item">
-                    <Tag color="orange">已跳过</Tag>
-                    <Text type="secondary">
-                      因为特殊原因（如即将出栏、已淘汰等）不需要打这针的猪只。跳过之后，本次任务就不会再提醒您给它打了。
-                    </Text>
-                  </div>
                 </div>
-                <Text type="secondary" className="mv-task-detail__block-desc">
-                  列表中若显示具体时间后「可接种」，表示已延期接种，到达该时间后可继续登记。
-                </Text>
               </Card>
             </div>
           )}
@@ -1640,16 +1660,16 @@ export function MobileVaccinationPage({
           width={420}
           okText="结束任务"
           cancelText="取消"
-          okButtonProps={{ disabled: !roomTaskStatusSummary.allDone || !endTaskConfirmChecked }}
-          onCancel={() => setEndTaskModalOpen(false)}
+          destroyOnHidden
+          okButtonProps={{ disabled: !endTaskConfirmChecked }}
+          onCancel={() => {
+            setEndTaskConfirmChecked(false);
+            setEndTaskModalOpen(false);
+          }}
           onOk={() => {
-            if (!roomTaskStatusSummary.allDone) {
-              message.warning("当前仍有未完成猪只，任务不可结束。");
-              return Promise.reject();
-            }
             if (!endTaskConfirmChecked) {
               message.warning("请先勾选确认后再结束任务。");
-              return Promise.reject();
+              return;
             }
             appendLog({
               pigTaskId: `room-${pigListRoomId}-batch-${pigListBatchId}`,
@@ -1663,19 +1683,18 @@ export function MobileVaccinationPage({
             setScreen("hub");
             setPigListBatchId(null);
             setPigListRoomId(null);
-            return Promise.resolve();
           }}
         >
           <Card className="mv-task-end-modal-card" bordered={false}>
             <div className="mv-task-end-modal-card__title">任务目标</div>
             <div className="mv-task-end-modal-card__row">
-              <span>已完成（已接种+已跳过）</span>
+              <span>已完成</span>
               <strong>
                 {roomTaskStatusSummary.done} / {roomTaskStatusSummary.total} 头
               </strong>
             </div>
             <div className="mv-task-end-modal-card__row is-sub">
-              <span>未完成（保留在任务中）</span>
+              <span>未完成</span>
               <strong>{roomTaskStatusSummary.unfinished} 头</strong>
             </div>
           </Card>
@@ -1683,28 +1702,16 @@ export function MobileVaccinationPage({
           <div className="mv-task-end-modal-section-title">执行详情</div>
           <Card className="mv-task-end-modal-card" bordered={false}>
             <div className="mv-task-end-modal-card__row">
+              <span>汇总</span>
+              <strong>{roomTaskStatusSummary.total} 头</strong>
+            </div>
+            <div className="mv-task-end-modal-card__row">
               <span>已接种</span>
               <strong>{roomTaskStatusSummary.completed} 头</strong>
             </div>
             <div className="mv-task-end-modal-card__row">
-              <span>已跳过</span>
-              <strong>{roomTaskStatusSummary.skipped} 头</strong>
-            </div>
-            <div className="mv-task-end-modal-card__row">
-              <span>已暂缓</span>
-              <strong>{roomTaskStatusSummary.suspended} 头</strong>
-            </div>
-            <div className="mv-task-end-modal-card__row">
-              <span>执行中</span>
-              <strong>{roomTaskStatusSummary.inProgress} 头</strong>
-            </div>
-            <div className="mv-task-end-modal-card__row">
               <span>待接种</span>
               <strong>{roomTaskStatusSummary.pending} 头</strong>
-            </div>
-            <div className="mv-task-end-modal-card__row is-sub">
-              <span>其中延期接种</span>
-              <strong>{roomTaskStatusSummary.deferred} 头</strong>
             </div>
           </Card>
 
@@ -1712,7 +1719,7 @@ export function MobileVaccinationPage({
             type={roomTaskStatusSummary.allDone ? "secondary" : "danger"}
             className="mv-task-end-modal-rule"
           >
-            规则：仅当全部猪只处于「已接种 / 已跳过」时可结束任务，其余状态将继续保留在任务中。
+            您可以结束任务，未完成接种的猪只，后续可在「任务详情 - 接种列表」补充接种。
           </Text>
           <Checkbox
             checked={endTaskConfirmChecked}

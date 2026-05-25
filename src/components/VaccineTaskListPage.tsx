@@ -111,13 +111,10 @@ function renderTaskVaccineMethodCell(record: TaskRow) {
 
 function renderCreateTypeCell(row: TaskRow) {
   const createType = resolveCreateType(row);
-  if (createType === "自动") {
-    return <Tag color="processing">自动</Tag>;
-  }
 
   return (
     <div className="task-create-meta-cell">
-      <div className="task-create-meta-primary">{row.creator || "—"}</div>
+      <div className="task-create-meta-primary">{createType === "自动" ? "系统" : row.creator || "—"}</div>
       <Text type="secondary" className="task-create-meta-secondary">
         {row.createdAt || "—"}
       </Text>

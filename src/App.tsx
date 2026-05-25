@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { Layout, Menu, Modal, Radio, Typography, message } from "antd";
 import { VaccinePlanPage } from "./components/VaccinePlanPage";
@@ -7,6 +7,7 @@ import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
 import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
 import { VaccineTaskWizard, type VaccineTaskDraft } from "./components/VaccineTaskWizard";
 import { VaccineTaskDetailPage } from "./components/VaccineTaskDetailPage";
+import { EmployeeLoginFlowPage } from "./components/EmployeeLoginFlowPage";
 import {
   ReviewSamplingManagementPage,
   buildSeedReviewSamplingTasks,
@@ -358,6 +359,9 @@ const SEED_TASKS: TaskRow[] = [
 ];
 
 export default function App() {
+  const [isEmployeeRegisterRoute, setIsEmployeeRegisterRoute] = useState(
+    () => window.location.hash.startsWith("#/employee-register")
+  );
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("console");
   const [consoleActiveKey, setConsoleActiveKey] = useState("plan");
   const [taskStep, setTaskStep] = useState<"tasks" | "select" | "form" | "preview" | "detail">(
@@ -378,6 +382,19 @@ export default function App() {
   );
   const [mobileLogs, setMobileLogs] = useState<MobileExecutionLog[]>([]);
   const activeKey = workspaceMode === "console" ? consoleActiveKey : "mobile-vacc";
+
+  useEffect(() => {
+    const syncRoute = () => {
+      setIsEmployeeRegisterRoute(window.location.hash.startsWith("#/employee-register"));
+    };
+    window.addEventListener("hashchange", syncRoute);
+    return () => window.removeEventListener("hashchange", syncRoute);
+  }, []);
+
+  if (isEmployeeRegisterRoute) {
+    return <EmployeeLoginFlowPage />;
+  }
+
   const tasksWithSupplementState = tasks.map((task) => {
     const isCompleted = task.status === "已完成";
     const childTasks = tasks.filter((item) => item.supplementSourceTaskId === task.id);
@@ -454,7 +471,10 @@ export default function App() {
     {
       key: "settings",
       label: "设置",
-      children: [{ key: "vaccine-settings", label: "疫苗管理" }]
+      children: [
+        { key: "new-login-flow", label: "新登陆流程" },
+        { key: "vaccine-settings", label: "疫苗管理" }
+      ]
     }
   ];
 
@@ -481,7 +501,7 @@ export default function App() {
           <Menu
             mode="inline"
             selectedKeys={[activeKey]}
-            defaultOpenKeys={["immunity", "pig-culling"]}
+            defaultOpenKeys={["immunity", "pig-culling", "settings"]}
             onClick={(info) => setConsoleActiveKey(info.key)}
             items={consoleMenuItems}
           />
@@ -605,6 +625,8 @@ export default function App() {
                 ]);
               }}
             />
+          ) : activeKey === "new-login-flow" ? (
+            <EmployeeLoginFlowPage />
           ) : activeKey === "task" ? (
             <div>
               {taskStep === "tasks" && (
