@@ -5273,7 +5273,10 @@ export function VaccinePlanPage({
                 <div className="type-card">
                   <div className="type-title">普免</div>
                   <div className="type-desc">
-                    适用于全年周期性的统一免疫计划，可配置周期和豁免规则。
+                    按固定时间周期执行免疫计划
+                  </div>
+                  <div className="type-desc">
+                    适用于全年统一免疫安排，可按月份、季度或指定日期定期接种。
                   </div>
                 </div>
               </Radio>
@@ -5281,7 +5284,10 @@ export function VaccinePlanPage({
                 <div className="type-card">
                   <div className="type-title">跟批免疫</div>
                   <div className="type-desc">
-                    适用于 SOP 标准化程序，按生产线与基准事件自动触发。
+                    按猪群生产流程自动执行免疫计划
+                  </div>
+                  <div className="type-desc">
+                    根据生产状态或关键节点（如配种、分娩、断奶等）前后自动安排接种。
                   </div>
                 </div>
               </Radio>
