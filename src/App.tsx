@@ -632,6 +632,7 @@ export default function App() {
               {taskStep === "tasks" && (
                 <VaccineTaskListPage
                   tasks={tasksWithSupplementState}
+                  reviewTasks={reviewSamplingTasks}
                   onCreateTask={() => {
                     setTaskFlowMode("create");
                     setEditingTaskId(null);

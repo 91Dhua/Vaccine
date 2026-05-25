@@ -115,16 +115,6 @@ function compareText(a?: string, b?: string): number {
   return String(a || "").localeCompare(String(b || ""), "zh-Hans-CN");
 }
 
-function toSectionLabelFromWorkshop(workshopLabel?: string): string {
-  const raw = String(workshopLabel || "").trim();
-  if (!raw) return "未分配区块";
-  if (raw.includes("配怀舍") || raw.includes("母猪")) return "生产一区母猪车间";
-  if (raw.includes("分娩舍")) return "生产一区分娩车间";
-  if (raw.includes("保育")) return "生产一区保育车间";
-  if (raw.includes("育肥")) return "生产一区育肥车间";
-  return raw.replace(" · ", "");
-}
-
 function DetailInfoGrid({ items }: { items: DetailInfoItem[] }) {
   return (
     <div className="task-detail-info-grid">
@@ -183,20 +173,6 @@ export function VaccineTaskDetailPage({
   const progressPercent =
     task.targetCount > 0 ? Math.min(100, Math.round((vaccinatedRows.length / task.targetCount) * 100)) : 0;
   const latestLog = logs[0];
-  const targetSectionLabels = useMemo(() => {
-    const sourcePigIds =
-      pigTasks.length > 0
-        ? pigTasks.map((item) => item.pigId)
-        : task.pigIds && task.pigIds.length > 0
-          ? task.pigIds
-          : detailRows.map((_, index) => `pig-${1000 + index}`);
-
-    return Array.from(
-      new Set(sourcePigIds.map((pigId) => toSectionLabelFromWorkshop(getPigMobileMeta(pigId).workshopLabel)))
-    );
-  }, [detailRows, pigTasks, task.pigIds]);
-
-  const targetSectionText = targetSectionLabels.join("、") || "未分配区块";
   const planName = task.planName || `${task.vaccine}免疫计划`;
   const planType = task.planType || "跟批免疫";
   const planCreatedAt = task.planCreatedAt || task.createdAt;
@@ -226,7 +202,7 @@ export function VaccineTaskDetailPage({
     { label: "计划创建时间", value: planCreatedAt }
   ];
   const taskInfoItems: DetailInfoItem[] = [
-    { label: "任务编号", value: task.id },
+    { label: "任务ID", value: task.id },
     {
       label: "任务状态",
       value: <Tag color={task.status === "待接种" ? "default" : task.status === "接种中" ? "processing" : task.status === "已取消" ? "error" : "success"}>{task.status}</Tag>
@@ -236,7 +212,6 @@ export function VaccineTaskDetailPage({
     { label: "接种方式", value: task.administrationRoute || "—" },
     { label: "剂量", value: task.dosage },
     { label: "接种日期", value: task.schedule },
-    { label: "目标范围", value: targetSectionText },
     { label: "创建人/时间", value: `${task.creator} / ${task.createdAt}` },
     ...(task.status !== "待接种"
       ? [{ label: "操作人/时间", value: `${task.executor || latestLog?.actor || "—"} / ${task.executedAt || latestLog?.at || "—"}` }]
@@ -481,7 +456,9 @@ export function VaccineTaskDetailPage({
           <DetailInfoGrid items={taskInfoItems} />
           <div className="task-detail-progress-row">
             <div className="task-detail-progress-meta">
-              <div className="task-detail-progress-label">已接种 / 目标接种</div>
+              <div className="task-detail-progress-label">
+                {task.status === "已完成" ? "已接种 / 计划接种" : "接种进度"}
+              </div>
               <div className="task-detail-progress-value">{vaccinatedRows.length} / {task.targetCount} 头</div>
             </div>
             <Progress
@@ -554,10 +531,6 @@ export function VaccineTaskDetailPage({
               <div className="review-sampling-antibody-summary__metric">
                 <div className="review-sampling-summary-label">阴性数</div>
                 <div className="review-sampling-summary-value">{reviewNegativeCount} 头</div>
-              </div>
-              <div className="review-sampling-antibody-summary__metric">
-                <div className="review-sampling-summary-label">阈值</div>
-                <div className="review-sampling-summary-value">{effectTracking?.qualificationThresholdPercent ?? "—"}%</div>
               </div>
               <div className="review-sampling-antibody-summary__metric">
                 <div className="review-sampling-summary-label">检测结果</div>

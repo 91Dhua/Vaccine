@@ -2,6 +2,7 @@ import type { ColumnsType } from "antd/es/table";
 import { Button, Card, Popconfirm, Progress, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
 import { DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { PlanEffectTrackingResultStored, PlanEffectTrackingStored } from "../planEffectTracking";
+import type { ReviewSamplingTaskRow } from "./ReviewSamplingManagementPage";
 
 const { Title, Text } = Typography;
 
@@ -85,7 +86,64 @@ function resolveActualVaccinatedCount(row: TaskRow): number {
   return 0;
 }
 
-function renderActualPlannedVaccination(row: TaskRow) {
+function isReviewSampleUploaded(sample: ReviewSamplingTaskRow["samples"][number]): boolean {
+  return Boolean(sample.result) && Boolean(String(sample.measurementValue || "").trim());
+}
+
+function resolveLinkedReviewTask(row: TaskRow, reviewTasks: ReviewSamplingTaskRow[] = []) {
+  const linkedTasks = reviewTasks.filter((task) => task.vaccinationTaskId === row.id);
+  return linkedTasks.find((task) => task.reviewCategory === "抗体检测") ?? linkedTasks[0];
+}
+
+function resolveReviewProgress(row: TaskRow, reviewTasks: ReviewSamplingTaskRow[] = []) {
+  if (row.effectTrackingResult) {
+    return {
+      completed: row.effectTrackingResult.sampledCount,
+      total: row.effectTrackingResult.sampledCount,
+      percent: 100,
+      result: row.effectTrackingResult.result
+    };
+  }
+
+  const linkedTask = resolveLinkedReviewTask(row, reviewTasks);
+  if (linkedTask) {
+    const total = linkedTask.sampledCount || linkedTask.samples.length;
+    const completed = linkedTask.samples.filter(isReviewSampleUploaded).length;
+    const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+    const positiveCount = linkedTask.samples.filter((sample) => sample.result === "阳性").length;
+    const qualificationRatePercent = total > 0 ? Math.round((positiveCount / total) * 100) : 0;
+    const result =
+      linkedTask.result ??
+      (qualificationRatePercent >= linkedTask.thresholdPercent ? "合格" : "不合格");
+
+    return {
+      completed,
+      total,
+      percent,
+      result: percent === 100 ? result : undefined
+    };
+  }
+
+  if (row.effectTracking?.effectTrackingEnabled) {
+    return { completed: 0, total: 0, percent: 0, result: undefined };
+  }
+
+  return null;
+}
+
+function renderTaskIdCell(row: TaskRow, reviewTasks: ReviewSamplingTaskRow[] = []) {
+  const reviewProgress = resolveReviewProgress(row, reviewTasks);
+  const result = reviewProgress?.percent === 100 ? reviewProgress.result : undefined;
+
+  return (
+    <Space size={6} wrap>
+      <span>{row.id?.trim() || "—"}</span>
+      {result ? <Tag color={result === "合格" ? "success" : "error"}>{result}</Tag> : null}
+    </Space>
+  );
+}
+
+function renderVaccinationProgress(row: TaskRow, showProgress: boolean) {
   const actual = resolveActualVaccinatedCount(row);
   const planned = Math.max(row.targetCount, 0);
   const percent = planned > 0 ? Math.min(100, Math.round((actual / planned) * 100)) : 0;
@@ -93,7 +151,28 @@ function renderActualPlannedVaccination(row: TaskRow) {
   return (
     <div className="task-vaccination-progress-cell">
       <div className="task-vaccination-progress-value">{actual} / {planned} 头</div>
-      <Progress percent={percent} size="small" showInfo={false} strokeColor="#1677ff" />
+      {showProgress ? <Progress percent={percent} size="small" showInfo={false} strokeColor="#1677ff" /> : null}
+    </div>
+  );
+}
+
+function renderReviewProgress(row: TaskRow, reviewTasks: ReviewSamplingTaskRow[] = []) {
+  const reviewProgress = resolveReviewProgress(row, reviewTasks);
+  if (!reviewProgress) return "—";
+
+  return (
+    <div className="task-vaccination-progress-cell">
+      <div className="task-vaccination-progress-value">
+        {reviewProgress.total > 0
+          ? `${reviewProgress.completed} / ${reviewProgress.total} 份`
+          : "0 / 0 份"}
+      </div>
+      <Progress
+        percent={reviewProgress.percent}
+        size="small"
+        showInfo={false}
+        strokeColor={reviewProgress.percent === 100 ? "#16a34a" : "#1677ff"}
+      />
     </div>
   );
 }
@@ -124,6 +203,7 @@ function renderCreateTypeCell(row: TaskRow) {
 
 interface Props {
   tasks: TaskRow[];
+  reviewTasks?: ReviewSamplingTaskRow[];
   onCreateTask: () => void;
   onViewTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
@@ -131,6 +211,7 @@ interface Props {
 
 function taskTableColumns(
   status: TaskRow["status"],
+  reviewTasks: ReviewSamplingTaskRow[] = [],
   onViewTask?: (taskId: string) => void,
   onDeleteTask?: (taskId: string) => void
 ): ColumnsType<TaskRow> {
@@ -143,7 +224,7 @@ function taskTableColumns(
       fixed: "left",
       ellipsis: true,
       sorter: (a, b) => compareText(a.id, b.id),
-      render: (text: string) => text?.trim() || "—"
+      render: (_, row) => renderTaskIdCell(row, reviewTasks)
     },
     {
       title: "疫苗 / 接种方式",
@@ -163,7 +244,7 @@ function taskTableColumns(
     }
   ];
   const createTypeColumn: ColumnsType<TaskRow>[number] = {
-    title: "创建人",
+    title: "创建人/时间",
     dataIndex: "createType",
     key: "createType",
     width: 150,
@@ -214,22 +295,43 @@ function taskTableColumns(
       }
     ];
   }
-  const completionColumns: ColumnsType<TaskRow> =
-    status === "已完成"
+  const progressColumns: ColumnsType<TaskRow> =
+    status === "接种中"
       ? [
           {
-            title: "实际接种 / 计划接种",
+            title: "接种进度",
+            key: "vaccinationProgress",
+            width: 170,
+            sorter: (a, b) => compareNumber(resolveActualVaccinatedCount(a), resolveActualVaccinatedCount(b)),
+            render: (_, row) => renderVaccinationProgress(row, true)
+          }
+        ]
+      : status === "已完成"
+      ? [
+          {
+            title: "已接种 / 计划接种",
             key: "actualPlannedVaccination",
             width: 170,
             sorter: (a, b) => compareNumber(resolveActualVaccinatedCount(a), resolveActualVaccinatedCount(b)),
-            render: (_, row) => renderActualPlannedVaccination(row)
+            render: (_, row) => renderVaccinationProgress(row, false)
+          },
+          {
+            title: "检测进度",
+            key: "reviewProgress",
+            width: 170,
+            sorter: (a, b) =>
+              compareNumber(
+                resolveReviewProgress(a, reviewTasks)?.percent,
+                resolveReviewProgress(b, reviewTasks)?.percent
+              ),
+            render: (_, row) => renderReviewProgress(row, reviewTasks)
           }
         ]
       : [];
 
   return [
     ...base,
-    ...completionColumns,
+    ...progressColumns,
     {
       ...createTypeColumn
     },
@@ -253,7 +355,7 @@ function taskTableColumns(
   ];
 }
 
-export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, tasks }: Props) {
+export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, tasks, reviewTasks = [] }: Props) {
   const tabItems = [
     { key: "待接种", label: "待接种", rows: tasks.filter((task) => task.status === "待接种"), status: "待接种" as const },
     { key: "接种中", label: "接种中", rows: tasks.filter((task) => task.status === "接种中"), status: "接种中" as const },
@@ -286,7 +388,7 @@ export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, ta
                 pagination={false}
                 scroll={{ x: "max-content" }}
                 locale={{ emptyText: "暂无任务" }}
-                columns={taskTableColumns(tab.status, onViewTask, onDeleteTask)}
+                columns={taskTableColumns(tab.status, reviewTasks, onViewTask, onDeleteTask)}
               />
             )
           }))}
