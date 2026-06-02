@@ -1,6 +1,7 @@
 import { ArrowLeftOutlined, MenuOutlined, RightOutlined, SearchOutlined } from "@ant-design/icons";
-import { Avatar, Breadcrumb, Button, Card, Input, Progress, Table, Tabs, Tag, Tooltip } from "antd";
+import { Alert, Avatar, Breadcrumb, Button, Card, Input, InputNumber, Modal, Progress, Table, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { Key } from "react";
 import { useMemo, useState } from "react";
 import "./CullingTaskDetailPage.css";
 
@@ -25,17 +26,22 @@ type RetainedPigletRecord = {
   weight: string;
 };
 
-type CullingDecisionStatus = "计划淘汰" | "已淘汰" | "不淘汰";
-type CullingDecisionSource = "建议淘汰" | "现场新增" | "无";
+type CullingDecisionStatus = "建议淘汰" | "确认淘汰" | "已淘汰";
 type CullingDecisionRecord = {
   key: string;
   sowId: string;
-  pigType: string;
   location: string;
+  cullingIndex: number;
+  parity: number;
+  dystociaHistoryCount: number;
+  averageLitterSize: number;
+  teatCount: number;
+  averageLiveBorn: number;
+  returnToEstrusCount: number;
+  diseaseTags: string[];
   status: CullingDecisionStatus;
-  source: CullingDecisionSource;
-  assignedBy: string;
-  rejectReason: string;
+  operator: string;
+  operatedAt: string;
 };
 
 type DetailSubPage = "main" | "culling" | "retained";
@@ -103,52 +109,82 @@ const cullingDecisionData: CullingDecisionRecord[] = [
   {
     key: "cull-1",
     sowId: "DEV000004",
-    pigType: "生产母猪",
     location: "A2 · 断奶舍",
-    status: "计划淘汰",
-    source: "建议淘汰",
-    assignedBy: "王敏",
-    rejectReason: "-"
+    cullingIndex: 82,
+    parity: 5,
+    dystociaHistoryCount: 2,
+    averageLitterSize: 9.4,
+    teatCount: 13,
+    averageLiveBorn: 8.8,
+    returnToEstrusCount: 1,
+    diseaseTags: ["高胎龄"],
+    status: "建议淘汰",
+    operator: "王敏",
+    operatedAt: "2026-05-18 09:20"
   },
   {
     key: "cull-2",
     sowId: "DEV000006",
-    pigType: "生产母猪",
     location: "A3 · 配怀舍",
+    cullingIndex: 91,
+    parity: 6,
+    dystociaHistoryCount: 2,
+    averageLitterSize: 8.9,
+    teatCount: 11,
+    averageLiveBorn: 8.1,
+    returnToEstrusCount: 2,
+    diseaseTags: ["肢蹄问题"],
     status: "已淘汰",
-    source: "建议淘汰",
-    assignedBy: "王敏",
-    rejectReason: "-"
+    operator: "王敏",
+    operatedAt: "2026-05-18 10:10"
   },
   {
     key: "cull-3",
     sowId: "DEV000009",
-    pigType: "生产母猪",
     location: "B1 · 配怀舍",
-    status: "不淘汰",
-    source: "建议淘汰",
-    assignedBy: "赵磊",
-    rejectReason: "现场复核体况恢复良好，建议继续留群观察"
+    cullingIndex: 76,
+    parity: 4,
+    dystociaHistoryCount: 1,
+    averageLitterSize: 9.1,
+    teatCount: 12,
+    averageLiveBorn: 8.4,
+    returnToEstrusCount: 0,
+    diseaseTags: ["乳房炎", "治疗中"],
+    status: "确认淘汰",
+    operator: "赵磊",
+    operatedAt: "2026-05-18 11:25"
   },
   {
     key: "cull-4",
     sowId: "DEV000012",
-    pigType: "生产母猪",
     location: "B2 · 断奶舍",
-    status: "计划淘汰",
-    source: "现场新增",
-    assignedBy: "刘婷",
-    rejectReason: "-"
+    cullingIndex: 79,
+    parity: 3,
+    dystociaHistoryCount: 1,
+    averageLitterSize: 8.6,
+    teatCount: 12,
+    averageLiveBorn: 7.9,
+    returnToEstrusCount: 1,
+    diseaseTags: ["体况恢复慢"],
+    status: "建议淘汰",
+    operator: "刘婷",
+    operatedAt: "2026-05-18 14:05"
   },
   {
     key: "cull-5",
     sowId: "DEV000013",
-    pigType: "生产母猪",
     location: "C1 · 断奶舍",
+    cullingIndex: 88,
+    parity: 1,
+    dystociaHistoryCount: 0,
+    averageLitterSize: 10.1,
+    teatCount: 14,
+    averageLiveBorn: 9.7,
+    returnToEstrusCount: 3,
+    diseaseTags: ["返情频繁"],
     status: "已淘汰",
-    source: "无",
-    assignedBy: "-",
-    rejectReason: "-"
+    operator: "系统",
+    operatedAt: "2026-05-18 16:30"
   }
 ];
 
@@ -243,72 +279,151 @@ const cullingDecisionColumns: ColumnsType<CullingDecisionRecord> = [
   {
     title: "猪只ID",
     dataIndex: "sowId",
+    fixed: "left",
+    width: 132,
     sorter: (a, b) => a.sowId.localeCompare(b.sowId),
-    render: (value: string) => <span className="culling-detail-link">{value}</span>
-  },
-  {
-    title: "猪只类型",
-    dataIndex: "pigType",
-    filters: [{ text: "生产母猪", value: "生产母猪" }],
-    onFilter: (value, record) => record.pigType === value,
-    sorter: (a, b) => a.pigType.localeCompare(b.pigType, "zh-Hans-CN")
+    render: (value: string) => <span className="culling-detail-sow-id">{value}</span>
   },
   {
     title: "位置",
     dataIndex: "location",
+    width: 128,
     sorter: (a, b) => a.location.localeCompare(b.location, "zh-Hans-CN")
+  },
+  {
+    title: "淘汰指数",
+    dataIndex: "cullingIndex",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.cullingIndex - b.cullingIndex,
+    render: (value: number, row) => (
+      <Tooltip
+        placement="right"
+        overlayClassName="culling-detail-index-popover"
+        title={
+          <div className="culling-detail-index-tooltip">
+            <div className="culling-detail-index-tooltip-title">最新检查结果</div>
+            <div className="culling-detail-index-tooltip-notice">请确认母猪当前体况，并按现场检查结果给出淘汰建议。</div>
+            <CullingCheckResult title="乳房炎" value="无" />
+            <CullingCheckResult title="乳汁产能" value="中" />
+            <CullingCheckResult title="分泌物" value="正常" />
+            <CullingCheckResult title="采食情况" value="正常" />
+            <CullingCheckResult title="活动能力" value="正常" />
+            <CullingCheckResult title="背膘" value="适中" />
+          </div>
+        }
+      >
+        <span className={`culling-detail-culling-index ${value >= 85 ? "is-high" : ""}`}>{value}</span>
+      </Tooltip>
+    )
+  },
+  {
+    title: "胎次",
+    dataIndex: "parity",
+    align: "center",
+    width: 72,
+    sorter: (a, b) => a.parity - b.parity,
+    render: (value: number) => <span className={`culling-detail-metric ${value >= 6 ? "is-risk" : ""}`}>{value}</span>
+  },
+  {
+    title: "历史难产",
+    dataIndex: "dystociaHistoryCount",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.dystociaHistoryCount - b.dystociaHistoryCount,
+    render: (value: number) => <span className={`culling-detail-metric ${value >= 2 ? "is-risk" : ""}`}>{value} 次</span>
+  },
+  {
+    title: "窝均产仔",
+    dataIndex: "averageLitterSize",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.averageLitterSize - b.averageLitterSize,
+    render: (value: number) => <span className={`culling-detail-metric ${value < 9.5 ? "is-risk" : ""}`}>{value} 头</span>
+  },
+  {
+    title: "乳头数量",
+    dataIndex: "teatCount",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.teatCount - b.teatCount,
+    render: (value: number) => <span className={`culling-detail-metric ${value < 12 ? "is-risk" : ""}`}>{value} 个</span>
+  },
+  {
+    title: "窝均活仔",
+    dataIndex: "averageLiveBorn",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.averageLiveBorn - b.averageLiveBorn,
+    render: (value: number) => <span className={`culling-detail-metric ${value < 8.5 ? "is-risk" : ""}`}>{value} 头</span>
+  },
+  {
+    title: "反情次数",
+    dataIndex: "returnToEstrusCount",
+    align: "center",
+    width: 96,
+    sorter: (a, b) => a.returnToEstrusCount - b.returnToEstrusCount,
+    render: (value: number) => <span className={`culling-detail-metric ${value >= 2 ? "is-risk" : ""}`}>{value} 次</span>
+  },
+  {
+    title: "疾病标签",
+    dataIndex: "diseaseTags",
+    width: 168,
+    render: (tags: string[]) => tags.length ? (
+      <div className="culling-detail-disease-tags">
+        {tags.map((tag) => <Tag key={tag} color="red">{tag}</Tag>)}
+      </div>
+    ) : <span className="culling-detail-muted">-</span>
   },
   {
     title: "淘汰状态",
     dataIndex: "status",
+    width: 104,
     filters: [
-      { text: "计划淘汰", value: "计划淘汰" },
-      { text: "已淘汰", value: "已淘汰" },
-      { text: "不淘汰", value: "不淘汰" }
+      { text: "建议淘汰", value: "建议淘汰" },
+      { text: "确认淘汰", value: "确认淘汰" },
+      { text: "已淘汰", value: "已淘汰" }
     ],
     onFilter: (value, record) => record.status === value,
     render: (value: CullingDecisionStatus) => {
-      if (value === "计划淘汰") return <Tag className="culling-detail-tag-cull-pending">计划淘汰</Tag>;
+      if (value === "建议淘汰") return <Tag className="culling-detail-tag-cull-pending">建议淘汰</Tag>;
+      if (value === "确认淘汰") return <Tag className="culling-detail-tag-cull-confirmed">确认淘汰</Tag>;
       if (value === "已淘汰") return <Tag className="culling-detail-tag-cull-done">已淘汰</Tag>;
-      return <Tag className="culling-detail-tag-neutral">不淘汰</Tag>;
+      return value;
     }
   },
   {
-    title: "来源",
-    dataIndex: "source",
-    filters: [
-      { text: "建议淘汰", value: "建议淘汰" },
-      { text: "现场新增", value: "现场新增" },
-      { text: "无", value: "无" }
-    ],
-    onFilter: (value, record) => record.source === value,
-    render: (value: CullingDecisionSource) =>
-      value === "建议淘汰" ? (
-        <Tag className="culling-detail-tag-source-plan">建议淘汰</Tag>
-      ) : value === "现场新增" ? (
-        <Tag className="culling-detail-tag-source-live">现场新增</Tag>
-      ) : (
-        <Tag className="culling-detail-tag-neutral">无</Tag>
-      )
-  },
-  {
-    title: "指定人",
-    dataIndex: "assignedBy",
-    sorter: (a, b) => a.assignedBy.localeCompare(b.assignedBy, "zh-Hans-CN"),
-    render: (value: string) => value || "-"
-  },
-  {
-    title: "不淘汰原因",
-    dataIndex: "rejectReason",
-    render: (value: string) => value || "-"
+    title: "操作人/时间",
+    key: "operatorTime",
+    width: 142,
+    sorter: (a, b) => `${a.operator}${a.operatedAt}`.localeCompare(`${b.operator}${b.operatedAt}`, "zh-Hans-CN"),
+    render: (_, row) => (
+      <div className="culling-detail-operator-cell">
+        <div className="culling-detail-operator">{row.operator || "-"}</div>
+        <span className="culling-detail-muted">{row.operatedAt || "-"}</span>
+      </div>
+    )
   }
 ];
 
-export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
-  const [detailSubPage, setDetailSubPage] = useState<DetailSubPage>("main");
+export function CullingTaskDetailPage({
+  embedded = false,
+  initialSubPage = "main",
+  lockedSubPage = false,
+  onBack
+}: {
+  embedded?: boolean;
+  initialSubPage?: DetailSubPage;
+  lockedSubPage?: boolean;
+  onBack: () => void;
+}) {
+  const [detailSubPage, setDetailSubPage] = useState<DetailSubPage>(initialSubPage);
   const [sowKeyword, setSowKeyword] = useState("");
   const [cullingKeyword, setCullingKeyword] = useState("");
-  const [cullingView, setCullingView] = useState<"all" | "need" | "done" | "rejected">("all");
+  const [cullingRows, setCullingRows] = useState<CullingDecisionRecord[]>(cullingDecisionData);
+  const [selectedCullingKeys, setSelectedCullingKeys] = useState<Key[]>([]);
+  const [confirmCullingOpen, setConfirmCullingOpen] = useState(false);
+  const [confirmCullingCountInput, setConfirmCullingCountInput] = useState<number | null>(null);
   const [retainedKeyword, setRetainedKeyword] = useState("");
   const [retainedTab, setRetainedTab] = useState<"boar" | "gilt">("gilt");
 
@@ -318,17 +433,24 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
     return sowData.filter((item) => `${item.sowId}${item.location}${item.observation}`.includes(q));
   }, [sowKeyword]);
 
-  const filteredCullingDecisions = useMemo(() => {
+  const filteredPendingCullingDecisions = useMemo(() => {
     const q = cullingKeyword.trim();
-    const statusFiltered = cullingDecisionData.filter((item) => {
-      if (cullingView === "need") return item.status === "计划淘汰";
-      if (cullingView === "done") return item.status === "已淘汰";
-      if (cullingView === "rejected") return item.status === "不淘汰" && item.source === "建议淘汰";
-      return true;
-    });
-    if (!q) return statusFiltered;
-    return statusFiltered.filter((item) => item.sowId.includes(q));
-  }, [cullingKeyword, cullingView]);
+    const pendingRows = cullingRows.filter((item) => item.status === "建议淘汰");
+    if (!q) return pendingRows;
+    return pendingRows.filter((item) => item.sowId.includes(q));
+  }, [cullingKeyword, cullingRows]);
+
+  const pendingCullingCount = useMemo(
+    () => cullingRows.filter((item) => item.status === "建议淘汰").length,
+    [cullingRows]
+  );
+
+  const filteredResolvedCullingDecisions = useMemo(() => {
+    const q = cullingKeyword.trim();
+    const resolvedRows = cullingRows.filter((item) => item.status === "确认淘汰" || item.status === "已淘汰");
+    if (!q) return resolvedRows;
+    return resolvedRows.filter((item) => item.sowId.includes(q));
+  }, [cullingKeyword, cullingRows]);
 
   const filteredRetainedPiglets = useMemo(() => {
     const q = retainedKeyword.trim();
@@ -345,49 +467,76 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
   const checkedTotal = sowData.length;
   const checkedDone = sowData.filter((item) => item.taskStatus === "已检查").length;
   const plannedCullingCount = 4;
-  const confirmedCullingCount = cullingDecisionData.filter((item) => item.status === "计划淘汰").length;
-  const completedCullingCount = cullingDecisionData.filter((item) => item.status === "已淘汰").length;
-  const rejectedSuggestedCount = cullingDecisionData.filter((item) => item.status === "不淘汰" && item.source === "建议淘汰").length;
+  const confirmedCullingCount = cullingRows.filter((item) => item.status === "建议淘汰").length;
+  const decidedCullingCount = cullingRows.filter((item) => item.status === "确认淘汰").length;
+  const completedCullingCount = cullingRows.filter((item) => item.status === "已淘汰").length;
   const retainedTarget = 6;
   const retainedDone = retainedPigletData.length;
 
   const pageTitle = detailSubPage === "culling" ? "淘汰猪只" : detailSubPage === "retained" ? "留种仔猪" : "断奶";
 
   const handleBack = () => {
-    if (detailSubPage === "main") {
+    if (detailSubPage === "main" || lockedSubPage) {
       onBack();
       return;
     }
     setDetailSubPage("main");
   };
 
+  const openConfirmSelectedCulling = () => {
+    if (selectedCullingKeys.length === 0) return;
+    setConfirmCullingCountInput(null);
+    setConfirmCullingOpen(true);
+  };
+
+  const confirmSelectedCulling = () => {
+    if (selectedCullingKeys.length === 0 || confirmCullingCountInput !== selectedCullingKeys.length) return;
+    const selectedKeySet = new Set(selectedCullingKeys.map(String));
+    setCullingRows((prev) =>
+      prev.map((item) =>
+        selectedKeySet.has(item.key) && item.status === "建议淘汰"
+          ? { ...item, status: "确认淘汰", operator: "当前用户", operatedAt: "2026-05-27 10:30" }
+          : item
+      )
+    );
+    setConfirmCullingOpen(false);
+    setConfirmCullingCountInput(null);
+    setSelectedCullingKeys([]);
+  };
+
   return (
-    <div className="culling-detail-page">
-      <div className="culling-detail-topbar">
-        <Button type="text" className="culling-detail-icon-button" icon={<MenuOutlined />} />
-        <div className="culling-detail-topbar-actions">
-          <span className="culling-detail-flag">🇨🇳</span>
-          <Avatar className="culling-detail-avatar">A</Avatar>
+    <div className={`culling-detail-page ${embedded ? "is-embedded" : ""}`}>
+      {!embedded ? (
+        <div className="culling-detail-topbar">
+          <Button type="text" className="culling-detail-icon-button" icon={<MenuOutlined />} />
+          <div className="culling-detail-topbar-actions">
+            <span className="culling-detail-flag">🇨🇳</span>
+            <Avatar className="culling-detail-avatar">A</Avatar>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="culling-detail-header-row">
-        <div className="culling-detail-header-main">
-          <Button type="text" icon={<ArrowLeftOutlined />} className="culling-detail-back" onClick={handleBack} />
-          <h1 className="culling-detail-title">{pageTitle}</h1>
-        </div>
-        <Button className="culling-detail-end-button">结束任务</Button>
-      </div>
+      {!embedded ? (
+        <>
+          <div className="culling-detail-header-row">
+            <div className="culling-detail-header-main">
+              <Button type="text" icon={<ArrowLeftOutlined />} className="culling-detail-back" onClick={handleBack} />
+              <h1 className="culling-detail-title">{pageTitle}</h1>
+            </div>
+            <Button className="culling-detail-end-button">结束任务</Button>
+          </div>
 
-      <Breadcrumb
-        className="culling-detail-breadcrumb"
-        items={[
-          { title: "首页" },
-          { title: "生产批次" },
-          { title: "断奶" },
-          ...(detailSubPage === "main" ? [] : [{ title: pageTitle }])
-        ]}
-      />
+          <Breadcrumb
+            className="culling-detail-breadcrumb"
+            items={[
+              { title: "首页" },
+              { title: "生产批次" },
+              { title: "断奶" },
+              ...(detailSubPage === "main" ? [] : [{ title: pageTitle }])
+            ]}
+          />
+        </>
+      ) : null}
 
       {detailSubPage === "main" ? (
         <>
@@ -495,9 +644,9 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
             </div>
             <div className="culling-detail-plan-progress-list culling-detail-plan-progress-list--standalone">
               <DetailPlanProgress
-                label="已淘汰 / 计划淘汰"
-                tooltip="已淘汰数量 / 计划淘汰数量"
-                done={completedCullingCount}
+                label="确认淘汰 / 目标淘汰"
+                tooltip="确认淘汰数量 / 目标淘汰数量"
+                done={decidedCullingCount}
                 total={plannedCullingCount}
                 unit="头"
                 strokeColor="#f97316"
@@ -505,8 +654,8 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
                 onClick={() => setDetailSubPage("culling")}
               />
               <DetailPlanProgress
-                label="标记留种 / 计划留种"
-                tooltip="已标记留种仔猪 / 计划留种目标"
+                label="已标记留种 / 留种目标"
+                tooltip="已标记留种仔猪 / 留种目标"
                 done={retainedDone}
                 total={retainedTarget}
                 unit="头"
@@ -530,9 +679,9 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
 
           <div className="culling-detail-progress-summary">
             <DetailPlanProgress
-              label="已淘汰 / 计划淘汰"
-              tooltip="已淘汰数量 / 计划淘汰数量"
-              done={completedCullingCount}
+              label="确认淘汰 / 目标淘汰"
+              tooltip="确认淘汰数量 / 目标淘汰数量"
+              done={decidedCullingCount}
               total={plannedCullingCount}
               unit="头"
               strokeColor="#f97316"
@@ -540,10 +689,10 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="culling-detail-kpi-grid">
-            <ResultStatCard label="计划淘汰" value={`${plannedCullingCount} 头`} tone="slate" />
-            <ResultStatCard label="计划淘汰" value={`${confirmedCullingCount} 头`} tone="orange" />
+            <ResultStatCard label="目标淘汰" value={`${plannedCullingCount} 头`} tone="slate" />
+            <ResultStatCard label="建议淘汰" value={`${confirmedCullingCount} 头`} tone="orange" />
+            <ResultStatCard label="确认淘汰" value={`${decidedCullingCount} 头`} tone="orange" />
             <ResultStatCard label="已淘汰" value={`${completedCullingCount} 头`} tone="green" />
-            <ResultStatCard label="建议淘汰但未淘汰" value={`${rejectedSuggestedCount} 头`} tone="rose" />
           </div>
 
           <div className="culling-detail-toolbar culling-detail-toolbar--split">
@@ -554,24 +703,100 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
               onChange={(e) => setCullingKeyword(e.target.value)}
               placeholder="搜索母猪 ID"
             />
-            <div className="culling-detail-filter-chips">
-              <button type="button" className={`culling-detail-chip ${cullingView === "all" ? "is-active" : ""}`} onClick={() => setCullingView("all")}>全部</button>
-              <button type="button" className={`culling-detail-chip ${cullingView === "need" ? "is-active" : ""}`} onClick={() => setCullingView("need")}>仅看计划淘汰</button>
-              <button type="button" className={`culling-detail-chip ${cullingView === "done" ? "is-active" : ""}`} onClick={() => setCullingView("done")}>仅看已淘汰</button>
-              <button type="button" className={`culling-detail-chip ${cullingView === "rejected" ? "is-active" : ""}`} onClick={() => setCullingView("rejected")}>仅看建议淘汰但未淘汰</button>
-            </div>
           </div>
 
-          <Table<CullingDecisionRecord>
-            columns={cullingDecisionColumns}
-            dataSource={filteredCullingDecisions}
-            pagination={{
-              pageSize: 25,
-              showSizeChanger: true,
-              pageSizeOptions: ["25", "50", "100"],
-              showTotal: (total, range) => `${range[0]}-${range[1]} 条，共 ${total} 条`
+          {embedded && pendingCullingCount > 0 ? (
+            <div className="culling-detail-list-block">
+              <div className="culling-detail-list-head">
+                <h3>待淘汰确认</h3>
+                <span>{filteredPendingCullingDecisions.length} 头</span>
+              </div>
+              <Table<CullingDecisionRecord>
+                className="culling-detail-culling-table"
+                columns={cullingDecisionColumns}
+                dataSource={filteredPendingCullingDecisions}
+                rowSelection={{
+                  selectedRowKeys: selectedCullingKeys,
+                  onChange: setSelectedCullingKeys
+                }}
+                pagination={{
+                  pageSize: 25,
+                  showSizeChanger: true,
+                  pageSizeOptions: ["25", "50", "100"],
+                  showTotal: (total, range) => `${range[0]}-${range[1]} 条，共 ${total} 条`
+                }}
+                scroll={{ x: 1440 }}
+              />
+              <div className="culling-detail-table-actions">
+                <Button
+                  type="primary"
+                  className="culling-detail-batch-action"
+                  disabled={selectedCullingKeys.length === 0}
+                  onClick={openConfirmSelectedCulling}
+                >
+                  确认淘汰{selectedCullingKeys.length > 0 ? `（${selectedCullingKeys.length}）` : ""}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {!embedded || pendingCullingCount === 0 ? (
+            <div className="culling-detail-list-block">
+              <div className="culling-detail-list-head">
+                <h3>确认淘汰与已淘汰</h3>
+                <span>{filteredResolvedCullingDecisions.length} 头</span>
+              </div>
+              <Table<CullingDecisionRecord>
+                className="culling-detail-culling-table"
+                columns={cullingDecisionColumns}
+                dataSource={filteredResolvedCullingDecisions}
+                pagination={{
+                  pageSize: 25,
+                  showSizeChanger: true,
+                  pageSizeOptions: ["25", "50", "100"],
+                  showTotal: (total, range) => `${range[0]}-${range[1]} 条，共 ${total} 条`
+                }}
+                scroll={{ x: 1440 }}
+              />
+            </div>
+          ) : null}
+
+          <Modal
+            title="确认淘汰"
+            open={confirmCullingOpen}
+            centered
+            okText="确认淘汰"
+            cancelText="取消"
+            okButtonProps={{
+              disabled: confirmCullingCountInput !== selectedCullingKeys.length,
+              className: "culling-detail-confirm-modal-ok"
             }}
-          />
+            onOk={confirmSelectedCulling}
+            onCancel={() => {
+              setConfirmCullingOpen(false);
+              setConfirmCullingCountInput(null);
+            }}
+          >
+            <div className="culling-detail-confirm-modal">
+              <Tag className="culling-detail-tag-cull-confirmed">确认淘汰</Tag>
+              <p>
+                本次将确认淘汰 <strong>{selectedCullingKeys.length}</strong> 头猪。请输入本次确认数量后完成确认。
+              </p>
+              <InputNumber
+                min={0}
+                precision={0}
+                value={confirmCullingCountInput}
+                onChange={(value) => setConfirmCullingCountInput(typeof value === "number" ? value : null)}
+                placeholder="请输入确认数量"
+                className="culling-detail-confirm-count-input"
+              />
+              <Alert
+                type="warning"
+                showIcon
+                message="确认淘汰后，这些猪只会被标记为确认淘汰，可在「出售」「转移」模块中快捷筛选完成对应操作，并且不会加入到新批次。"
+              />
+            </div>
+          </Modal>
         </Card>
       ) : null}
 
@@ -586,8 +811,8 @@ export function CullingTaskDetailPage({ onBack }: { onBack: () => void }) {
 
           <div className="culling-detail-progress-summary">
             <DetailPlanProgress
-              label="标记留种 / 计划留种"
-              tooltip="已标记留种仔猪 / 计划留种目标"
+              label="已标记留种 / 留种目标"
+              tooltip="已标记留种仔猪 / 留种目标"
               done={retainedDone}
               total={retainedTarget}
               unit="头"
@@ -644,6 +869,21 @@ function ResultStatCard({
     <div className={`culling-detail-stat-card culling-detail-stat-card--${tone}`}>
       <div className="culling-detail-stat-label">{label}</div>
       <div className="culling-detail-stat-value">{value}</div>
+    </div>
+  );
+}
+
+function CullingCheckResult({
+  title,
+  value
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="culling-detail-check-result">
+      <span>{title}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

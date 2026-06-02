@@ -1,0 +1,140 @@
+.culling-batch-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.culling-batch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.culling-batch-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.culling-batch-back {
+  width: 34px;
+  height: 34px;
+  color: #111827;
+  font-size: 18px;
+}
+
+.culling-batch-title {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 760;
+}
+
+.culling-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.culling-batch-actions .ant-btn {
+  height: 34px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.culling-batch-breadcrumb {
+  color: #94a3b8;
+}
+
+.culling-batch-card {
+  min-height: 340px;
+  border: 1px solid #edf0f4;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.03);
+}
+
+.culling-batch-card .ant-card-body {
+  padding: 24px 28px;
+}
+
+.culling-batch-card-title {
+  margin: 0 0 28px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 720;
+}
+
+.culling-batch-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 84px;
+  row-gap: 26px;
+}
+
+.culling-batch-info-item {
+  min-height: 48px;
+}
+
+.culling-batch-info-label {
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.culling-batch-info-value {
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 560;
+}
+
+.culling-batch-status-tag {
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: #eef3f6;
+  color: #334155;
+  font-weight: 600;
+}
+
+.culling-batch-plan-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.culling-batch-warning-tag {
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: #fff1ed;
+  color: #f05a3b;
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .culling-batch-header {
+    flex-direction: column;
+  }
+
+  .culling-batch-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .culling-batch-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .culling-batch-actions .ant-btn {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .culling-batch-info-grid {
+    grid-template-columns: 1fr;
+  }
+}

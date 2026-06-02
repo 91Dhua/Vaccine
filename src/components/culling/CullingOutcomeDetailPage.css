@@ -1,0 +1,39 @@
+.culling-outcome-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.culling-outcome-header {
+  display: flex;
+  align-items: center;
+}
+
+.culling-outcome-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.culling-outcome-back {
+  width: 34px;
+  height: 34px;
+  color: #111827;
+  font-size: 18px;
+}
+
+.culling-outcome-title {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 760;
+}
+
+.culling-outcome-tabs {
+  min-height: 320px;
+  padding: 0 4px;
+}
+
+.culling-outcome-tabs .ant-tabs-nav {
+  margin-bottom: 14px;
+}

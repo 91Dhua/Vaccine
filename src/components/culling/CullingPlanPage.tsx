@@ -1,22 +1,18 @@
 import { useMemo, useState } from "react";
 import {
-  Alert,
   Button,
   Input,
   InputNumber,
   Modal,
   Segmented,
-  Space,
   Switch,
   Table,
   Tag,
-  Typography,
-  message
+  Typography
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   EditOutlined,
-  PlusOutlined,
   StopOutlined,
   UserAddOutlined
 } from "@ant-design/icons";
@@ -48,19 +44,19 @@ function formatTargetUnit(mode: CullingTargetMode, value: number, target: number
   return `头 · ${ratio}%`;
 }
 
-export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () => void } = {}) {
+export function CullingPlanPage({
+  onOpenBatchDetail,
+  onOpenTaskDetail
+}: {
+  onOpenBatchDetail?: () => void;
+  onOpenTaskDetail?: () => void;
+} = {}) {
   const [planEnabled, setPlanEnabled] = useState(true);
   const [replacementEnabled, setReplacementEnabled] = useState(false);
   const [targetMode, setTargetMode] = useState<CullingTargetMode>("percentage");
   const [targetValue, setTargetValue] = useState(10);
   const [retainTargetCount, setRetainTargetCount] = useState(DEFAULT_RETAIN_TARGET);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedCullingIds, setSelectedCullingIds] = useState<string[]>([]);
-  const [draftCullingIds, setDraftCullingIds] = useState<string[]>([]);
-  const [showEarTagAdd, setShowEarTagAdd] = useState(false);
-  const [earTagQuery, setEarTagQuery] = useState("");
-  const [selectedReplacementIds, setSelectedReplacementIds] = useState<string[]>([]);
-  const [draftReplacementIds, setDraftReplacementIds] = useState<string[]>([]);
   const [replacementModalOpen, setReplacementModalOpen] = useState(false);
   const [replacementQuery, setReplacementQuery] = useState("");
 
@@ -68,21 +64,6 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
     () => calculateTarget(targetMode, Number(targetValue || 0), BATCH_SOW_COUNT),
     [targetMode, targetValue]
   );
-
-
-  const draftRows = useMemo(
-    () => batchCullingSows.filter((sow) => draftCullingIds.includes(sow.id)),
-    [draftCullingIds]
-  );
-
-  const remainingGap = Math.max(0, plannedTarget - selectedCullingIds.length);
-  const overTarget = Math.max(0, selectedCullingIds.length - plannedTarget);
-
-  const expectedCullingCount = planEnabled ? Math.max(plannedTarget, selectedCullingIds.length) : 0;
-  const draftReplacementRows = batchCullingSows.filter((sow) =>
-    draftReplacementIds.includes(sow.id)
-  );
-  const draftReplacementCount = draftReplacementRows.length;
 
   const filteredReplacementCandidates = useMemo(() => {
     const normalized = replacementQuery.trim().toLowerCase();
@@ -92,38 +73,6 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
       sow.pen.toLowerCase().includes(normalized)
     );
   }, [replacementQuery]);
-
-  const addRecommendedReplacements = () => {
-    const recommendedIds = [...batchCullingSows]
-      .sort((a, b) => {
-        if (a.averageLiveBorn !== b.averageLiveBorn) return b.averageLiveBorn - a.averageLiveBorn;
-        if (a.averageLitterSize !== b.averageLitterSize) return b.averageLitterSize - a.averageLitterSize;
-        return a.parity - b.parity;
-      })
-      .slice(0, Math.max(retainTargetCount, 1))
-      .map((sow) => sow.id);
-    setDraftReplacementIds((prev) => [...new Set([...prev, ...recommendedIds])]);
-    message.success("已按系统规则加入留种关注母猪，最终仍由管理者确认。");
-  };
-
-  const addSowByEarTag = (value: string) => {
-    const normalized = value.trim().toUpperCase();
-    if (!normalized) return;
-
-    const matched = batchCullingSows.find(
-      (sow) => sow.sowTag.toUpperCase() === normalized
-    );
-
-    if (!matched) {
-      message.warning("该耳标不属于当前批次，不能加入本批次淘汰计划。");
-      return;
-    }
-
-    setDraftCullingIds((prev) =>
-      prev.includes(matched.id) ? prev : [...prev, matched.id]
-    );
-    setEarTagQuery("");
-  };
 
   const columns: ColumnsType<CullingSowRow> = [
     {
@@ -227,7 +176,7 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
               <div>
                 <div className="culling-plan-title">母猪淘汰计划</div>
                 <div className="culling-plan-description">
-                  设置本批次的淘汰目标，并手动标记需要淘汰的生产母猪。
+                  设置本批次的淘汰目标，并查看本批次生产母猪列表。
                 </div>
               </div>
             </div>
@@ -239,7 +188,7 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
               <div>
                 <div className="culling-target-title">淘汰目标</div>
                 <div className="culling-target-copy">
-                  设置本批次计划淘汰的生产母猪数量。
+                  设置本批次淘汰目标，实际淘汰对象由 mobile 断奶检查发起后在 console 确认。
                 </div>
                 <div className="culling-target-control">
                   <Segmented
@@ -262,21 +211,18 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
                 </div>
 
                 <div className="culling-manual-block">
-                  <div className="culling-manual-title">指定淘汰母猪</div>
+                  <div className="culling-manual-title">本批次母猪列表</div>
                 </div>
               </div>
 
               <Button
-                className={`culling-manage-button ${selectedCullingIds.length > 0 ? "is-selected" : ""}`}
+                className="culling-manage-button"
                 icon={<EditOutlined />}
                 onClick={() => {
-                  setDraftCullingIds(selectedCullingIds);
-                  setShowEarTagAdd(false);
-                  setEarTagQuery("");
                   setModalOpen(true);
                 }}
               >
-                {selectedCullingIds.length > 0 ? `已选 ${selectedCullingIds.length} 头` : "管理淘汰名单"}
+                查看母猪列表
               </Button>
             </div>
           )}
@@ -314,23 +260,22 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
                 </div>
 
                 <div className="culling-manual-block">
-                  <div className="culling-manual-title">指定留种母猪</div>
+                  <div className="culling-manual-title">本批次母猪列表</div>
                   <div className="culling-manual-copy">
-                    设定本批次计划留种的后备母猪数量，并圈定值得重点关注的母猪。后续涉及到留种操作的相关任务，饲养员可根据提示优先筛选这些母猪的后代。
+                    查看本批次生产母猪，用于评估留种目标与后备补充安排。
                   </div>
                 </div>
               </div>
 
               <Button
-                className={`culling-manage-button ${selectedReplacementIds.length > 0 ? "is-selected" : ""}`}
+                className="culling-manage-button"
                 icon={<EditOutlined />}
                 onClick={() => {
-                  setDraftReplacementIds(selectedReplacementIds);
                   setReplacementQuery("");
                   setReplacementModalOpen(true);
                 }}
               >
-                {selectedReplacementIds.length > 0 ? `已选 ${selectedReplacementIds.length} 头` : "指定留种母猪"}
+                查看母猪列表
               </Button>
             </div>
           )}
@@ -338,7 +283,7 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
       </section>
 
       <Modal
-        title="指定留种母猪"
+        title="查看母猪列表"
         open={replacementModalOpen}
         width={920}
         centered
@@ -346,38 +291,29 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
         footer={
           <div className="culling-modal-footer">
             <span className="culling-modal-footer-note">
-              已选 {draftReplacementCount} 头重点关注母猪。
+              当前批次共 {BATCH_SOW_COUNT} 头生产母猪。
             </span>
             <Button
               type="primary"
               className="culling-done-button"
-              onClick={() => {
-                setSelectedReplacementIds(draftReplacementIds);
-                setReplacementModalOpen(false);
-                message.success("留种关注母猪名单已保存到本批次后备留种计划。");
-              }}
+              onClick={() => setReplacementModalOpen(false)}
             >
-              完成
+              关闭
             </Button>
           </div>
         }
       >
         <div className="culling-modal-copy">
-          这里选择的是需要重点关注其后代的母猪，用于指导后续断奶阶段的现场留种判断；当前计划留种目标为 {retainTargetCount} 头，最终是否留种仍以实际断奶结果和仔猪状态为准。
+          当前列表展示本批次内全部生产母猪，可用于核对耳标、栏位和生产表现，帮助评估本批次留种目标是否合理。
         </div>
         <div className="culling-replacement-toolbar">
-          <Space wrap>
-            <Input
-              allowClear
-              placeholder="搜索耳标号 / 栏位"
-              value={replacementQuery}
-              onChange={(event) => setReplacementQuery(event.target.value)}
-              style={{ width: 220 }}
-            />
-          </Space>
-          <Button icon={<PlusOutlined />} onClick={addRecommendedReplacements}>
-            加入建议关注名单
-          </Button>
+          <Input
+            allowClear
+            placeholder="搜索耳标号 / 栏位"
+            value={replacementQuery}
+            onChange={(event) => setReplacementQuery(event.target.value)}
+            style={{ width: 220 }}
+          />
         </div>
         <Table
           className="culling-replacement-table"
@@ -386,23 +322,11 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
           dataSource={filteredReplacementCandidates}
           columns={replacementColumns}
           pagination={{ pageSize: 5 }}
-          rowSelection={{
-            columnTitle: "留种",
-            selectedRowKeys: draftReplacementIds,
-            onChange: (keys) => setDraftReplacementIds(keys.map(String))
-          }}
         />
-        {draftReplacementRows.length > 0 && (
-          <Space size={6} wrap style={{ marginTop: 12, display: "flex" }}>
-            {draftReplacementRows.map((sow) => (
-              <Tag key={sow.id}>{sow.sowTag}</Tag>
-            ))}
-          </Space>
-        )}
       </Modal>
 
       <Modal
-        title="指定淘汰母猪"
+        title="查看母猪列表"
         open={modalOpen}
         width={920}
         centered
@@ -410,74 +334,35 @@ export function CullingPlanPage({ onOpenTaskDetail }: { onOpenTaskDetail?: () =>
         footer={
           <div className="culling-modal-footer">
             <span className="culling-modal-footer-note">
-              {draftCullingIds.length === 0
-                ? "暂无手动指定，淘汰名单将由系统根据目标自动推荐。"
-                : `${draftCullingIds.length} 头手动指定母猪将计入本次软性淘汰目标。`}
+              当前批次共 {BATCH_SOW_COUNT} 头生产母猪。
             </span>
             <Button
               type="primary"
               className="culling-done-button"
-              onClick={() => {
-                setSelectedCullingIds(draftCullingIds);
-                setModalOpen(false);
-              }}
+              onClick={() => setModalOpen(false)}
             >
-              完成
+              关闭
             </Button>
           </div>
         }
       >
         <div className="culling-modal-copy">
-          选择需要优先标记为淘汰建议的母猪，这些选择会优先于系统自动推荐。
+          当前列表展示本批次内全部生产母猪，可用于核对耳标、栏位和生产表现，帮助评估本批次淘汰目标是否合理。
         </div>
-        <Alert
-          className="culling-inline-alert"
-          type="warning"
-          showIcon={false}
-          message="这里的名单用于形成 Console 端的淘汰建议；现场断奶检查和产后检查仍可继续补充新的淘汰建议。"
-          style={{ marginBottom: 16 }}
-        />
         <Table
           className="culling-modal-table"
           rowKey="id"
           size="small"
           pagination={false}
           dataSource={batchCullingSows}
-          rowSelection={{
-            columnTitle: "淘汰",
-            selectedRowKeys: draftCullingIds,
-            onChange: (keys) => setDraftCullingIds(keys as string[])
-          }}
           columns={columns}
           scroll={{ x: 900 }}
         />
-        <Button
-          type="link"
-          className="culling-modal-add"
-          icon={<PlusOutlined />}
-          onClick={() => setShowEarTagAdd((prev) => !prev)}
-        >
-          添加母猪到名单
-        </Button>
-        {showEarTagAdd && (
-          <Input.Search
-            value={earTagQuery}
-            onChange={(event) => setEarTagQuery(event.target.value)}
-            onSearch={addSowByEarTag}
-            placeholder="输入母猪耳标，例如 S-1042"
-            enterButton="添加"
-            style={{ marginTop: 10 }}
-          />
-        )}
-        {draftRows.length > 0 && (
-          <Space size={6} wrap style={{ marginTop: 10, display: "flex" }}>
-            {draftRows.map((sow) => (
-              <Tag key={sow.id}>{sow.sowTag}</Tag>
-            ))}
-          </Space>
-        )}
       </Modal>
       <div className="culling-page-footer">
+        <Button className="culling-detail-entry-button" onClick={() => onOpenBatchDetail?.()}>
+          批次详情
+        </Button>
         <Button className="culling-detail-entry-button" type="primary" onClick={() => onOpenTaskDetail?.()}>
           任务详情
         </Button>

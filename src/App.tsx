@@ -8,13 +8,21 @@ import { VaccineTaskSelectPage } from "./components/VaccineTaskSelectPage";
 import { VaccineTaskWizard, type VaccineTaskDraft } from "./components/VaccineTaskWizard";
 import { VaccineTaskDetailPage } from "./components/VaccineTaskDetailPage";
 import { EmployeeLoginFlowPage } from "./components/EmployeeLoginFlowPage";
+import { EmployeeManagementPage } from "./components/EmployeeManagementPage";
+import { NewLoginFlowPage } from "./components/NewLoginFlowPage";
+import { NewEntryApplicationFlowPage } from "./components/NewEntryApplicationFlowPage";
 import {
   ReviewSamplingManagementPage,
   buildSeedReviewSamplingTasks,
   type ReviewSamplingSampleRow,
   type ReviewSamplingTaskRow
 } from "./components/ReviewSamplingManagementPage";
-import { CullingPlanPage, CullingTaskDetailPage } from "./components/culling";
+import {
+  CullingBatchDetailPage,
+  CullingOutcomeDetailPage,
+  CullingPlanPage,
+  CullingTaskDetailPage
+} from "./components/culling";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
 import { generateConsoleTaskId } from "./consoleTaskId";
@@ -455,6 +463,11 @@ export default function App() {
   const activeTask = tasksWithSupplementState.find((task) => task.id === activeTaskId) || null;
   const consoleMenuItems = [
     {
+      key: "personnel",
+      label: "人员",
+      children: [{ key: "employee-management", label: "员工" }]
+    },
+    {
       key: "immunity",
       label: "免疫",
       children: [
@@ -501,7 +514,7 @@ export default function App() {
           <Menu
             mode="inline"
             selectedKeys={[activeKey]}
-            defaultOpenKeys={["immunity", "pig-culling", "settings"]}
+            defaultOpenKeys={["personnel", "immunity", "pig-culling", "settings"]}
             onClick={(info) => setConsoleActiveKey(info.key)}
             items={consoleMenuItems}
           />
@@ -518,8 +531,20 @@ export default function App() {
                 setConsoleActiveKey("task");
               }}
             />
+          ) : activeKey === "employee-management" ? (
+            <EmployeeManagementPage />
           ) : activeKey === "culling-plan" ? (
-            <CullingPlanPage onOpenTaskDetail={() => setConsoleActiveKey("culling-detail")} />
+            <CullingPlanPage
+              onOpenBatchDetail={() => setConsoleActiveKey("culling-batch-detail")}
+              onOpenTaskDetail={() => setConsoleActiveKey("culling-detail")}
+            />
+          ) : activeKey === "culling-outcome-detail" ? (
+            <CullingOutcomeDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
+          ) : activeKey === "culling-batch-detail" ? (
+            <CullingBatchDetailPage
+              onBack={() => setConsoleActiveKey("culling-plan")}
+              onOpenOutcomeDetail={() => setConsoleActiveKey("culling-outcome-detail")}
+            />
           ) : activeKey === "culling-detail" ? (
             <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
           ) : activeKey === "mobile-vacc" ? (
@@ -625,8 +650,12 @@ export default function App() {
                 ]);
               }}
             />
-          ) : activeKey === "new-login-flow" ? (
+          ) : activeKey === "new-register-flow" ? (
             <EmployeeLoginFlowPage />
+          ) : activeKey === "new-login-flow" ? (
+            <NewLoginFlowPage onOpenEntryApplication={() => setConsoleActiveKey("new-entry-application-flow")} />
+          ) : activeKey === "new-entry-application-flow" ? (
+            <NewEntryApplicationFlowPage />
           ) : activeKey === "task" ? (
             <div>
               {taskStep === "tasks" && (
