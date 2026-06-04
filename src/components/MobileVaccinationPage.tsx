@@ -212,6 +212,12 @@ interface Props {
   setPigTasks: Dispatch<SetStateAction<MobilePigTask[]>>;
   logs: MobileExecutionLog[];
   setLogs: Dispatch<SetStateAction<MobileExecutionLog[]>>;
+  onTaskClosed?: (payload: {
+    taskId: string;
+    actualVaccinatedCount: number;
+    executor: string;
+    executedAt: string;
+  }) => void;
 }
 
 function PigSlotDrawer({
@@ -383,7 +389,8 @@ export function MobileVaccinationPage({
   pigTasks,
   setPigTasks,
   logs,
-  setLogs
+  setLogs,
+  onTaskClosed
 }: Props) {
   const modalContainer = useMobileSimulationContainer();
   const [scopeMode, setScopeMode] = useState<"workshop" | "room">("workshop");
@@ -1671,13 +1678,25 @@ export function MobileVaccinationPage({
               message.warning("请先勾选确认后再结束任务。");
               return;
             }
+            const executedAt = dayjs().format("YYYY-MM-DD HH:mm");
+            const taskId = pigListBatchId || "";
             appendLog({
               pigTaskId: `room-${pigListRoomId}-batch-${pigListBatchId}`,
-              at: dayjs().format("YYYY-MM-DD HH:mm"),
+              at: executedAt,
               actor: "现场用户",
               type: "room_batch_closed",
               summary: `结束任务：房间 ${pigListRoomId} · 批次 ${pigListBatchId} · 已完成 ${roomTaskStatusSummary.done}/${roomTaskStatusSummary.total}`
             });
+            if (taskId) {
+              onTaskClosed?.({
+                taskId,
+                actualVaccinatedCount: pigTasks.filter(
+                  (task) => task.taskId === taskId && task.status === "completed"
+                ).length,
+                executor: "现场用户",
+                executedAt
+              });
+            }
             setEndTaskModalOpen(false);
             message.success("任务已结束");
             setScreen("hub");

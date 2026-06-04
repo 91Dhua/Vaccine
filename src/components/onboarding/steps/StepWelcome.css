@@ -1,0 +1,477 @@
+/**
+ * 欢迎页样式
+ */
+
+.step-welcome-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+}
+
+.welcome-fullscreen {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.welcome-container {
+  max-width: 700px;
+  width: 100%;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* 新的垂直布局容器 */
+.welcome-container-new {
+  max-width: 42rem; /* max-w-2xl */
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.welcome-header {
+  text-align: left;
+  margin-bottom: 2rem;
+}
+
+.welcome-icon {
+  margin: 0 0 2rem 0;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.welcome-title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem 0;
+  color: #1a1a1a;
+  animation: fadeInUp 0.6s ease-out 0.1s both;
+}
+
+.welcome-subtitle {
+  font-size: 1.1rem;
+  color: #666;
+  margin: 0 0 3rem 0;
+  animation: fadeInUp 0.6s ease-out 0.2s both;
+}
+
+.welcome-features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  text-align: left;
+}
+
+/* 新的垂直列表布局 */
+.welcome-features-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* gap-4 */
+  margin-bottom: 20px; /* 卡片列表和提示文案之间的间距 */
+}
+
+/* 提示文案 */
+.welcome-hint-text {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+.welcome-feature {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.2s;
+  animation: fadeInUp 0.6s ease-out calc(var(--delay, 0.3s)) both;
+  cursor: pointer;
+  position: relative;
+}
+
+.welcome-feature.enabled {
+  cursor: pointer;
+}
+
+.welcome-feature.disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  filter: grayscale(0.6);
+}
+
+.welcome-feature.disabled .feature-icon {
+  opacity: 0.5;
+}
+
+.welcome-feature.disabled .feature-content h3,
+.welcome-feature.disabled .feature-content p {
+  color: #9ca3af;
+}
+
+.welcome-feature.completed {
+  border-color: #d1d5db;
+  background-color: #ffffff;
+  position: relative;
+}
+
+.welcome-feature.completed::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.welcome-feature.completed.enabled:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* 必做步骤样式 - 使用醒目的橙色/红色 */
+.welcome-feature.required {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.welcome-feature.required.enabled:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  transform: translateY(-2px);
+}
+
+.welcome-feature.required .feature-icon {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.welcome-feature.required .feature-step-number.required-badge {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #d97706;
+  border-color: #f59e0b;
+  border-width: 2px;
+  font-weight: 700;
+}
+
+.required-indicator {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  margin-right: 0.25rem;
+  background-color: #f59e0b;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.welcome-feature:nth-child(1) {
+  --delay: 0.3s;
+}
+
+.welcome-feature:nth-child(2) {
+  --delay: 0.4s;
+}
+
+.welcome-feature:nth-child(3) {
+  --delay: 0.5s;
+}
+
+.welcome-feature:nth-child(4) {
+  --delay: 0.6s;
+}
+
+.welcome-feature.enabled:hover:not(.completed) {
+  border-color: #646cff;
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
+  border-radius: 10px;
+}
+
+.feature-content h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+  color: #1a1a1a;
+  flex-wrap: wrap;
+}
+
+.feature-content h3 > span:first-child {
+  flex-shrink: 0;
+}
+
+.feature-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 24px;
+  padding: 0 8px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+  color: #646cff;
+  border: 1.5px solid #646cff;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.feature-completed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+  padding: 0.25rem 0.625rem;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.feature-completed-badge::before {
+  content: '✓';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #10b981;
+  color: white;
+  border-radius: 50%;
+  font-size: 0.625rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+
+.feature-content p {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.welcome-tip {
+  padding: 1rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  animation: fadeInUp 0.6s ease-out 0.7s both;
+}
+
+.welcome-tip p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #1e40af;
+}
+
+/* 跳过按钮区域 */
+.welcome-skip-section {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px; /* 提示文案和"直接进入"链接之间的间距 */
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.welcome-skip-btn {
+  background: transparent;
+  border: none;
+  color: #646cff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.welcome-skip-btn:hover {
+  background-color: #f3f4f6;
+  color: #535bf2;
+}
+
+.welcome-skip-btn:active {
+  background-color: #e5e7eb;
+}
+
+.welcome-start-btn {
+  animation: fadeInUp 0.6s ease-out 0.8s both;
+  min-width: 200px;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .welcome-title {
+    color: white;
+  }
+
+  .welcome-subtitle {
+    color: #aaa;
+  }
+
+  .welcome-feature {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .welcome-feature.enabled:hover:not(.completed) {
+    border-color: #646cff;
+  }
+
+  .welcome-feature.disabled {
+    background-color: #1f1f1f;
+    border-color: #374151;
+  }
+
+  .welcome-feature.disabled .feature-content h3,
+  .welcome-feature.disabled .feature-content p {
+    color: #6b7280;
+  }
+
+  .welcome-feature.required {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+  }
+
+  .welcome-feature.required .feature-icon {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  }
+
+  .welcome-feature.required .feature-step-number.required-badge {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+    color: #fbbf24;
+    border-color: #f59e0b;
+  }
+
+  .required-indicator {
+    background-color: #f59e0b;
+    color: #1f2937;
+  }
+
+  .welcome-feature.completed {
+    border-color: #374151;
+    background-color: #1f2937;
+  }
+
+  .welcome-feature.completed::before {
+    background: linear-gradient(90deg, #059669 0%, #047857 100%);
+  }
+
+  .feature-completed-badge {
+    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+    color: #6ee7b7;
+    border-color: #059669;
+  }
+
+  .feature-completed-badge::before {
+    background: #10b981;
+    color: #064e3b;
+  }
+
+  .feature-icon {
+    background: linear-gradient(135deg, #2d1b4e 0%, #1e293b 100%);
+  }
+
+  .feature-content h3 {
+    color: white;
+  }
+
+  .feature-step-number {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #818cf8;
+    border-color: #818cf8;
+  }
+
+  .feature-content p {
+    color: #aaa;
+  }
+
+  .welcome-tip {
+    background-color: #1e3a8a;
+    border-color: #3b82f6;
+  }
+
+  .welcome-tip p {
+    color: #dbeafe;
+  }
+
+  .welcome-hint-text {
+    color: #6b7280;
+  }
+
+  .welcome-skip-section {
+    border-top-color: #333;
+  }
+
+  .welcome-skip-btn {
+    color: #818cf8;
+  }
+
+  .welcome-skip-btn:hover {
+    background-color: #1a1a1a;
+    color: #a5b4fc;
+  }
+
+  .welcome-skip-btn:active {
+    background-color: #242424;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .welcome-features {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-title {
+    font-size: 1.5rem;
+  }
+
+  .welcome-subtitle {
+    font-size: 1rem;
+  }
+}

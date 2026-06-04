@@ -60,6 +60,8 @@ export type TaskRow = {
   arrangedSupplementPigIds?: string[];
 };
 
+export type VaccineTaskTypeLabel = "疫苗计划" | "手动创建" | "补充接种" | "重新接种";
+
 function compareText(a?: string, b?: string): number {
   return String(a || "").localeCompare(String(b || ""), "zh-Hans-CN");
 }
@@ -74,6 +76,12 @@ function compareDateText(a?: string, b?: string): number {
 
 function resolveCreateType(row: TaskRow): TaskRow["createType"] {
   return row.createType || (row.planName ? "自动" : "手动");
+}
+
+export function resolveVaccineTaskTypeLabel(row: TaskRow): VaccineTaskTypeLabel {
+  if (row.supplementMode === "review-full") return "重新接种";
+  if (row.supplementMode === "pending-only") return "补充接种";
+  return resolveCreateType(row) === "自动" || row.planName ? "疫苗计划" : "手动创建";
 }
 
 function resolveActualVaccinatedCount(row: TaskRow): number {
@@ -201,6 +209,20 @@ function renderCreateTypeCell(row: TaskRow) {
   );
 }
 
+function renderTaskTypeCell(row: TaskRow) {
+  const taskType = resolveVaccineTaskTypeLabel(row);
+  const color =
+    taskType === "疫苗计划"
+      ? "blue"
+      : taskType === "手动创建"
+        ? "default"
+        : taskType === "补充接种"
+          ? "gold"
+          : "purple";
+
+  return <Tag color={color}>{taskType}</Tag>;
+}
+
 interface Props {
   tasks: TaskRow[];
   reviewTasks?: ReviewSamplingTaskRow[];
@@ -243,6 +265,21 @@ function taskTableColumns(
       render: (value) => <Tag color="green">{value} 头</Tag>
     }
   ];
+  const taskTypeColumn: ColumnsType<TaskRow>[number] = {
+    title: "任务类型",
+    dataIndex: "taskType",
+    key: "taskType",
+    width: 132,
+    filters: [
+      { text: "疫苗计划", value: "疫苗计划" },
+      { text: "手动创建", value: "手动创建" },
+      { text: "补充接种", value: "补充接种" },
+      { text: "重新接种", value: "重新接种" }
+    ],
+    onFilter: (value, record) => resolveVaccineTaskTypeLabel(record) === value,
+    sorter: (a, b) => compareText(resolveVaccineTaskTypeLabel(a), resolveVaccineTaskTypeLabel(b)),
+    render: (_, row) => renderTaskTypeCell(row)
+  };
   const createTypeColumn: ColumnsType<TaskRow>[number] = {
     title: "创建人/时间",
     dataIndex: "createType",
@@ -259,6 +296,7 @@ function taskTableColumns(
   if (status === "待接种") {
     return [
       ...base,
+      taskTypeColumn,
       createTypeColumn,
       {
         title: "操作",
@@ -332,6 +370,7 @@ function taskTableColumns(
   return [
     ...base,
     ...progressColumns,
+    taskTypeColumn,
     {
       ...createTypeColumn
     },

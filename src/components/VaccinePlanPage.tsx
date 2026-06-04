@@ -21,7 +21,6 @@ import {
   Select,
   Space,
   Switch,
-  Tabs,
   Table,
   Tag,
   Tooltip,
@@ -1349,11 +1348,14 @@ function dedupeSortDates(arr: Dayjs[]): Dayjs[] {
 
 /** 普免计划在某日的接种任务（列表聚合或表单预览） */
 type PlanDayMassTask = {
+  itemKey: string;
   planId: string;
+  planType: PlanDetailKind;
   planName: string;
   vaccine: string;
   pigType?: string;
   enabled: boolean;
+  scheduleNote?: string;
 };
 
 function parseMassExecuteToDates(execute: string | undefined, year: number): Dayjs[] {
@@ -1384,7 +1386,9 @@ function buildMassPlansYearIndex(plans: any[], year: number): Map<string, PlanDa
   for (const p of plans) {
     const dates = parseMassExecuteToDates(p.execute, year);
     const entry: PlanDayMassTask = {
+      itemKey: `mass-${String(p.id ?? "")}`,
       planId: String(p.id ?? ""),
+      planType: "MASS",
       planName: String(p.name || "未命名计划"),
       vaccine: String(p.vaccine || ""),
       pigType: p.pigType ? String(p.pigType) : undefined,
@@ -1397,6 +1401,71 @@ function buildMassPlansYearIndex(plans: any[], year: number): Map<string, PlanDa
       map.set(k, cur);
     }
   }
+  for (const [k, arr] of map) {
+    arr.sort((a, b) => a.planName.localeCompare(b.planName, "zh-Hans-CN"));
+    map.set(k, arr);
+  }
+  return map;
+}
+
+function mergePlanDayMaps(
+  ...maps: Array<Map<string, PlanDayMassTask[]>>
+): Map<string, PlanDayMassTask[]> {
+  const merged = new Map<string, PlanDayMassTask[]>();
+  for (const map of maps) {
+    for (const [key, arr] of map) {
+      const cur = merged.get(key) || [];
+      for (const item of arr) {
+        if (!cur.some((x) => x.itemKey === item.itemKey)) cur.push(item);
+      }
+      cur.sort((a, b) => {
+        if (a.planType !== b.planType) return a.planType === "MASS" ? -1 : 1;
+        return a.planName.localeCompare(b.planName, "zh-Hans-CN");
+      });
+      merged.set(key, cur);
+    }
+  }
+  return merged;
+}
+
+function buildRoutinePlansYearIndex(
+  plans: RoutinePlanRow[],
+  tasks: TaskRow[],
+  year: number
+): Map<string, PlanDayMassTask[]> {
+  const map = new Map<string, PlanDayMassTask[]>();
+  const routineTasks = tasks.filter((task) => {
+    const schedule = dayjs(task.schedule);
+    return (
+      schedule.isValid() &&
+      schedule.year() === year &&
+      String(task.planType || "").includes("跟批")
+    );
+  });
+
+  for (const task of routineTasks) {
+    const matchedPlan =
+      plans.find((plan) => plan.name && plan.name === task.planName) ||
+      plans.find((plan) => plan.vaccine && plan.vaccine === task.vaccine);
+    if (!matchedPlan) continue;
+    const planId = String(matchedPlan.id);
+    const d = dayjs(task.schedule);
+    const k = d.format("YYYY-MM-DD");
+    const entry: PlanDayMassTask = {
+      itemKey: `routine-${planId}-${task.id}`,
+      planId,
+      planType: "ROUTINE",
+      planName: String(matchedPlan?.name || task.planName || "跟批免疫计划"),
+      vaccine: String(matchedPlan?.vaccine || task.vaccine || ""),
+      pigType: matchedPlan?.pigType || task.targetPigGroupLabel,
+      enabled: matchedPlan?.enabled !== false,
+      scheduleNote: task.productionLineBatch || task.batchProductionLine
+    };
+    const cur = map.get(k) || [];
+    cur.push(entry);
+    map.set(k, cur);
+  }
+
   for (const [k, arr] of map) {
     arr.sort((a, b) => a.planName.localeCompare(b.planName, "zh-Hans-CN"));
     map.set(k, arr);
@@ -1430,7 +1499,9 @@ function buildDraftMassDayMap(
     const k = d.format("YYYY-MM-DD");
     map.set(k, [
       {
+        itemKey: "__draft__",
         planId: "__draft__",
+        planType: "MASS",
         planName,
         vaccine: vaccineName,
         enabled: true
@@ -2136,7 +2207,7 @@ function AnnualVaccinationYearView({
   dayMap: Map<string, PlanDayMassTask[]>;
   headerRight?: ReactNode;
   footNote?: ReactNode;
-  onOpenPlanReadonly?: (planId: string) => void;
+  onOpenPlanReadonly?: (item: PlanDayMassTask) => void;
 }) {
   const today = dayjs().format("YYYY-MM-DD");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -2156,6 +2227,26 @@ function AnnualVaccinationYearView({
   }, [year, dayMap]);
 
   const selectedTasks = selectedKey ? dayMap.get(selectedKey) : undefined;
+  const monthStats = useMemo(() => {
+    const statsMap = new Map<number, { days: number; hits: number }>();
+    for (const [key, arr] of dayMap) {
+      const month = dayjs(key).month() + 1;
+      const prev = statsMap.get(month) || { days: 0, hits: 0 };
+      statsMap.set(month, {
+        days: prev.days + 1,
+        hits: prev.hits + arr.length
+      });
+    }
+    return statsMap;
+  }, [dayMap]);
+  const upcomingTaskDays = useMemo(() => {
+    const todayKey = dayjs().format("YYYY-MM-DD");
+    const entries = Array.from(dayMap.entries())
+      .filter(([, arr]) => arr.length > 0)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const future = entries.filter(([key]) => key >= todayKey);
+    return (future.length > 0 ? future : entries).slice(0, 5);
+  }, [dayMap]);
 
   return (
     <div className="plan-annual-cal plan-annual-cal--year-at-a-glance">
@@ -2167,14 +2258,9 @@ function AnnualVaccinationYearView({
             <span className="plan-annual-cal-meta-chips" aria-label="统计">
               <span className="plan-annual-cal-chip">
                 <span className="plan-annual-cal-chip-value">{stats.days}</span>
-                <span className="plan-annual-cal-chip-label">接种日</span>
-              </span>
-              <span className="plan-annual-cal-chip">
-                <span className="plan-annual-cal-chip-value">{stats.hits}</span>
-                <span className="plan-annual-cal-chip-label">节点</span>
+                <span className="plan-annual-cal-chip-label">接种日期</span>
               </span>
             </span>
-            <span className="plan-annual-cal-head-hint">点击日期 · 右侧查看任务</span>
           </div>
         </div>
         {headerRight ? <div className="plan-annual-cal-head-right">{headerRight}</div> : null}
@@ -2186,9 +2272,17 @@ function AnnualVaccinationYearView({
             {ANNUAL_CAL_MONTH_LABELS.map((label, idx) => {
               const month = idx + 1;
               const rows = buildMonthWeekRows(year, month);
+              const currentMonthStats = monthStats.get(month) || { days: 0, hits: 0 };
               return (
                 <div key={month} className="plan-annual-cal-month plan-annual-cal-month--dense">
-                  <div className="plan-annual-cal-month-name">{label}</div>
+                  <div className="plan-annual-cal-month-head">
+                    <div className="plan-annual-cal-month-name">{label}</div>
+                    {currentMonthStats.hits > 0 ? (
+                      <div className="plan-annual-cal-month-count">
+                        {currentMonthStats.days} 日 · {currentMonthStats.hits} 项
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="plan-annual-cal-wd-row" aria-hidden>
                     {ANNUAL_CAL_WEEKDAY_LABELS.map((w) => (
                       <div key={w} className="plan-annual-cal-wd">
@@ -2235,13 +2329,18 @@ function AnnualVaccinationYearView({
                                     <div className="plan-annual-cal-cell-dots" aria-hidden>
                                       {items.slice(0, 3).map((it) => (
                                         <span
-                                          key={it.planId}
+                                          key={it.itemKey}
                                           className={`plan-annual-cal-dot${it.enabled ? "" : " plan-annual-cal-dot--off"}`}
                                           style={{
                                             background: `hsl(${accentHueFromId(it.planId)} 56% 52%)`
                                           }}
                                         />
                                       ))}
+                                    </div>
+                                  ) : null}
+                                  {has ? (
+                                    <div className="plan-annual-cal-cell-badge" aria-hidden>
+                                      {items.length}
                                     </div>
                                   ) : null}
                                 </div>
@@ -2262,60 +2361,94 @@ function AnnualVaccinationYearView({
           {!selectedKey ? (
             <div className="plan-annual-cal-detail plan-annual-cal-detail--empty">
               <div className="plan-annual-cal-detail-illus" aria-hidden />
-              <div className="plan-annual-cal-detail-title">当日任务</div>
+              <div className="plan-annual-cal-detail-title">
+                {stats.hits > 0 ? "近期接种日" : "请先添加免疫计划"}
+              </div>
               <Paragraph type="secondary" className="plan-annual-cal-detail-hint" style={{ marginBottom: 0 }}>
-                在左侧网格中点选日期，此处展示该日的普免接种任务与状态。
+                {stats.hits > 0
+                  ? "优先查看即将预计下发的任务，点击日期可展开当日任务。"
+                  : "添加免疫计划后，系统将根据计划内容自动计算并展示预计免疫任务日期。"}
               </Paragraph>
+              {stats.hits > 0 ? (
+                <div className="plan-annual-cal-upcoming-list">
+                  {upcomingTaskDays.map(([key, arr]) => (
+                    <button
+                      type="button"
+                      className="plan-annual-cal-upcoming-card"
+                      key={key}
+                      onClick={() => setSelectedKey(key)}
+                    >
+                      <span className="plan-annual-cal-upcoming-date">
+                        {dayjs(key).format("M月D日")}
+                      </span>
+                      <span className="plan-annual-cal-upcoming-main">
+                      {arr[0]?.planName || "预计下发任务"}
+                      </span>
+                      <span className="plan-annual-cal-upcoming-count">
+                        {arr.length} 项
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="plan-annual-cal-detail">
               <div className="plan-annual-cal-detail-kicker">已选日期</div>
-              <div className="plan-annual-cal-detail-date">
-                {formatPlanCalDayLabel(selectedKey)}
+              <div className="plan-annual-cal-detail-date-row">
+                <div className="plan-annual-cal-detail-date">
+                  {formatPlanCalDayLabel(selectedKey)}
+                </div>
+                <span className="plan-annual-cal-detail-count">
+                  {selectedTasks?.length || 0} 项
+                </span>
               </div>
               <div className="plan-annual-cal-detail-date-sub">{selectedKey}</div>
               {!selectedTasks || selectedTasks.length === 0 ? (
                 <Paragraph type="secondary" className="plan-annual-cal-detail-empty-msg" style={{ marginBottom: 0 }}>
-                  该日暂无普免排期。
+                  根据当前计划，该日期暂无免疫任务。
                 </Paragraph>
               ) : (
                 <ul className="plan-annual-cal-detail-list">
                   {selectedTasks.map((it) => (
                     <li
-                      key={it.planId}
+                      key={it.itemKey}
                       className="plan-annual-cal-detail-card plan-annual-cal-detail-card--clickable"
                       role="button"
                       tabIndex={0}
                       aria-label={`查看计划 ${it.planName}`}
-                      onClick={() => onOpenPlanReadonly?.(it.planId)}
+                      onClick={() => onOpenPlanReadonly?.(it)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          onOpenPlanReadonly?.(it.planId);
+                          onOpenPlanReadonly?.(it);
                         }
                       }}
                     >
-                      <div className="plan-annual-cal-detail-card-head">
-                        <span
-                          className="plan-annual-cal-detail-swatch"
-                          style={{
-                            background: `hsl(${accentHueFromId(it.planId)} 56% 52%)`
-                          }}
-                        />
+                      <span
+                        className="plan-annual-cal-detail-swatch"
+                        style={{
+                          background: `hsl(${accentHueFromId(it.planId)} 56% 52%)`
+                        }}
+                      />
+                      <span className="plan-annual-cal-detail-main">
                         <span className="plan-annual-cal-detail-name">{it.planName}</span>
-                      </div>
-                      <div className="plan-annual-cal-detail-body">
-                        <div className="plan-annual-cal-detail-field">
-                          <span className="plan-annual-cal-detail-field-label">疫苗</span>
-                          <span className="plan-annual-cal-detail-field-value">{it.vaccine || "—"}</span>
-                        </div>
-                        {it.pigType ? (
-                          <div className="plan-annual-cal-detail-field">
-                            <span className="plan-annual-cal-detail-field-label">目标群体</span>
-                            <span className="plan-annual-cal-detail-field-value">{it.pigType}</span>
-                          </div>
+                        <span className="plan-annual-cal-detail-type">
+                          {it.planType === "MASS" ? "普免计划" : "跟批免疫"}
+                          {it.vaccine ? ` · ${it.vaccine}` : ""}
+                        </span>
+                        {it.scheduleNote ? (
+                          <span className="plan-annual-cal-detail-note">{it.scheduleNote}</span>
                         ) : null}
-                      </div>
+                      </span>
+                      <span className="plan-annual-cal-detail-side">
+                        <span className={`plan-annual-cal-detail-status${it.enabled ? "" : " plan-annual-cal-detail-status--off"}`}>
+                          {it.enabled ? "启用" : "停用"}
+                        </span>
+                        {it.pigType ? (
+                          <span className="plan-annual-cal-detail-target">{it.pigType}</span>
+                        ) : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -3012,11 +3145,11 @@ function VaccinePlanDetailPage({
           { label: "首次接种日期", value: String(record?.execute || "—").split("/")[0] || "—" },
           { label: "是否重复接种", value: record?.cycle && record.cycle !== "单次" ? "是" : "否" },
           { label: "重复规则", value: record?.cycle || "—" },
-          { label: "执行时间", value: record?.execute || "—" }
+          { label: "下次接种时间", value: record?.nextVaccinationTime || "—" }
         ]
       : [
           { label: "触发规则", value: record?.triggerRule || "—" },
-          { label: "下发时间", value: record?.dispatchTime || "—" },
+          { label: "执行时间", value: record?.dispatchTime || "—" },
           { label: "是否重复接种", value: "否" },
           { label: "适用生产线", value: record?.line || "—" }
         ];
@@ -4428,16 +4561,16 @@ export function VaccinePlanPage({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [planType, setPlanType] = useState<PlanType | null>(null);
-  const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar" | "detail">("list");
+  const [mode, setMode] = useState<"list" | "config" | "preview" | "annual-calendar" | "detail">("annual-calendar");
   const [draft, setDraft] = useState<any>(null);
-  const [massPlans, setMassPlans] = useState<MassPlanRow[]>(massPlanList);
-  const [routinePlans, setRoutinePlans] = useState<RoutinePlanRow[]>(routinePlanList);
+  const [massPlans, setMassPlans] = useState<MassPlanRow[]>([]);
+  const [routinePlans, setRoutinePlans] = useState<RoutinePlanRow[]>([]);
   const [annualCalYear, setAnnualCalYear] = useState(() => dayjs().year());
   const [annualCalOverlay, setAnnualCalOverlay] = useState<{
     year: number;
     dayMap: Map<string, PlanDayMassTask[]>;
   } | null>(null);
-  const [annualCalReturn, setAnnualCalReturn] = useState<"list" | "config">("list");
+  const [annualCalReturn, setAnnualCalReturn] = useState<"annual-calendar" | "config">("annual-calendar");
   const [planTab, setPlanTab] = useState<"mass" | "routine">("mass");
   const [massEditMode, setMassEditMode] = useState(false);
   const [routineEditMode, setRoutineEditMode] = useState(false);
@@ -4453,8 +4586,12 @@ export function VaccinePlanPage({
     "该计划";
 
   const annualDayMap = useMemo(
-    () => buildMassPlansYearIndex(massPlans, annualCalYear),
-    [massPlans, annualCalYear]
+    () =>
+      mergePlanDayMaps(
+        buildMassPlansYearIndex(massPlans, annualCalYear),
+        buildRoutinePlansYearIndex(routinePlans, tasks, annualCalYear)
+      ),
+    [massPlans, routinePlans, tasks, annualCalYear]
   );
 
   const annualEffectiveYear = annualCalOverlay?.year ?? annualCalYear;
@@ -4475,6 +4612,15 @@ export function VaccinePlanPage({
     setMode("detail");
   };
 
+  const createPlanForCurrentTab = useCallback(() => {
+    massCalEyePrevEditingIdRef.current = null;
+    massConfigBackToAnnualCalRef.current = false;
+    setReadonlyMassConfig(false);
+    setEditingPlanId(null);
+    setPlanType(planTab === "mass" ? "MASS" : "ROUTINE");
+    setMode("config");
+  }, [planTab]);
+
   const editPlanFromDetail = () => {
     if (!planDetailTarget) return;
     setEditingPlanId(planDetailTarget.id);
@@ -4487,6 +4633,23 @@ export function VaccinePlanPage({
     setAnnualCalOverlay(null);
     setMode(annualCalReturn);
   }, [annualCalReturn]);
+
+  const backFromMassConfig = useCallback(() => {
+    if (readonlyMassConfig && massConfigBackToAnnualCalRef.current) {
+      massConfigBackToAnnualCalRef.current = false;
+      const prevId = massCalEyePrevEditingIdRef.current;
+      massCalEyePrevEditingIdRef.current = null;
+      setReadonlyMassConfig(false);
+      setEditingPlanId(prevId);
+      setMode("annual-calendar");
+      return;
+    }
+    massCalEyePrevEditingIdRef.current = null;
+    massConfigBackToAnnualCalRef.current = false;
+    setReadonlyMassConfig(false);
+    setMode("list");
+    setEditingPlanId(null);
+  }, [readonlyMassConfig]);
 
   const annualYearOptions = useMemo(() => {
     const base = dayjs().year();
@@ -4570,24 +4733,26 @@ export function VaccinePlanPage({
         <div className="page-header">
           <div>
             <Title level={4} style={{ margin: 0 }}>
-              疫苗计划配置
+              {planTab === "mass" ? "普免计划" : "跟批免疫计划"}
             </Title>
-            <Text type="secondary">管理普免与跟批免疫 SOP 计划</Text>
+            <Text type="secondary">
+              {planTab === "mass" ? "管理固定周期免疫计划" : "管理按生产节点触发的免疫计划"}
+            </Text>
           </div>
           <div className="header-actions">
             <Button
               className="ghost-btn"
-              icon={<CalendarOutlined />}
+              icon={<ArrowLeftOutlined />}
               onClick={() => {
-                setAnnualCalReturn("list");
+                setAnnualCalReturn("annual-calendar");
                 setAnnualCalOverlay(null);
                 setMode("annual-calendar");
               }}
             >
-              年度接种日历
+              返回免疫日历
             </Button>
-            <Button type="primary" onClick={() => setCreateOpen(true)}>
-              创建疫苗计划
+            <Button type="primary" onClick={createPlanForCurrentTab}>
+              创建
             </Button>
           </div>
         </div>
@@ -4595,28 +4760,23 @@ export function VaccinePlanPage({
 
       {mode === "list" && (
         <Card className="section-card">
-          <Tabs
-            defaultActiveKey="mass"
-            activeKey={planTab}
-            onChange={(key) => setPlanTab(key as "mass" | "routine")}
-            tabBarExtraContent={
-              <Button
-                className="ghost-btn"
-                onClick={() =>
-                  planTab === "mass"
-                    ? setMassEditMode((v) => !v)
-                    : setRoutineEditMode((v) => !v)
-                }
-              >
-                {planTab === "mass" ? (massEditMode ? "取消编辑" : "编辑") : (routineEditMode ? "取消编辑" : "编辑")}
-              </Button>
-            }
-            items={[
-              {
-                key: "mass",
-                label: "普免计划",
-                children: (
-                  <Table
+          <div className="vaccine-plan-config-toolbar">
+            <div className="vaccine-plan-config-title">
+              {planTab === "mass" ? "普免计划" : "跟批免疫计划"}
+            </div>
+            <Button
+              className="ghost-btn"
+              onClick={() =>
+                planTab === "mass"
+                  ? setMassEditMode((v) => !v)
+                  : setRoutineEditMode((v) => !v)
+              }
+            >
+              {planTab === "mass" ? (massEditMode ? "取消编辑" : "编辑") : (routineEditMode ? "取消编辑" : "编辑")}
+            </Button>
+          </div>
+          {planTab === "mass" ? (
+            <Table
                     rowKey="id"
                     dataSource={massPlans}
                     pagination={false}
@@ -4705,13 +4865,8 @@ export function VaccinePlanPage({
                       }
                     ]}
                   />
-                )
-              },
-              {
-                key: "routine",
-                label: "跟批免疫计划",
-                children: (
-                  <Table
+          ) : (
+            <Table
                     rowKey="id"
                     dataSource={routinePlans}
                     pagination={false}
@@ -4798,10 +4953,7 @@ export function VaccinePlanPage({
                       }
                     ]}
                   />
-                )
-              }
-            ]}
-          />
+          )}
         </Card>
       )}
 
@@ -4823,34 +4975,63 @@ export function VaccinePlanPage({
         <Card className="section-card plan-annual-cal-card plan-annual-cal-card--fit">
           <div className="plan-annual-cal-page-toolbar plan-annual-cal-page-toolbar--premium">
             <div className="plan-annual-cal-toolbar-main">
-              <Button
-                type="text"
-                className="plan-annual-cal-back-btn"
-                icon={<LeftOutlined />}
-                onClick={exitAnnualCalendar}
-              >
-                返回
-              </Button>
+              {annualCalReturn !== "annual-calendar" || annualCalOverlay ? (
+                <Button
+                  type="text"
+                  className="plan-annual-cal-back-btn"
+                  icon={<LeftOutlined />}
+                  onClick={exitAnnualCalendar}
+                >
+                  返回
+                </Button>
+              ) : null}
               <div className="plan-annual-cal-toolbar-heading">
-                <span className="plan-annual-cal-toolbar-eyebrow">年度全景</span>
+                <span className="plan-annual-cal-toolbar-eyebrow">接种安排</span>
                 <Title level={5} className="plan-annual-cal-toolbar-title">
-                  普免接种日历
+                  免疫日历
                 </Title>
               </div>
             </div>
-            {annualCalOverlay ? (
-              <span className="plan-annual-cal-preview-pill">表单预览</span>
-            ) : null}
+            <div className="plan-calendar-actions">
+              {annualCalOverlay ? (
+                <span className="plan-annual-cal-preview-pill">表单预览</span>
+              ) : null}
+              <Button
+                className="ghost-btn"
+                onClick={() => {
+                  setPlanTab("mass");
+                  setMode("list");
+                }}
+              >
+                普免计划
+              </Button>
+              <Button
+                className="ghost-btn"
+                onClick={() => {
+                  setPlanTab("routine");
+                  setMode("list");
+                }}
+              >
+                跟批免疫计划
+              </Button>
+              <Button type="primary" onClick={() => setCreateOpen(true)}>
+                创建疫苗计划
+              </Button>
+            </div>
           </div>
           <div className="plan-annual-cal-card-body-grow">
             <AnnualVaccinationYearView
               year={annualEffectiveYear}
               dayMap={annualEffectiveDayMap}
-              onOpenPlanReadonly={(planId) => {
+              onOpenPlanReadonly={(item) => {
+                if (item.planType === "ROUTINE") {
+                  openPlanDetail("ROUTINE", item.planId);
+                  return;
+                }
                 massCalEyePrevEditingIdRef.current = editingPlanId;
                 massConfigBackToAnnualCalRef.current = true;
                 setReadonlyMassConfig(true);
-                setEditingPlanId(planId);
+                setEditingPlanId(item.planId);
                 setPlanType("MASS");
                 setMode("config");
               }}
@@ -4871,7 +5052,7 @@ export function VaccinePlanPage({
               }
               footNote={
                 <Text type="secondary" className="plan-annual-cal-foot-text">
-                  仅汇总「普免计划」中配置的固定日历排期；跟批免疫由生产事件触发，请见计划列表。
+                  系统将根据计划内容自动计算预计免疫日期，实际下发时间以任务安排为准。
                 </Text>
               }
             />
@@ -4880,51 +5061,49 @@ export function VaccinePlanPage({
       )}
 
       {mode === "config" && planType === "MASS" && (
-        <Card className="section-card">
-          <div className="page-title">
-            {readonlyMassConfig
-              ? "查看普免计划"
-              : editingPlanId
-                ? "编辑普免计划"
-                : "配置普免计划"}
+        <div>
+          <div className="plan-readonly-page-head">
+            {readonlyMassConfig && massConfigBackToAnnualCalRef.current ? (
+              <Button
+                className="ghost-btn"
+                icon={<ArrowLeftOutlined />}
+                onClick={backFromMassConfig}
+              >
+                返回免疫日历
+              </Button>
+            ) : null}
+            <div className="page-title">
+              {readonlyMassConfig
+                ? "查看普免计划"
+                : editingPlanId
+                  ? "编辑普免计划"
+                  : "配置普免计划"}
+            </div>
           </div>
-          <MassPlanForm
-            readOnly={readonlyMassConfig}
-            onSubmit={(values) => {
-              console.log("Mass plan payload", values);
-            }}
-            onPreview={(values) => {
-              setDraft(values);
-              setMode("preview");
-            }}
-            onBack={() => {
-              if (readonlyMassConfig && massConfigBackToAnnualCalRef.current) {
-                massConfigBackToAnnualCalRef.current = false;
-                const prevId = massCalEyePrevEditingIdRef.current;
-                massCalEyePrevEditingIdRef.current = null;
-                setReadonlyMassConfig(false);
-                setEditingPlanId(prevId);
+          <Card className="section-card">
+            <MassPlanForm
+              readOnly={readonlyMassConfig}
+              onSubmit={(values) => {
+                console.log("Mass plan payload", values);
+              }}
+              onPreview={(values) => {
+                setDraft(values);
+                setMode("preview");
+              }}
+              onBack={backFromMassConfig}
+              onOpenAnnualCalendar={(payload) => {
+                setAnnualCalReturn("config");
+                setAnnualCalOverlay(payload);
                 setMode("annual-calendar");
-                return;
+              }}
+              initialData={
+                editingPlanId
+                  ? massPlans.find((p) => p.id === editingPlanId)
+                  : undefined
               }
-              massCalEyePrevEditingIdRef.current = null;
-              massConfigBackToAnnualCalRef.current = false;
-              setReadonlyMassConfig(false);
-              setMode("list");
-              setEditingPlanId(null);
-            }}
-            onOpenAnnualCalendar={(payload) => {
-              setAnnualCalReturn("config");
-              setAnnualCalOverlay(payload);
-              setMode("annual-calendar");
-            }}
-            initialData={
-              editingPlanId
-                ? massPlans.find((p) => p.id === editingPlanId)
-                : undefined
-            }
-          />
-        </Card>
+            />
+          </Card>
+        </div>
       )}
 
       {mode === "config" && planType === "ROUTINE" && (

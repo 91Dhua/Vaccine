@@ -1,10 +1,10 @@
-import { ArrowLeftOutlined, QuestionCircleOutlined } from "@ant-design/icons";
-import { Button, Card, Popconfirm, Popover, Progress, Table, Tabs, Tag, Typography } from "antd";
+import { ArrowLeftOutlined, LinkOutlined, QuestionCircleOutlined } from "@ant-design/icons";
+import { Button, Card, Popconfirm, Popover, Progress, Space, Table, Tabs, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { MobileExecutionLog, MobilePigTask } from "../mobileVaccinationUtils";
-import type { TaskRow } from "./VaccineTaskListPage";
+import { resolveVaccineTaskTypeLabel, type TaskRow } from "./VaccineTaskListPage";
 import { getPigMobileMeta } from "../pigMeta";
 import { sampleContainerLabel, samplingMethodLabel } from "../planEffectTracking";
 
@@ -31,6 +31,8 @@ type Props = {
   onEdit?: () => void;
   onDelete?: () => void;
   onSupplement?: (action: { pigIds: string[]; mode: "pending-only" | "review-full" }) => void;
+  allTasks?: TaskRow[];
+  onOpenRelatedTask?: (taskId: string) => void;
 };
 
 type DetailInfoItem = {
@@ -131,6 +133,14 @@ function DetailInfoGrid({ items }: { items: DetailInfoItem[] }) {
   );
 }
 
+function taskTypeTagColor(task: TaskRow) {
+  const taskType = resolveVaccineTaskTypeLabel(task);
+  if (taskType === "疫苗计划") return "blue";
+  if (taskType === "补充接种") return "gold";
+  if (taskType === "重新接种") return "purple";
+  return "default";
+}
+
 export function VaccineTaskDetailPage({
   task,
   pigTasks,
@@ -138,7 +148,9 @@ export function VaccineTaskDetailPage({
   onBack,
   onEdit,
   onDelete,
-  onSupplement
+  onSupplement,
+  allTasks = [],
+  onOpenRelatedTask
 }: Props) {
   const detailRows = useMemo(
     () => (pigTasks.length > 0 ? pigTasks.map((pigTask) => mapPigTaskToDetailRow(pigTask, task)) : buildSyntheticRows(task)),
@@ -177,6 +189,15 @@ export function VaccineTaskDetailPage({
   const planType = task.planType || "跟批免疫";
   const planCreatedAt = task.planCreatedAt || task.createdAt;
   const planStatus = task.planStatus || "启用中";
+  const taskType = resolveVaccineTaskTypeLabel(task);
+  const relatedSourceTask = task.supplementSourceTaskId
+    ? allTasks.find((item) => item.id === task.supplementSourceTaskId)
+    : undefined;
+  const relatedChildTasks = allTasks.filter((item) => item.supplementSourceTaskId === task.id);
+  const relatedTasks = [
+    ...(relatedSourceTask ? [{ relationLabel: "来源任务", task: relatedSourceTask }] : []),
+    ...relatedChildTasks.map((item) => ({ relationLabel: resolveVaccineTaskTypeLabel(item), task: item }))
+  ];
   const effectTracking = task.effectTracking;
   const effectTrackingResult = task.effectTrackingResult;
   const reviewEnabled = Boolean(effectTracking?.effectTrackingEnabled);
@@ -207,6 +228,7 @@ export function VaccineTaskDetailPage({
       label: "任务状态",
       value: <Tag color={task.status === "待接种" ? "default" : task.status === "接种中" ? "processing" : task.status === "已取消" ? "error" : "success"}>{task.status}</Tag>
     },
+    { label: "任务类型", value: <Tag color={taskTypeTagColor(task)}>{taskType}</Tag> },
     { label: "疫苗名称", value: task.vaccine },
     { label: "品牌名称", value: task.brand || "—" },
     { label: "接种方式", value: task.administrationRoute || "—" },
@@ -440,6 +462,30 @@ export function VaccineTaskDetailPage({
           ) : null}
         </div>
       </div>
+
+      {relatedTasks.length > 0 ? (
+        <div className="task-related-strip">
+          <div className="task-related-strip__head">
+            <div className="task-related-strip__title">关联任务</div>
+            <Text type="secondary" className="task-related-strip__desc">
+              查看本任务与补充接种、重新接种任务之间的关系
+            </Text>
+          </div>
+          <Space size={[8, 8]} wrap className="task-related-strip__links">
+            {relatedTasks.map(({ relationLabel, task: relatedTask }) => (
+              <Button
+                key={`${relationLabel}-${relatedTask.id}`}
+                className="task-related-link"
+                icon={<LinkOutlined />}
+                onClick={() => onOpenRelatedTask?.(relatedTask.id)}
+              >
+                <span className="task-related-link__relation">{relationLabel}</span>
+                <span className="task-related-link__id">{relatedTask.id}</span>
+              </Button>
+            ))}
+          </Space>
+        </div>
+      ) : null}
 
       <div className="task-detail-grid">
         <Card className="section-card">

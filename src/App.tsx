@@ -11,8 +11,10 @@ import { EmployeeLoginFlowPage } from "./components/EmployeeLoginFlowPage";
 import { EmployeeManagementPage } from "./components/EmployeeManagementPage";
 import { NewLoginFlowPage } from "./components/NewLoginFlowPage";
 import { NewEntryApplicationFlowPage } from "./components/NewEntryApplicationFlowPage";
+import OnboardingFlow from "./components/onboarding/OnboardingFlow";
 import {
   ReviewSamplingManagementPage,
+  buildReviewSamplingTaskFromVaccinationTask,
   buildSeedReviewSamplingTasks,
   type ReviewSamplingSampleRow,
   type ReviewSamplingTaskRow
@@ -93,6 +95,77 @@ const SEED_TASKS: TaskRow[] = [
     targetPigGroupLabel: "繁育母猪 · A/B 区",
     exemptionHitCount: 1,
     effectTracking: SEED_REVIEW_CONFIG
+  },
+  {
+    id: "VT-SUP-1R4N",
+    vaccine: "伪狂犬疫苗",
+    brand: "百利",
+    dosageForm: "活疫苗（冻干苗）",
+    administrationRoute: "肌内注射",
+    dosage: "1.5 毫升",
+    schedule: "2026-02-22",
+    doseTimes: 1,
+    targetCount: 3,
+    status: "待接种",
+    createType: "手动",
+    creator: "当前用户",
+    createdAt: "2026-02-21 09:10",
+    pigIds: ["pig-1006", "pig-1009", "pig-1012"],
+    dosageUnit: "毫升",
+    targetPigGroupLabel: "补充接种猪只（3 头）",
+    exemptionHitCount: 0,
+    planName: "冬季伪狂犬加强计划",
+    planType: "普免计划",
+    planCreatedAt: "2026-01-10 08:30",
+    planStatus: "启用中",
+    effectTracking: SEED_REVIEW_CONFIG,
+    supplementSourceTaskId: "VT-DEMO-1R4N",
+    supplementMode: "pending-only"
+  },
+  {
+    id: "VT-REV-6H5C",
+    vaccine: "圆环病毒疫苗",
+    brand: "硕腾",
+    dosageForm: "灭活疫苗",
+    administrationRoute: "肌内注射",
+    dosage: "2 毫升",
+    schedule: "2026-02-24",
+    doseTimes: 1,
+    targetCount: 10,
+    status: "待接种",
+    createType: "手动",
+    creator: "当前用户",
+    createdAt: "2026-02-21 10:30",
+    pigIds: [
+      "pig-1000",
+      "pig-1001",
+      "pig-1002",
+      "pig-1003",
+      "pig-1004",
+      "pig-1005",
+      "pig-1006",
+      "pig-1007",
+      "pig-1008",
+      "pig-1009"
+    ],
+    dosageUnit: "毫升",
+    targetPigGroupLabel: "重新接种猪只（10 头）",
+    exemptionHitCount: 1,
+    planName: "圆环免疫抽检计划",
+    planType: "普免计划",
+    planCreatedAt: "2026-01-18 14:00",
+    planStatus: "启用中",
+    effectTracking: {
+      effectTrackingEnabled: true,
+      targetAntibody: "圆环病毒抗体",
+      samplingMethod: "EAR_VEIN",
+      sampleContainer: "BLOOD_TUBE",
+      samplingIntervalDays: 21,
+      samplingRatioPercent: 10,
+      qualificationThresholdPercent: 85
+    },
+    supplementSourceTaskId: "VT-DEMO-6H5C",
+    supplementMode: "review-full"
   },
   {
     id: "VT-DEMO-9P3Q",
@@ -385,11 +458,71 @@ export default function App() {
   const [reviewSamplingTasks, setReviewSamplingTasks] = useState<ReviewSamplingTaskRow[]>(() =>
     buildSeedReviewSamplingTasks(SEED_TASKS)
   );
+  const [closedMobileTaskIds, setClosedMobileTaskIds] = useState<string[]>([]);
   const [mobilePigTasks, setMobilePigTasks] = useState<MobilePigTask[]>(() =>
     seedMobileTasksFromConsole(SEED_TASKS)
   );
   const [mobileLogs, setMobileLogs] = useState<MobileExecutionLog[]>([]);
   const activeKey = workspaceMode === "console" ? consoleActiveKey : "mobile-vacc";
+
+  useEffect(() => {
+    setTasks((prev) => {
+      let changed = false;
+      const next = prev.map((task) => {
+        if (task.status === "已取消") return task;
+        const taskPigLines = mobilePigTasks.filter((line) => line.taskId === task.id);
+        if (taskPigLines.length === 0) return task;
+
+        const completedLines = taskPigLines.filter((line) => line.status === "completed");
+        const terminalLines = taskPigLines.filter((line) =>
+          ["completed", "skipped", "suspended"].includes(line.status)
+        );
+        const closed = closedMobileTaskIds.includes(task.id);
+        const nextStatus: TaskRow["status"] =
+          closed || terminalLines.length === taskPigLines.length
+            ? "已完成"
+            : completedLines.length > 0 || terminalLines.length > 0
+              ? "接种中"
+              : "待接种";
+        const latestCompletedLine = [...completedLines]
+          .filter((line) => line.actualAt)
+          .sort((a, b) => String(b.actualAt).localeCompare(String(a.actualAt)))[0];
+        const nextExecutor =
+          latestCompletedLine?.executor || (nextStatus === "已完成" ? "现场用户" : task.executor);
+        const nextExecutedAt =
+          latestCompletedLine?.actualAt || (nextStatus === "已完成" ? task.executedAt : task.executedAt);
+        const patch: Partial<TaskRow> = {
+          status: nextStatus,
+          actualVaccinatedCount: completedLines.length,
+          executor: nextExecutor,
+          executedAt: nextExecutedAt
+        };
+        const shouldUpdate =
+          task.status !== patch.status ||
+          task.actualVaccinatedCount !== patch.actualVaccinatedCount ||
+          task.executor !== patch.executor ||
+          task.executedAt !== patch.executedAt;
+        if (!shouldUpdate) return task;
+        changed = true;
+        return { ...task, ...patch };
+      });
+      return changed ? next : prev;
+    });
+  }, [closedMobileTaskIds, mobilePigTasks]);
+
+  useEffect(() => {
+    const missingReviewTasks = tasks.filter(
+      (task) =>
+        task.status === "已完成" &&
+        task.effectTracking?.effectTrackingEnabled &&
+        !reviewSamplingTasks.some((reviewTask) => reviewTask.vaccinationTaskId === task.id)
+    );
+    if (missingReviewTasks.length === 0) return;
+    setReviewSamplingTasks((prev) => [
+      ...missingReviewTasks.map((task) => buildReviewSamplingTaskFromVaccinationTask(task, "待采样")),
+      ...prev
+    ]);
+  }, [reviewSamplingTasks, tasks]);
 
   useEffect(() => {
     const syncRoute = () => {
@@ -485,6 +618,7 @@ export default function App() {
       key: "settings",
       label: "设置",
       children: [
+        { key: "initialization", label: "初始化" },
         { key: "new-login-flow", label: "新登陆流程" },
         { key: "vaccine-settings", label: "疫苗管理" }
       ]
@@ -554,6 +688,11 @@ export default function App() {
                 setPigTasks={setMobilePigTasks}
                 logs={mobileLogs}
                 setLogs={setMobileLogs}
+                onTaskClosed={({ taskId }) =>
+                  setClosedMobileTaskIds((prev) =>
+                    prev.includes(taskId) ? prev : [...prev, taskId]
+                  )
+                }
               />
             </MobileSimulationShell>
           ) : activeKey === "review-sampling" ? (
@@ -595,7 +734,7 @@ export default function App() {
                       : task
                   )
                 );
-                if (linkedReviewTask.vaccinationTaskId) {
+                if (linkedReviewTask.vaccinationTaskId && uploadedCount >= sampledCount) {
                   setTasks((prev) =>
                     prev.map((task) =>
                       task.id === linkedReviewTask.vaccinationTaskId
@@ -652,6 +791,8 @@ export default function App() {
             />
           ) : activeKey === "new-register-flow" ? (
             <EmployeeLoginFlowPage />
+          ) : activeKey === "initialization" ? (
+            <OnboardingFlow onComplete={() => setConsoleActiveKey("plan")} />
           ) : activeKey === "new-login-flow" ? (
             <NewLoginFlowPage onOpenEntryApplication={() => setConsoleActiveKey("new-entry-application-flow")} />
           ) : activeKey === "new-entry-application-flow" ? (
@@ -696,6 +837,11 @@ export default function App() {
                   pigTasks={mobilePigTasks.filter((task) => task.taskId === activeTask.id)}
                   logs={mobileLogs.filter((log) => log.pigTaskId.startsWith(`${activeTask.id}__`))}
                   onBack={() => setTaskStep("tasks")}
+                  allTasks={tasksWithSupplementState}
+                  onOpenRelatedTask={(taskId) => {
+                    setActiveTaskId(taskId);
+                    setTaskStep("detail");
+                  }}
                   onEdit={
                     activeTask.status === "待接种"
                       ? () => {

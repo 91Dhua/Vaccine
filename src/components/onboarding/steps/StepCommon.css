@@ -1,0 +1,799 @@
+/**
+ * 步骤页面的通用样式
+ */
+
+.step-content {
+  width: 100%;
+}
+
+.step-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.form-section {
+  padding: 1.5rem;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.form-section h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: #1a1a1a;
+}
+
+.form-hint {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0 0 1rem 0;
+}
+
+.input-group {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.input-group input,
+.input-group select {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.input-group input:disabled,
+.input-group select:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+/* 信息提示框 */
+.step-info-box {
+  background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.step-info-box h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1a1a1a;
+}
+
+.step-info-box p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* 提示信息 */
+.step-alert {
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+
+.step-alert-info {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
+.step-alert-success {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.step-alert p {
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+}
+
+.alert-hint {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-top: 0.5rem !important;
+}
+
+/* 列表样式 */
+.list-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.list-item:hover {
+  border-color: #646cff;
+  box-shadow: 0 2px 8px rgba(100, 108, 255, 0.1);
+}
+
+.list-item-content {
+  flex: 1;
+}
+
+.list-item-title {
+  font-weight: 500;
+  color: #1a1a1a;
+  margin-bottom: 0.25rem;
+}
+
+.list-item-meta {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.list-item-more {
+  padding: 1rem;
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+/* Unit 分组 */
+.unit-group {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.unit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.unit-path {
+  font-weight: 500;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+}
+
+.unit-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.unit-tag {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+/* 厂区配置预览 - 树形结构 */
+.zone-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.5rem;
+}
+
+.zone-preview-item {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: all 0.2s;
+}
+
+.zone-preview-item:hover {
+  border-color: #646cff;
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.15);
+}
+
+.zone-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.zone-preview-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: white;
+}
+
+.zone-icon {
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+}
+
+.section-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  width: 28px;
+  height: 28px;
+}
+
+.unit-icon {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  width: 24px;
+  height: 24px;
+}
+
+.zone-preview-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.zone-preview-label,
+.section-preview-label,
+.unit-preview-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.25rem 0.5rem;
+  background-color: transparent;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.zone-preview-name,
+.section-preview-name,
+.unit-preview-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 1rem;
+}
+
+.zone-preview-count,
+.section-preview-count {
+  font-size: 0.85rem;
+  color: #64748b;
+  background-color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+}
+
+.zone-preview-children {
+  margin-left: 2.5rem;
+  padding-left: 1.5rem;
+  border-left: 2px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.section-preview-item {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.2s;
+}
+
+.section-preview-item:hover {
+  border-color: #10b981;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+}
+
+.section-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.section-preview-title,
+.unit-preview-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-preview-children {
+  margin-left: 2rem;
+  padding-left: 1rem;
+  border-left: 2px dashed #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.unit-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.unit-preview-item:hover {
+  background-color: #fde68a;
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.unit-preview-name {
+  font-weight: 500;
+  color: #92400e;
+}
+
+/* 方法选择器 */
+.method-selector {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.method-btn {
+  flex: 1;
+  padding: 1rem;
+  background-color: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.method-btn:hover {
+  border-color: #646cff;
+  color: #646cff;
+}
+
+.method-btn.active {
+  background-color: #646cff;
+  border-color: #646cff;
+  color: white;
+}
+
+/* 批量导入步骤 */
+.batch-import-container {
+  width: 100%;
+}
+
+.batch-import-box {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.import-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+@media (max-width: 968px) {
+  .import-steps {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.import-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.import-step:hover {
+  border-color: #646cff;
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.1);
+}
+
+.import-step-number {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.import-step-content {
+  flex: 1;
+  width: 100%;
+}
+
+.import-step-title {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.import-step-desc {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* 完成页面 */
+.step-complete {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.complete-container {
+  max-width: 600px;
+  text-align: center;
+  background: white;
+  border-radius: 16px;
+  padding: 4rem 3rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.complete-icon {
+  margin-bottom: 1.5rem;
+}
+
+.complete-container h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: #1a1a1a;
+}
+
+.complete-description {
+  font-size: 1.1rem;
+  color: #666;
+  margin: 0 0 2.5rem 0;
+}
+
+.complete-actions {
+  margin-bottom: 3rem;
+}
+
+.complete-suggestions {
+  text-align: left;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.complete-suggestions h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: #1a1a1a;
+}
+
+.complete-suggestions ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.complete-suggestions li {
+  padding: 0.5rem 0;
+  color: #666;
+  font-size: 0.95rem;
+  position: relative;
+}
+
+.complete-suggestions li::before {
+  content: '•';
+  position: absolute;
+  left: -1.5rem;
+  color: #646cff;
+  font-weight: bold;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .form-section {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .form-section h3 {
+    color: white;
+  }
+
+  .form-hint {
+    color: #aaa;
+  }
+
+  .input-group input,
+  .input-group select {
+    background-color: #242424;
+    border-color: #333;
+    color: white;
+  }
+
+  .input-group input:focus,
+  .input-group select:focus {
+    border-color: #646cff;
+  }
+
+  .input-group input:disabled,
+  .input-group select:disabled {
+    background-color: #1a1a1a;
+  }
+
+  .step-info-box {
+    background: linear-gradient(135deg, #2d1b4e 0%, #1e293b 100%);
+    border-color: #4c1d95;
+  }
+
+  .step-info-box h4 {
+    color: white;
+  }
+
+  .step-info-box p {
+    color: #cbd5e1;
+  }
+
+  .step-alert-info {
+    background-color: #1e3a8a;
+    border-color: #3b82f6;
+    color: #dbeafe;
+  }
+
+  .step-alert-success {
+    background-color: #065f46;
+    border-color: #10b981;
+    color: #d1fae5;
+  }
+
+  .list-item {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .list-item-title {
+    color: white;
+  }
+
+  .list-item-meta {
+    color: #aaa;
+  }
+
+  .unit-group {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .unit-path {
+    color: white;
+  }
+
+  .unit-tag {
+    background-color: #242424;
+    border-color: #333;
+    color: #aaa;
+  }
+
+  /* 深色模式下的预览样式 */
+  .zone-preview-item {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-color: #334155;
+  }
+
+  .zone-preview-item:hover {
+    border-color: #646cff;
+  }
+
+  .zone-preview-label,
+  .section-preview-label,
+  .unit-preview-label {
+    background-color: transparent;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  .zone-preview-name,
+  .section-preview-name {
+    color: white;
+  }
+
+  .zone-preview-count,
+  .section-preview-count {
+    background-color: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  .zone-preview-children {
+    border-color: #334155;
+  }
+
+  .section-preview-item {
+    background-color: #1e293b;
+    border-color: #334155;
+  }
+
+  .section-preview-item:hover {
+    border-color: #10b981;
+  }
+
+  .section-preview-children {
+    border-color: #334155;
+  }
+
+  .unit-preview-item {
+    background-color: #78350f;
+    border-color: #92400e;
+  }
+
+  .unit-preview-item:hover {
+    background-color: #92400e;
+    border-color: #b45309;
+  }
+
+  .unit-preview-name {
+    color: #fde68a;
+  }
+
+  .method-btn {
+    background-color: #1a1a1a;
+    border-color: #333;
+    color: #aaa;
+  }
+
+  .method-btn.active {
+    background-color: #646cff;
+    color: white;
+  }
+
+  .batch-import-box {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .import-step {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .import-step:hover {
+    border-color: #646cff;
+  }
+
+  .import-step-title {
+    color: white;
+  }
+
+  .import-step-desc {
+    color: #aaa;
+  }
+
+  .step-complete {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+
+  .complete-container {
+    background: #242424;
+  }
+
+  .complete-container h1 {
+    color: white;
+  }
+
+  .complete-description {
+    color: #aaa;
+  }
+
+  .complete-suggestions {
+    border-top: 1px solid #333;
+  }
+
+  .complete-suggestions h3 {
+    color: white;
+  }
+
+  .complete-suggestions li {
+    color: #aaa;
+  }
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+  .input-group {
+    flex-direction: column;
+  }
+
+  .input-group input,
+  .input-group select {
+    width: 100%;
+  }
+
+  .method-selector {
+    flex-direction: column;
+  }
+
+  .complete-container {
+    padding: 3rem 2rem;
+  }
+
+  /* 预览区域响应式 */
+  .zone-preview-children {
+    margin-left: 1rem;
+    padding-left: 0.75rem;
+  }
+
+  .section-preview-children {
+    margin-left: 1rem;
+    padding-left: 0.5rem;
+  }
+
+  .zone-preview-header,
+  .section-preview-header {
+    flex-wrap: wrap;
+  }
+
+  .zone-preview-count,
+  .section-preview-count {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+}

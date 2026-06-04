@@ -1,0 +1,1686 @@
+/**
+ * 厂区配置步骤的专用样式
+ */
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-content-large {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  color: #666;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #f3f4f6;
+  color: #1a1a1a;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* 表单字段样式 */
+.form-field {
+  margin-bottom: 1.25rem;
+}
+
+.form-field label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 0.25rem;
+}
+
+.modal-hint {
+  font-size: 0.9rem;
+  color: #075985;
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background-color: #f0f9ff;
+  border-left: 3px solid #0ea5e9;
+  border-radius: 4px;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+/* 单元名称输入框包装器 */
+.unit-name-input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: white;
+}
+
+.unit-name-prefix {
+  padding: 0.75rem;
+  background-color: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.9rem;
+  border-right: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  user-select: none;
+  pointer-events: none;
+}
+
+.unit-name-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  outline: none;
+  font-size: 0.9rem;
+  background-color: white;
+  color: #1a1a1a;
+}
+
+.unit-name-input-wrapper:focus-within {
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.unit-name-input::placeholder {
+  color: #9ca3af;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* 监控编码级联选择器 */
+.monitor-code-field {
+  position: relative;
+}
+
+.cascader-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  background: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cascader-input.open,
+.cascader-input:focus {
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+  outline: none;
+}
+
+.cascader-placeholder {
+  color: #9ca3af;
+}
+
+.cascader-value {
+  color: #111827;
+}
+
+.cascader-arrow {
+  color: #6b7280;
+  margin-left: 0.75rem;
+}
+
+.cascader-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  max-width: 520px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.12);
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  overflow: hidden;
+  z-index: 20;
+}
+
+.cascader-menu {
+  background: #f9fafb;
+  border-right: 1px solid #e5e7eb;
+  padding: 0.5rem;
+}
+
+.cascader-menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.cascader-menu-item:hover {
+  background: #eef2ff;
+}
+
+.cascader-menu-item.active {
+  background: #e0e7ff;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.cascader-list {
+  max-height: 220px;
+  overflow: auto;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.cascader-list-item {
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.cascader-list-item:hover {
+  background: #f3f4f6;
+}
+
+/* 单元表单部分 */
+.unit-form-section {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.unit-form-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.unit-form-section h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1.25rem 0;
+  color: #1a1a1a;
+}
+
+/* 栏位相关样式 */
+.pen-group {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+/* 按列分组的栏位样式 */
+.pen-column-group {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.pen-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.pen-column-label {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.pen-column-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: visible; /* 确保删除按钮不被裁剪 */
+}
+
+.pen-row-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+  width: 100%;
+  min-width: 0; /* 允许flex子元素缩小 */
+}
+
+.pen-row-item.pen-row-data {
+  /* 确保数据行有足够的空间显示删除按钮 */
+  padding-right: 0;
+}
+
+/* 数据行的删除按钮 - 必须显示 */
+.pen-row-data .pen-row-delete-btn,
+.pen-row-data > .btn-icon-small:last-child {
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  min-width: 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-left: auto !important; /* 强制靠右对齐 */
+  order: 999 !important; /* 确保在最后 */
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* 确保数据行容器不会隐藏删除按钮 */
+.pen-row-data {
+  overflow: visible !important;
+  min-width: 0;
+}
+
+.pen-row-item input {
+  flex: 0 1 auto;
+  min-width: 80px;
+  max-width: 100px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.pen-row-item input:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+/* 栏位类型设置表格 */
+.pen-type-table {
+  margin-top: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* 确保配置栏位类型页面的布局不重叠 */
+.step-form > .form-section {
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
+  clear: both;
+}
+
+/* 确保步骤指示器在配置栏位类型页面中正常显示 */
+.step-form > .config-step-indicator {
+  position: relative;
+  z-index: 1;
+  clear: both;
+  margin-bottom: 2rem !important;
+}
+
+.pen-type-row {
+  display: grid;
+  grid-template-columns: 60px repeat(4, minmax(0, 1fr)) 48px;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.pen-type-row:last-child {
+  border-bottom: none;
+}
+
+.pen-type-index span {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.pen-type-field label {
+  display: block;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.pen-type-field input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+}
+
+.pen-type-field input:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.pen-type-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pen-type-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.pen-type-empty {
+  padding: 1rem 0;
+  font-size: 0.9rem;
+  color: #9ca3af;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.form-error {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #dc2626;
+}
+
+.pen-group-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.pen-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.pen-label {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.pen-item input,
+.pen-item select {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.pen-type-select-wrapper {
+  flex: 1 1 auto;
+  min-width: 0; /* 允许flex子元素缩小 */
+  position: relative;
+  max-width: 300px; /* 限制最大宽度，避免挤压删除按钮 */
+}
+
+.pen-type-empty-state {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pen-type-empty-state .empty-state-text {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.pen-type-empty-state .empty-state-hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.pen-type-empty-state .btn {
+  width: 100%;
+}
+
+.pen-item input:focus,
+.pen-item select:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.pen-form {
+  margin-bottom: 1.5rem;
+}
+
+.btn-icon-small {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  background-color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.btn-icon-small:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.btn-icon-small.btn-add {
+  background-color: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.btn-icon-small.btn-add:hover {
+  background-color: #059669;
+}
+
+.btn-icon-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pen-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.pen-group-item {
+  padding: 0.75rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.pen-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.pen-group-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.pen-type-badge {
+  padding: 0.25rem 0.5rem;
+  background-color: #dbeafe;
+  color: #1e40af;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.zone-preview-code {
+  font-size: 0.85rem;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
+.unit-preview-pens {
+  font-size: 0.85rem;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
+/* 层级结构说明区域 */
+.hierarchy-intro {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.hierarchy-intro-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.hierarchy-intro-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0c4a6e;
+  margin: 0 0 0.5rem 0;
+}
+
+.hierarchy-intro-subtitle {
+  font-size: 1rem;
+  color: #075985;
+  margin: 0;
+}
+
+.hierarchy-structure {
+  margin-bottom: 2rem;
+}
+
+.hierarchy-level {
+  background: white;
+  border: 2px solid #bae6fd;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: all 0.3s;
+}
+
+.hierarchy-level:hover {
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+  border-color: #7dd3fc;
+}
+
+.hierarchy-level-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.hierarchy-level-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zone-level-icon {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.section-level-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.unit-level-icon {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.pen-level-icon {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+}
+
+.hierarchy-level-info {
+  flex: 1;
+}
+
+.hierarchy-level-info h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin: 0 0 0.5rem 0;
+}
+
+.hierarchy-level-desc {
+  font-size: 0.95rem;
+  color: #075985;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.hierarchy-level-example {
+  padding: 0.75rem 1rem;
+  background-color: #f0f9ff;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #075985;
+}
+
+.example-label {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.example-text {
+  color: #0369a1;
+}
+
+.hierarchy-arrow {
+  text-align: center;
+  font-size: 1.5rem;
+  color: #0ea5e9;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+
+.hierarchy-why {
+  background: #eff6ff; /* 浅蓝信息提示背景 */
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1.25rem 0 1.5rem 0;
+  max-width: 100%;
+  border-left: 3px solid #0ea5e9; /* 仅左侧高亮，减少厚重感 */
+}
+
+.hierarchy-why h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin: 0 0 0.5rem 0;
+  text-align: left;
+}
+
+.hierarchy-why-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hierarchy-why-list li {
+  padding: 0.25rem 0;
+  font-size: 0.85rem;
+  color: #075985;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.hierarchy-why-list li:last-child {
+  border-bottom: none;
+}
+
+.hierarchy-why-list li strong {
+  color: #0c4a6e;
+  font-weight: 600;
+  display: inline;
+  margin-right: 0.25rem;
+}
+
+.hierarchy-guide {
+  background: white;
+  border: 2px solid #bae6fd;
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.hierarchy-guide h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin: 0 0 1.5rem 0;
+}
+
+.hierarchy-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.hierarchy-step-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.step-number {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.step-content-text {
+  flex: 1;
+}
+
+.step-content-text strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0c4a6e;
+  margin-bottom: 0.25rem;
+}
+
+.step-content-text p {
+  font-size: 0.9rem;
+  color: #075985;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* 步骤指示器 */
+.config-step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.step-indicator-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.step-indicator-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: #e5e7eb;
+  color: #6b7280;
+  transition: all 0.3s;
+}
+
+.step-indicator-item.active .step-indicator-number {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  color: white;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+}
+
+.step-indicator-item.completed .step-indicator-number {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.step-indicator-item.upcoming .step-indicator-number {
+  background: #e5e7eb;
+  color: #9ca3af;
+}
+
+.step-indicator-label {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.step-indicator-item.active .step-indicator-label {
+  color: #0c4a6e;
+  font-weight: 600;
+}
+
+.step-indicator-item.completed .step-indicator-label {
+  color: #059669;
+}
+
+.step-indicator-item.upcoming .step-indicator-label {
+  color: #9ca3af;
+}
+
+.step-indicator-connector {
+  width: 60px;
+  height: 2px;
+  background: #e5e7eb;
+  margin: 0 0.5rem;
+  transition: all 0.3s;
+}
+
+.step-indicator-connector.completed {
+  background: linear-gradient(90deg, #10b981 0%, #10b981 100%);
+}
+
+/* 步骤操作按钮区域 */
+.step-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.step-actions-left {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.step-actions-right {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.hierarchy-start {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #bae6fd;
+}
+
+.preview-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 2rem;
+  font-size: 0.95rem;
+}
+
+/* 帮助提示区域 */
+.help-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.help-text {
+  font-size: 0.9rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+  text-align: center;
+}
+
+.help-link {
+  color: #646cff;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.help-link:hover {
+  color: #535bf2;
+  text-decoration: underline;
+}
+
+.help-link:visited {
+  color: #646cff;
+}
+
+.help-email {
+  color: #646cff;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.help-email:hover {
+  color: #535bf2;
+  text-decoration: underline;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background: #242424;
+  }
+
+  .modal-header {
+    border-bottom-color: #333;
+  }
+
+  .modal-header h3 {
+    color: white;
+  }
+
+  .modal-close {
+    color: #aaa;
+  }
+
+  .modal-close:hover {
+    background-color: #333;
+    color: white;
+  }
+
+  .modal-body {
+    color: white;
+  }
+
+  .form-field label {
+    color: #cbd5e1;
+  }
+
+  .modal-hint {
+    color: #bae6fd;
+    background-color: #0f172a;
+    border-left-color: #7dd3fc;
+  }
+
+  .form-field input,
+  .form-field select {
+    background-color: #1a1a1a;
+    border-color: #333;
+    color: white;
+  }
+
+  .cascader-input {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .cascader-value {
+    color: white;
+  }
+
+  .cascader-arrow {
+    color: #9ca3af;
+  }
+
+  .cascader-dropdown {
+    background: #242424;
+    border-color: #333;
+  }
+
+  .cascader-menu {
+    background: #1a1a1a;
+    border-right-color: #333;
+  }
+
+  .cascader-menu-item {
+    color: #e5e7eb;
+  }
+
+  .cascader-menu-item:hover {
+    background: #111827;
+  }
+
+  .cascader-menu-item.active {
+    background: #1e3a8a;
+    color: #dbeafe;
+  }
+
+  .cascader-list-item {
+    color: #e5e7eb;
+  }
+
+  .cascader-list-item:hover {
+    background: #111827;
+  }
+
+  .form-field input:focus,
+  .form-field select:focus {
+    border-color: #646cff;
+  }
+
+  .unit-name-input-wrapper {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .unit-name-prefix {
+    background-color: #242424;
+    color: #9ca3af;
+    border-right-color: #333;
+  }
+
+  .unit-name-input {
+    background-color: #1a1a1a;
+    color: white;
+  }
+
+  .unit-name-input::placeholder {
+    color: #6b7280;
+  }
+
+  .unit-form-section {
+    border-bottom-color: #333;
+  }
+
+  .unit-form-section h4 {
+    color: white;
+  }
+
+  .pen-group {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .pen-column-group {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .pen-row-item input {
+    background-color: #242424;
+    border-color: #333;
+    color: white;
+  }
+
+  .pen-group-label {
+    color: #aaa;
+  }
+
+  .pen-item input,
+  .pen-item select {
+    background-color: #242424;
+    border-color: #333;
+    color: white;
+  }
+
+  .btn-icon-small {
+    background-color: #242424;
+    border-color: #333;
+    color: #aaa;
+  }
+
+  .btn-icon-small:hover {
+    background-color: #7f1d1d;
+    border-color: #991b1b;
+  }
+
+  .btn-icon-small.btn-add {
+    background-color: #10b981;
+    border-color: #10b981;
+  }
+
+  .pen-group-item {
+    background-color: #1a1a1a;
+    border-color: #333;
+  }
+
+  .pen-group-content {
+    color: #aaa;
+  }
+
+  .pen-type-badge {
+    background-color: #1e3a8a;
+    color: #dbeafe;
+  }
+
+  .modal-footer {
+    border-top-color: #333;
+  }
+
+  .zone-preview-code,
+  .unit-preview-pens {
+    color: #aaa;
+  }
+
+  .help-section {
+    border-top-color: #333;
+  }
+
+  .help-text {
+    color: #aaa;
+  }
+
+  .help-link,
+  .help-email {
+    color: #646cff;
+  }
+
+  .help-link:hover,
+  .help-email:hover {
+    color: #818cf8;
+  }
+
+  .config-step-indicator {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .step-indicator-number {
+    background: #334155;
+    color: #9ca3af;
+  }
+
+  .step-indicator-item.upcoming .step-indicator-number {
+    background: #1e293b;
+    color: #475569;
+  }
+
+  .step-indicator-label {
+    color: #9ca3af;
+  }
+
+  .step-indicator-item.active .step-indicator-label {
+    color: #e0f2fe;
+  }
+
+  .step-indicator-item.completed .step-indicator-label {
+    color: #6ee7b7;
+  }
+
+  .step-indicator-item.upcoming .step-indicator-label {
+    color: #64748b;
+  }
+
+  .step-indicator-connector {
+    background: #334155;
+  }
+
+  .step-actions {
+    border-top-color: #334155;
+  }
+
+  .hierarchy-start {
+    border-top-color: #334155;
+  }
+
+  .preview-empty {
+    color: #64748b;
+  }
+
+  .hierarchy-intro {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-color: #334155;
+  }
+
+  .hierarchy-intro-header h2 {
+    color: #e0f2fe;
+  }
+
+  .hierarchy-intro-subtitle {
+    color: #bae6fd;
+  }
+
+  .hierarchy-level {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .hierarchy-level:hover {
+    border-color: #475569;
+  }
+
+  .hierarchy-level-info h3 {
+    color: #e0f2fe;
+  }
+
+  .hierarchy-level-desc {
+    color: #bae6fd;
+  }
+
+  .hierarchy-level-example {
+    background-color: #0f172a;
+    color: #bae6fd;
+  }
+
+  .example-text {
+    color: #7dd3fc;
+  }
+
+  .hierarchy-arrow {
+    color: #7dd3fc;
+  }
+
+  .hierarchy-why {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .hierarchy-why h3 {
+    color: #e0f2fe;
+  }
+
+  .hierarchy-why-list li {
+    border-bottom-color: #334155;
+    color: #bae6fd;
+  }
+
+  .hierarchy-why-list li strong {
+    color: #e0f2fe;
+  }
+
+  .hierarchy-guide {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .hierarchy-guide h3 {
+    color: #e0f2fe;
+  }
+
+  .step-content-text strong {
+    color: #e0f2fe;
+  }
+
+  .step-content-text p {
+    color: #bae6fd;
+  }
+}
+
+/* 上传区块预览图相关样式 */
+.form-field-label-with-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-icon-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: #646cff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.info-icon-btn:hover {
+  background-color: rgba(100, 108, 255, 0.1);
+  color: #535bf2;
+}
+
+.preview-image-upload {
+  margin-top: 0.5rem;
+}
+
+.preview-image-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 180px;
+}
+
+.preview-image-upload-area:hover {
+  border-color: #646cff;
+  background-color: #f0f9ff;
+}
+
+.preview-image-upload-icon {
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.preview-image-upload-area:hover .preview-image-upload-icon {
+  color: #646cff;
+}
+
+.preview-image-upload-text {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.preview-image-upload-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.preview-image-container {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-image-preview {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 300px;
+  object-fit: contain;
+  background-color: #f9fafb;
+}
+
+.preview-image-remove {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.preview-image-remove:hover {
+  background-color: rgba(239, 68, 68, 0.9);
+}
+
+/* 区块预览图说明弹窗样式 */
+.preview-image-info-content {
+  padding: 0.5rem 0;
+}
+
+.preview-image-info-text {
+  margin-bottom: 1.5rem;
+}
+
+.preview-image-info-example {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-image-info-example-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 6px;
+  border: 1px dashed #d1d5db;
+}
+
+.preview-image-info-tips {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  /* 强制“提示”区域内容左对齐（避免继承到父容器的居中对齐） */
+  text-align: left;
+  width: 100%;
+}
+
+.preview-image-info-tips p {
+  text-align: left;
+}
+
+.preview-image-info-tips ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.preview-image-info-tips li {
+  margin-bottom: 0.5rem;
+}
+
+/* 深色模式适配 - 上传区块预览图 */
+@media (prefers-color-scheme: dark) {
+  .info-icon-btn {
+    color: #818cf8;
+  }
+
+  .info-icon-btn:hover {
+    background-color: rgba(129, 140, 248, 0.2);
+    color: #a5b4fc;
+  }
+
+  .preview-image-upload-area {
+    border-color: #475569;
+    background-color: #1e293b;
+  }
+
+  .preview-image-upload-area:hover {
+    border-color: #646cff;
+    background-color: #1e3a8a;
+  }
+
+  .preview-image-upload-icon {
+    color: #64748b;
+  }
+
+  .preview-image-upload-area:hover .preview-image-upload-icon {
+    color: #818cf8;
+  }
+
+  .preview-image-upload-text {
+    color: #e2e8f0;
+  }
+
+  .preview-image-upload-hint {
+    color: #94a3b8;
+  }
+
+  .preview-image-container {
+    border-color: #475569;
+  }
+
+  .preview-image-preview {
+    background-color: #1e293b;
+  }
+
+  .preview-image-info-example {
+    background-color: #1e293b;
+    border-color: #475569;
+  }
+
+  .preview-image-info-example-placeholder {
+    background-color: #0f172a;
+    border-color: #334155;
+  }
+
+  .preview-image-info-tips {
+    border-top-color: #475569;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 1rem;
+  }
+
+  .modal-content {
+    max-width: 100%;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cascader-dropdown {
+    max-width: 100%;
+  }
+
+  .cascader-list {
+    grid-template-columns: 1fr;
+  }
+
+  .pen-item {
+    flex-wrap: wrap;
+  }
+
+  .pen-item input,
+  .pen-item select {
+    min-width: 100px;
+  }
+
+  .hierarchy-intro {
+    padding: 1.5rem;
+  }
+
+  .hierarchy-intro-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .hierarchy-level {
+    padding: 1rem;
+  }
+
+  .hierarchy-level-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .hierarchy-level-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .hierarchy-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .hierarchy-step-item {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}

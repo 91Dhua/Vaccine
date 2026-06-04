@@ -1,0 +1,334 @@
+/**
+ * 结构映射引导组件样式
+ */
+
+.structure-mapping-guide {
+  width: 100%;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #bae6fd;
+  border-radius: 12px;
+  padding: 2rem;
+  color: #0c4a6e;
+}
+
+.mapping-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.mapping-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0c4a6e;
+  margin: 0;
+}
+
+.mapping-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.mapping-left,
+.mapping-right {
+  display: flex;
+  flex-direction: column;
+}
+
+.mapping-left-header,
+.mapping-right-header {
+  margin-bottom: 1rem;
+}
+
+.mapping-section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #075985;
+  margin: 0;
+}
+
+.mapping-svg-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #bae6fd;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+}
+
+.mapping-svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.svg-label {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.svg-unit-label {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* 系统配置树形结构样式 */
+.mapping-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tree-zone-item {
+  background: white;
+  border: 2px solid #bae6fd;
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: all 0.2s;
+}
+
+.tree-zone-item:hover {
+  border-color: #7dd3fc;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+}
+
+/* 颜色匹配：红色高亮（隔离区） */
+.tree-zone-red {
+  border-left: 4px solid #ef4444;
+}
+
+/* 颜色匹配：绿色高亮（生产区） */
+.tree-zone-green {
+  border-left: 4px solid #10b981;
+}
+
+.tree-zone-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.tree-zone-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: white;
+}
+
+.tree-icon-purple {
+  background: linear-gradient(135deg, #646cff 0%, #535bf2 100%);
+}
+
+.tree-zone-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tree-zone-label,
+.tree-section-label,
+.tree-unit-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.25rem 0.5rem;
+  background-color: transparent;
+  border-radius: 4px;
+  border: 1px solid #475569;
+}
+
+.tree-zone-name,
+.tree-section-name,
+.tree-unit-name {
+  font-weight: 600;
+  color: #0c4a6e;
+  font-size: 1rem;
+}
+
+.tree-zone-badge,
+.tree-section-badge {
+  font-size: 0.85rem;
+  color: #075985;
+  background-color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+  font-weight: 500;
+}
+
+/* Section 子项 */
+.tree-section-children {
+  margin-left: 2.5rem;
+  padding-left: 1.5rem;
+  border-left: 2px dashed #7dd3fc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.tree-section-item {
+  background-color: white;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.2s;
+}
+
+.tree-section-item:hover {
+  border-color: #10b981;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+}
+
+.tree-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.tree-section-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: white;
+}
+
+.tree-icon-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.tree-section-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Unit 子项 */
+.tree-unit-children {
+  margin-left: 2rem;
+  padding-left: 1rem;
+  border-left: 2px dashed #7dd3fc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.tree-unit-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.tree-unit-item:hover {
+  background-color: #fde68a;
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.tree-unit-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: white;
+}
+
+.tree-icon-orange {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.tree-unit-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tree-unit-tag {
+  font-size: 0.8rem;
+  color: #075985;
+  background-color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #bae6fd;
+  font-weight: 500;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .mapping-container {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .mapping-svg-container {
+    min-height: 400px;
+  }
+}
+
+/* 深色模式适配（如果系统有切换） */
+@media (prefers-color-scheme: light) {
+  .structure-mapping-guide {
+    background-color: #f8fafc;
+    color: #1e293b;
+  }
+
+  .mapping-title {
+    color: #0f172a;
+  }
+
+  .mapping-section-title {
+    color: #475569;
+  }
+
+  .mapping-svg-container {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+  }
+
+  .tree-zone-item {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-color: #e2e8f0;
+  }
+
+  .tree-zone-name,
+  .tree-section-name,
+  .tree-unit-name {
+    color: #1e293b;
+  }
+
+  .tree-section-item {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+  }
+
+  .tree-unit-item {
+    background-color: #f8fafc;
+    border-color: #e2e8f0;
+  }
+}

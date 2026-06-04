@@ -1,0 +1,249 @@
+/**
+ * 初始化流程主样式
+ * 参考 Salesforce, HubSpot, Slack 等 ToB SaaS 的设计
+ */
+
+.onboarding-flow {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.onboarding-flow-welcome {
+  padding: 0;
+}
+
+.onboarding-container {
+  width: 100%;
+  max-width: 1200px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  min-height: 700px;
+  overflow: hidden;
+}
+
+/* 左侧边栏 */
+.onboarding-sidebar {
+  background: #1a1a1a;
+  color: white;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.onboarding-header {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.onboarding-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.onboarding-header p {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+/* 内容区域 */
+.onboarding-content {
+  padding: 3rem;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.onboarding-step-content {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.step-header {
+  margin-bottom: 2rem;
+}
+
+.step-header h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: #1a1a1a;
+}
+
+.step-header p {
+  font-size: 1rem;
+  color: #666;
+  margin: 0;
+}
+
+.step-body {
+  margin-bottom: 2rem;
+  min-height: 400px;
+}
+
+/* 底部操作按钮 */
+.step-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.step-footer-left {
+  flex: 1;
+}
+
+.step-footer-right {
+  display: flex;
+  gap: 1rem;
+}
+
+/* 按钮样式 */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background-color: #646cff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #535bf2;
+}
+
+.btn-primary:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #f9f9f9;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+  background-color: #f0f0f0;
+}
+
+.btn-link {
+  background-color: transparent;
+  color: #646cff;
+}
+
+.btn-link:hover {
+  background-color: rgba(100, 108, 255, 0.1);
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.btn-large {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: #646cff;
+  border: 1px solid #646cff;
+}
+
+.btn-outline:hover {
+  background-color: rgba(100, 108, 255, 0.1);
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .onboarding-flow {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  }
+
+  .onboarding-container {
+    background: #242424;
+  }
+
+  .step-header h2 {
+    color: white;
+  }
+
+  .step-header p {
+    color: #aaa;
+  }
+
+  .step-footer {
+    border-top: 1px solid #333;
+  }
+
+  .btn-secondary {
+    background-color: #333;
+    color: white;
+    border: 1px solid #555;
+  }
+
+  .btn-secondary:hover {
+    background-color: #3a3a3a;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 968px) {
+  .onboarding-container {
+    max-height: 90vh;
+  }
+
+  .onboarding-content {
+    padding: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .onboarding-flow {
+    padding: 1rem;
+  }
+
+  .onboarding-container {
+    border-radius: 12px;
+    min-height: auto;
+  }
+
+  .step-footer {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .step-footer-right {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .step-footer-right .btn {
+    width: 100%;
+  }
+}

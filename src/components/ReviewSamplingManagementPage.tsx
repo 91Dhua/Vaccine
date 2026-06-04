@@ -170,6 +170,10 @@ function isDynamicAntibodyTask(task: ReviewSamplingTaskRow): boolean {
   return task.reviewCategory === "抗体检测" && calculateUploadProgressPercent(task.samples) < 100;
 }
 
+function reviewCategoryDisplayName(category: ReviewSamplingTaskCategory): string {
+  return category === "抗体检测" ? "免疫复核" : category;
+}
+
 function buildSampleRow(
   vaccinationTaskId: string,
   pigId: string,
@@ -249,6 +253,37 @@ function buildSamplesForTask(task: TaskRow): ReviewSamplingSampleRow[] {
       ? buildSampleRow(task.id, pigId, index, targetAntibody, result)
       : buildSyntheticSampleRow(task.id, index, targetAntibody, result);
   });
+}
+
+export function buildReviewSamplingTaskFromVaccinationTask(
+  task: TaskRow,
+  status: ReviewSamplingTaskStatus = task.effectTrackingResult ? "已检测" : "待采样"
+): ReviewSamplingTaskRow {
+  const samples = buildSamplesForTask(task);
+  const thresholdPercent = task.effectTracking?.qualificationThresholdPercent ?? 80;
+  const summary = summarizeSamples(samples, thresholdPercent);
+  const completed = Boolean(task.effectTrackingResult) || status === "已检测";
+
+  return {
+    id: `RS-${task.id.replace(/^VT-/, "")}`,
+    vaccinationTaskId: task.id,
+    vaccinationTaskType: task.supplementMode === "review-full" ? "重新接种" : "原始接种",
+    reviewCategory: "抗体检测",
+    targetAntibody: task.effectTracking?.targetAntibody || "目标抗体待补充",
+    sampledCount: samples.length,
+    thresholdPercent,
+    creator: task.creator,
+    createdAt: task.executedAt || task.createdAt,
+    status,
+    samplingMethod: task.effectTracking?.samplingMethod,
+    sampleContainer: task.effectTracking?.sampleContainer,
+    measurementUnit: "S/P值",
+    samples,
+    positiveCount: completed ? summary.positiveCount : undefined,
+    negativeCount: completed ? summary.negativeCount : undefined,
+    qualificationRatePercent: completed ? summary.qualificationRatePercent : undefined,
+    result: completed ? summary.result : undefined
+  };
 }
 
 function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
@@ -386,31 +421,12 @@ function buildManualAntibodySeedTasks(): ReviewSamplingTaskRow[] {
 export function buildSeedReviewSamplingTasks(tasks: TaskRow[]): ReviewSamplingTaskRow[] {
   const regularTasks: ReviewSamplingTaskRow[] = tasks
     .filter((task) => task.status === "已完成" && task.effectTracking?.effectTrackingEnabled)
-    .map((task): ReviewSamplingTaskRow => {
-      const samples = buildSamplesForTask(task);
-      const thresholdPercent = task.effectTracking?.qualificationThresholdPercent ?? 80;
-      const summary = summarizeSamples(samples, thresholdPercent);
-      return {
-        id: `RS-${task.id.replace(/^VT-/, "")}`,
-        vaccinationTaskId: task.id,
-        vaccinationTaskType: task.supplementMode === "review-full" ? "重新接种" : "原始接种",
-        reviewCategory: "常规检测" as const,
-        targetAntibody: task.effectTracking?.targetAntibody || "目标抗体待补充",
-        sampledCount: samples.length,
-        thresholdPercent,
-        creator: task.creator,
-        createdAt: task.executedAt || task.createdAt,
-        status: task.effectTrackingResult ? "已检测" : task.id === "VT-DEMO-3L8N" ? "待采样" : "待检测",
-        samplingMethod: task.effectTracking?.samplingMethod,
-        sampleContainer: task.effectTracking?.sampleContainer,
-        measurementUnit: "S/P值",
-        samples,
-        positiveCount: task.effectTrackingResult ? summary.positiveCount : undefined,
-        negativeCount: task.effectTrackingResult ? summary.negativeCount : undefined,
-        qualificationRatePercent: task.effectTrackingResult ? summary.qualificationRatePercent : undefined,
-        result: task.effectTrackingResult ? summary.result : undefined
-      };
-    });
+    .map((task) =>
+      buildReviewSamplingTaskFromVaccinationTask(
+        task,
+        task.effectTrackingResult ? "已检测" : task.id === "VT-DEMO-3L8N" ? "待采样" : "待检测"
+      )
+    );
 
   return [...regularTasks, ...buildManualAntibodySeedTasks()];
 }
@@ -815,10 +831,6 @@ function SummaryGrid({
               <div className="review-sampling-summary-value">{summary.negativeCount} 头</div>
             </div>
             <div className="review-sampling-antibody-summary__metric">
-              <div className="review-sampling-summary-label">阈值</div>
-              <div className="review-sampling-summary-value">{task.thresholdPercent}%</div>
-            </div>
-            <div className="review-sampling-antibody-summary__metric">
               <div className="review-sampling-summary-label">检测结果</div>
               <div className="review-sampling-summary-value">
                 <Tag color={summary.result === "合格" ? "success" : "error"}>{summary.result}</Tag>
@@ -950,6 +962,14 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
   }, [onOpenVaccinationTask]);
   const completedRows = useMemo(
     () => reviewTasks.filter((item) => item.status === "已检测"),
+    [reviewTasks]
+  );
+  const samplingRows = useMemo(
+    () => reviewTasks.filter((item) => item.status === "待采样"),
+    [reviewTasks]
+  );
+  const pendingRows = useMemo(
+    () => reviewTasks.filter((item) => item.status === "待检测"),
     [reviewTasks]
   );
   const completedRegularRows = useMemo(
@@ -1153,7 +1173,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
               : activeTask.vaccinationTaskId
             : "—"
         },
-        { label: "检测类型", value: activeTask.reviewCategory },
+        { label: "检测类型", value: reviewCategoryDisplayName(activeTask.reviewCategory) },
         { label: "检测抗体", value: <Tag color="volcano">{activeTask.targetAntibody}</Tag> },
         { label: "采样方式", value: samplingMethodLabel(activeTask.samplingMethod) || "—" },
         { label: "样品容器", value: sampleContainerLabel(activeTask.sampleContainer) || "—" },
@@ -1474,7 +1494,7 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
           <Title level={4} style={{ margin: 0 }}>
             免疫复核采样结果管理
           </Title>
-          <Text type="secondary">按常规检测和免疫复核查看已检测结果，结果提交后自动回写接种任务。</Text>
+          <Text type="secondary">按待采样、待检测和已检测查看免疫复核任务，结果提交后自动回写疫苗任务。</Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>创建采样</Button>
       </div>
@@ -1507,6 +1527,42 @@ export function ReviewSamplingManagementPage({ tasks, reviewTasks, onSubmitResul
       <Card className="section-card">
         <Tabs
           items={[
+            {
+              key: "待采样",
+              label: `待采样 (${samplingRows.length})`,
+              children: (
+                <Table
+                  rowKey="id"
+                  dataSource={samplingRows}
+                  pagination={false}
+                  scroll={{ x: "max-content" }}
+                  locale={{ emptyText: "暂无待采样任务" }}
+                  columns={reviewListColumns("待采样", null, (taskId, mode) => {
+                    setCreateMode(false);
+                    setDetailMode(mode);
+                    setActiveTaskId(taskId);
+                  })}
+                />
+              )
+            },
+            {
+              key: "待检测",
+              label: `待检测 (${pendingRows.length})`,
+              children: (
+                <Table
+                  rowKey="id"
+                  dataSource={pendingRows}
+                  pagination={false}
+                  scroll={{ x: "max-content" }}
+                  locale={{ emptyText: "暂无待检测任务" }}
+                  columns={reviewListColumns("待检测", null, (taskId, mode) => {
+                    setCreateMode(false);
+                    setDetailMode(mode);
+                    setActiveTaskId(taskId);
+                  })}
+                />
+              )
+            },
             {
               key: "已检测",
               label: `已检测 (${completedRows.length})`,
