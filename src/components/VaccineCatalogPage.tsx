@@ -13,7 +13,7 @@ import {
   Typography
 } from "antd";
 import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { vaccineCatalog as seedCatalog } from "../mockData";
 
 const { Title, Text } = Typography;
@@ -162,12 +162,17 @@ export function VaccineCatalogPage() {
     "category" | "productNameCn" | "productNameEn"
   > | null>(null);
   const [productForm] = Form.useForm();
-  const [brandForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const selectedCreateCategory = (Form.useWatch("category", productForm) || "疫苗") as ProductCategory;
   const createNamePlaceholder = productNamePlaceholders[selectedCreateCategory] || productNamePlaceholders.疫苗;
 
   const isVaccineDraft = draftProduct?.category === "疫苗";
+
+  useEffect(() => {
+    if (!editingRow) return;
+    setEditCategory(editingRow.category);
+    editForm.setFieldsValue(editingRow);
+  }, [editForm, editingRow]);
 
   const categoryFilters = useMemo(
     () => productCategoryOptions.map((item) => ({ text: item.label, value: item.value })),
@@ -189,18 +194,39 @@ export function VaccineCatalogPage() {
     });
   }, [keyword, rows]);
 
+  const openCreate = () => {
+    setCreateOpen(true);
+    setCreateStep(1);
+    setDraftProduct(null);
+    productForm.resetFields();
+    productForm.setFieldsValue({
+      category: "疫苗",
+      productNameCn: undefined,
+      productNameEn: undefined,
+      brandNameCn: undefined,
+      brandNameEn: undefined,
+      dosageForm: undefined,
+      standardDosage: undefined,
+      durationOfImmunity: undefined,
+      withdrawalPeriodDays: undefined,
+      immuneIntervalDays: undefined,
+      administrationRoutes: ["IM"],
+      vaccineType: "病毒性"
+    });
+  };
+
   const resetCreate = () => {
     setCreateOpen(false);
     setCreateStep(1);
     setDraftProduct(null);
     productForm.resetFields();
-    brandForm.resetFields();
   };
 
   const goBrandStep = async () => {
-    const values = await productForm.validateFields();
+    const values = await productForm.validateFields(["productNameCn", "productNameEn", "category"]);
+    const category = (values.category || "疫苗") as ProductCategory;
     setDraftProduct({
-      category: values.category,
+      category,
       productNameCn: values.productNameCn,
       productNameEn: values.productNameEn
     });
@@ -209,21 +235,41 @@ export function VaccineCatalogPage() {
 
   const createProductBrand = async () => {
     if (!draftProduct) return;
-    const values = await brandForm.validateFields();
+    const fieldNames = [
+      "brandNameCn",
+      "brandNameEn",
+      ...(draftProduct.category === "疫苗"
+        ? [
+            "dosageForm",
+            "standardDosage",
+            "durationOfImmunity",
+            "withdrawalPeriodDays",
+            "immuneIntervalDays",
+            "administrationRoutes",
+            "vaccineType"
+          ]
+        : [])
+    ];
+    const values = await productForm.validateFields(fieldNames);
     const now = Date.now();
+    const isVaccine = draftProduct.category === "疫苗";
+    const administrationRoutes =
+      Array.isArray(values.administrationRoutes) && values.administrationRoutes.length > 0
+        ? values.administrationRoutes
+        : ["IM"];
     setRows((prev) => [
       {
         id: `product-brand-${now}`,
         ...draftProduct,
         brandNameCn: values.brandNameCn,
         brandNameEn: values.brandNameEn,
-        dosageForm: values.dosageForm,
-        standardDosage: values.standardDosage,
-        durationOfImmunity: values.durationOfImmunity,
-        withdrawalPeriodDays: values.withdrawalPeriodDays,
-        immuneIntervalDays: values.immuneIntervalDays,
-        administrationRoutes: values.administrationRoutes,
-        vaccineType: values.vaccineType
+        dosageForm: isVaccine ? values.dosageForm : undefined,
+        standardDosage: isVaccine ? values.standardDosage : undefined,
+        durationOfImmunity: isVaccine ? values.durationOfImmunity : undefined,
+        withdrawalPeriodDays: isVaccine ? values.withdrawalPeriodDays : undefined,
+        immuneIntervalDays: isVaccine ? values.immuneIntervalDays : undefined,
+        administrationRoutes: isVaccine ? administrationRoutes : undefined,
+        vaccineType: isVaccine ? values.vaccineType : undefined
       },
       ...prev
     ]);
@@ -232,8 +278,6 @@ export function VaccineCatalogPage() {
 
   const openEdit = (record: ProductBrandRow) => {
     setEditingRow(record);
-    setEditCategory(record.category);
-    editForm.setFieldsValue(record);
   };
 
   const saveEdit = async () => {
@@ -269,7 +313,7 @@ export function VaccineCatalogPage() {
           </Title>
           <Text type="secondary">统一维护疫苗、兽药、保健品、消毒用品及其他药品品牌信息</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           添加药品
         </Button>
       </div>
@@ -451,7 +495,7 @@ export function VaccineCatalogPage() {
               <Form.Item name="immuneIntervalDays" label="免疫间隔期(天)">
                 <InputNumber min={0} style={{ width: "100%" }} />
               </Form.Item>
-              <Form.Item name="administrationRoutes" label="接种方式">
+              <Form.Item name="administrationRoutes" label="接种方式" rules={[{ required: true, message: "请选择接种方式" }]}>
                 <Select
                   mode="multiple"
                   options={[
@@ -463,7 +507,7 @@ export function VaccineCatalogPage() {
                   ]}
                 />
               </Form.Item>
-              <Form.Item name="vaccineType" label="疫苗类型">
+              <Form.Item name="vaccineType" label="疫苗类型" rules={[{ required: true, message: "请选择疫苗类型" }]}>
                 <Select
                   options={[
                     { label: "病毒性", value: "病毒性" },
@@ -527,7 +571,7 @@ export function VaccineCatalogPage() {
             </Form.Item>
           </Form>
         ) : (
-          <Form form={brandForm} layout="vertical">
+          <Form form={productForm} layout="vertical">
             <Form.Item label="产品名称">
               <Input value={draftProduct?.productNameCn || ""} disabled />
             </Form.Item>
@@ -575,7 +619,7 @@ export function VaccineCatalogPage() {
                 <Form.Item name="immuneIntervalDays" label="免疫间隔期(天)">
                   <InputNumber min={0} style={{ width: "100%" }} />
                 </Form.Item>
-                <Form.Item name="administrationRoutes" label="接种方式">
+                <Form.Item name="administrationRoutes" label="接种方式" rules={[{ required: true, message: "请选择接种方式" }]}>
                   <Select
                     mode="multiple"
                     placeholder="可多选"
@@ -588,7 +632,7 @@ export function VaccineCatalogPage() {
                     ]}
                   />
                 </Form.Item>
-                <Form.Item name="vaccineType" label="疫苗类型">
+                <Form.Item name="vaccineType" label="疫苗类型" rules={[{ required: true, message: "请选择疫苗类型" }]}>
                   <Select
                     options={[
                       { label: "病毒性", value: "病毒性" },
