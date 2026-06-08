@@ -2,15 +2,21 @@ import {
   Button,
   Card,
   DatePicker,
+  Divider,
   Form,
+  Input,
   InputNumber,
+  Modal,
   Select,
   Steps,
   Typography
 } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { vaccineCatalog, vaccines } from "../mockData";
+import type { VaccineCategory } from "../mockData";
+import type { Vaccine } from "../types";
 import { resolveTaskVaccinePresentation } from "../mobileVaccinationUtils";
 import {
   buildEffectTrackingPayload,
@@ -52,6 +58,27 @@ const ROUTE_TO_METHOD_LABEL: Record<string, string> = {
   喷雾: "喷雾"
 };
 
+const vaccineDosageFormOptions = [
+  { label: "活疫苗（冻干苗）", value: "活疫苗（冻干苗）" },
+  { label: "油佐剂灭活疫苗", value: "油佐剂灭活疫苗" },
+  { label: "水佐剂灭活疫苗", value: "水佐剂灭活疫苗" },
+  { label: "灭活疫苗", value: "灭活疫苗" }
+];
+
+const vaccineRouteOptions = [
+  { label: "肌肉注射(IM)", value: "IM" },
+  { label: "皮下注射(SC)", value: "SC" },
+  { label: "滴鼻", value: "滴鼻" },
+  { label: "饮水", value: "饮水" },
+  { label: "喷雾", value: "喷雾" }
+];
+
+const vaccineTypeOptions = [
+  { label: "病毒性", value: "病毒性" },
+  { label: "细菌性", value: "细菌性" },
+  { label: "寄生虫", value: "寄生虫" }
+] as const;
+
 export function VaccineTaskWizard({
   step,
   selectedPigs,
@@ -63,6 +90,10 @@ export function VaccineTaskWizard({
   onFinish
 }: Props) {
   const [form] = Form.useForm();
+  const [createDrugForm] = Form.useForm();
+  const [localVaccines, setLocalVaccines] = useState<Vaccine[]>(vaccines);
+  const [localVaccineCatalog, setLocalVaccineCatalog] = useState<VaccineCategory[]>(vaccineCatalog);
+  const [createDrugOpen, setCreateDrugOpen] = useState(false);
   const isSupplement = mode === "supplement";
   const isQuickSupplement = mode === "quickSupplement";
   const isReviewRevaccination = isQuickSupplement && quickSupplementType === "review-full";
@@ -73,14 +104,14 @@ export function VaccineTaskWizard({
 
   const selectedBrandConfig = useMemo(
     () =>
-      vaccineCatalog
+      localVaccineCatalog
         .find((item) => item.vaccineId === watchedVaccineId)
         ?.brands.find((brand) => brand.brandNameCn === watchedBrand),
-    [watchedBrand, watchedVaccineId]
+    [localVaccineCatalog, watchedBrand, watchedVaccineId]
   );
 
   const brandOptions =
-    vaccineCatalog
+    localVaccineCatalog
       .find((item) => item.vaccineId === watchedVaccineId)
       ?.brands.map((brand) => ({
         label: brand.brandNameCn,
@@ -120,6 +151,73 @@ export function VaccineTaskWizard({
         PLAN_EFFECT_TRACKING_DEFAULTS.qualificationThresholdPercent
     });
   }, [form, payload, shouldManuallySelectDate, step]);
+
+  const openCreateDrugModal = () => {
+    setCreateDrugOpen(true);
+    createDrugForm.setFieldsValue({
+      productNameCn: undefined,
+      productNameEn: undefined,
+      brandNameCn: undefined,
+      brandNameEn: undefined,
+      dosageForm: undefined,
+      standardDosage: undefined,
+      durationOfImmunity: undefined,
+      withdrawalPeriodDays: undefined,
+      immuneIntervalDays: undefined,
+      administrationRoutes: ["IM"],
+      vaccineType: "病毒性"
+    });
+  };
+
+  const createVaccineDrug = async () => {
+    const values = await createDrugForm.validateFields();
+    const now = Date.now();
+    const vaccineId = `VAC-CUSTOM-${now}`;
+    const brandName = String(values.brandNameCn || "").trim();
+    const productName = String(values.productNameCn || "").trim();
+    const routes = Array.isArray(values.administrationRoutes) ? values.administrationRoutes : [];
+    const newVaccine: Vaccine = {
+      id: vaccineId,
+      name: productName,
+      brand: brandName,
+      defaultDosage: Number.parseFloat(String(values.standardDosage || "2")) || 2,
+      validAgeMin: 0,
+      validAgeMax: 999,
+      currentStock: 0
+    };
+    const newCatalog: VaccineCategory = {
+      id: `vac-custom-${now}`,
+      vaccineId,
+      nameCn: productName,
+      nameEn: String(values.productNameEn || "").trim(),
+      targetAntibody: `${productName}抗体`,
+      brands: [
+        {
+          id: `brand-custom-${now}`,
+          brandNameCn: brandName,
+          brandNameEn: String(values.brandNameEn || "").trim(),
+          dosageForm: values.dosageForm,
+          standardDosage: values.standardDosage,
+          durationOfImmunity: values.durationOfImmunity,
+          withdrawalPeriodDays: values.withdrawalPeriodDays,
+          immuneIntervalDays: values.immuneIntervalDays,
+          administrationRoutes: routes,
+          targetPathogen: values.vaccineType
+        }
+      ]
+    };
+
+    setLocalVaccines((prev) => [newVaccine, ...prev]);
+    setLocalVaccineCatalog((prev) => [newCatalog, ...prev]);
+    const defaultMethod = routes[0] ? ROUTE_TO_METHOD_LABEL[routes[0]] || routes[0] : undefined;
+    form.setFieldsValue({
+      vaccineId,
+      brand: brandName,
+      vaccinationMethod: defaultMethod
+    });
+    setCreateDrugOpen(false);
+    createDrugForm.resetFields();
+  };
 
   if (step === "preview") {
     const brandLine = String(payload?.brand ?? "").trim();
@@ -290,10 +388,26 @@ export function VaccineTaskWizard({
             >
               <Select
                 placeholder="选择疫苗"
-                options={vaccines.map((v) => ({
+                options={localVaccines.map((v) => ({
                   value: v.id,
                   label: v.name
                 }))}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    <Divider style={{ margin: "8px 0" }} />
+                    <Button
+                      type="text"
+                      icon={<PlusOutlined />}
+                      block
+                      className="vaccine-task-create-drug-btn"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={openCreateDrugModal}
+                    >
+                      创建药品
+                    </Button>
+                  </>
+                )}
                 disabled={lockPrefilledTaskInfo}
                 onChange={() => {
                   form.setFieldsValue({ brand: undefined, vaccinationMethod: undefined });
@@ -309,7 +423,7 @@ export function VaccineTaskWizard({
                 options={brandOptions}
                 disabled={!watchedVaccineId || lockPrefilledTaskInfo}
                 onChange={(brandName) => {
-                  const brand = vaccineCatalog
+                  const brand = localVaccineCatalog
                     .find((item) => item.vaccineId === watchedVaccineId)
                     ?.brands.find((item) => item.brandNameCn === brandName);
                   const defaultMethod = brand?.administrationRoutes?.[0]
@@ -369,7 +483,7 @@ export function VaccineTaskWizard({
             type="primary"
             onClick={async () => {
               const values = await form.validateFields();
-              const vaccine = vaccines.find((v) => v.id === values.vaccineId);
+              const vaccine = localVaccines.find((v) => v.id === values.vaccineId);
               onNext?.({
                 vaccineId: values.vaccineId,
                 dosage: values.dosage,
@@ -386,6 +500,79 @@ export function VaccineTaskWizard({
           </Button>
         </div>
       </Card>
+      <Modal
+        title="添加药品"
+        open={createDrugOpen}
+        onCancel={() => {
+          setCreateDrugOpen(false);
+          createDrugForm.resetFields();
+        }}
+        onOk={createVaccineDrug}
+        okText="添加"
+        cancelText="取消"
+        width={560}
+        destroyOnClose
+        className="compact-modal"
+      >
+        <Form form={createDrugForm} layout="vertical">
+          <Form.Item
+            name="productNameCn"
+            label="产品名称(中文)"
+            rules={[{ required: true, message: "请输入产品中文名称" }]}
+          >
+            <Input placeholder="如：非瘟灭活疫苗、蓝耳二联疫苗、圆环病毒疫苗" />
+          </Form.Item>
+          <Form.Item
+            name="productNameEn"
+            label="产品名称(英文)"
+            rules={[{ required: true, message: "请输入产品英文名称" }]}
+          >
+            <Input placeholder="如：ASF Inactivated Vaccine、PRRS Vaccine、PCV2 Vaccine" />
+          </Form.Item>
+          <Form.Item label="药品类型">
+            <Input value="疫苗" disabled />
+          </Form.Item>
+          <Form.Item
+            name="brandNameCn"
+            label="品牌名称(中文)"
+            rules={[{ required: true, message: "请输入中文品牌名" }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="brandNameEn"
+            label="品牌名称(英文)"
+            rules={[{ required: true, message: "请输入英文品牌名" }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item name="dosageForm" label="剂型" rules={[{ required: true, message: "请选择剂型" }]}>
+            <Select options={vaccineDosageFormOptions} />
+          </Form.Item>
+          <Form.Item name="standardDosage" label="单次剂量">
+            <Input placeholder="如 2 ml/头" />
+          </Form.Item>
+          <Form.Item name="durationOfImmunity" label="免疫有效期">
+            <Input placeholder="如 6 个月" />
+          </Form.Item>
+          <Form.Item name="withdrawalPeriodDays" label="休药期(天)">
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="immuneIntervalDays" label="免疫间隔期(天)">
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="administrationRoutes"
+            label="接种方式"
+            rules={[{ required: true, message: "请选择接种方式" }]}
+          >
+            <Select mode="multiple" placeholder="可多选" options={vaccineRouteOptions} />
+          </Form.Item>
+          <Form.Item name="vaccineType" label="疫苗类型">
+            <Select options={[...vaccineTypeOptions]} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -452,6 +452,7 @@ export default function App() {
   const [selectedPigs, setSelectedPigs] = useState<string[]>([]);
   const [taskDraft, setTaskDraft] = useState<VaccineTaskDraft | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskDetailReturnKey, setTaskDetailReturnKey] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [supplementContext, setSupplementContext] = useState<VaccineSupplementContext>(null);
   const [tasks, setTasks] = useState<TaskRow[]>(SEED_TASKS);
@@ -620,7 +621,7 @@ export default function App() {
       children: [
         { key: "initialization", label: "初始化" },
         { key: "new-login-flow", label: "新登陆流程" },
-        { key: "vaccine-settings", label: "疫苗管理" }
+        { key: "vaccine-settings", label: "药品管理" }
       ]
     }
   ];
@@ -661,6 +662,7 @@ export default function App() {
               tasks={tasksWithSupplementState}
               onOpenTask={(taskId) => {
                 setActiveTaskId(taskId);
+                setTaskDetailReturnKey("plan");
                 setTaskStep("detail");
                 setConsoleActiveKey("task");
               }}
@@ -701,6 +703,7 @@ export default function App() {
               reviewTasks={reviewSamplingTasks}
               onOpenVaccinationTask={(taskId) => {
                 setActiveTaskId(taskId);
+                setTaskDetailReturnKey("review-sampling");
                 setTaskStep("detail");
                 setConsoleActiveKey("task");
               }}
@@ -816,6 +819,7 @@ export default function App() {
                     setTaskFlowMode("create");
                     setEditingTaskId(null);
                     setActiveTaskId(taskId);
+                    setTaskDetailReturnKey(null);
                     setTaskStep("detail");
                   }}
                   onDeleteTask={(taskId) => {
@@ -836,7 +840,15 @@ export default function App() {
                   task={activeTask}
                   pigTasks={mobilePigTasks.filter((task) => task.taskId === activeTask.id)}
                   logs={mobileLogs.filter((log) => log.pigTaskId.startsWith(`${activeTask.id}__`))}
-                  onBack={() => setTaskStep("tasks")}
+                  onBack={() => {
+                    if (taskDetailReturnKey) {
+                      setTaskDetailReturnKey(null);
+                      setTaskStep("tasks");
+                      setConsoleActiveKey(taskDetailReturnKey);
+                      return;
+                    }
+                    setTaskStep("tasks");
+                  }}
                   allTasks={tasksWithSupplementState}
                   onOpenRelatedTask={(taskId) => {
                     setActiveTaskId(taskId);

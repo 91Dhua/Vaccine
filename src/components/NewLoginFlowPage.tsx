@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox, Input, Modal, Typography } from "antd";
+import { Alert, Button, Input, Modal, Typography } from "antd";
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
@@ -9,7 +9,7 @@ import {
   UpOutlined,
   UserOutlined
 } from "@ant-design/icons";
-import { type CSSProperties, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const { Text, Title } = Typography;
 type LoginStep =
@@ -20,8 +20,6 @@ type LoginStep =
   | "code"
   | "password"
   | "farm-select"
-  | "pending-farm-select"
-  | "mixed-relation"
   | "incomplete-registration"
   | "register-password"
   | "register-profile"
@@ -56,9 +54,7 @@ const testScenarios = [
   { value: "valid", label: "有效 token" },
   { value: "none", label: "无token/token已过期" },
   { value: "multi", label: "多厂区 token" },
-  { value: "mixedRelation", label: "已注册+待注册" },
-  { value: "multiplePending", label: "多个待注册厂区" },
-  { value: "incomplete", label: "单个待注册厂区" }
+  { value: "mixedRelation", label: "已注册+新厂区" }
 ] as const;
 type TestScenarioValue = (typeof testScenarios)[number]["value"];
 type NewLoginFlowPageProps = {
@@ -78,7 +74,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const [step, setStep] = useState<LoginStep>(() => {
     if (!initialToken || initialToken === "expired") return "phone";
     if (initialToken === "multi") return "farm-select";
-    if (initialToken === "incomplete") return "pending-farm-select";
     if (initialToken === "mismatch") return "token-mismatch";
     return "success";
   });
@@ -92,6 +87,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const [identityNumber, setIdentityNumber] = useState("");
   const [farmChoices, setFarmChoices] = useState<string[]>(farmOptions);
   const [selectedFarm, setSelectedFarm] = useState(farmOptions[0]);
+  const [newJoinedFarms, setNewJoinedFarms] = useState<string[]>([]);
   const [farmSearch, setFarmSearch] = useState("");
   const [showAllFarms, setShowAllFarms] = useState(false);
   const [selectedPendingFarms, setSelectedPendingFarms] = useState<string[]>([pendingFarmOptions[0]]);
@@ -99,8 +95,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const [notice, setNotice] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [codeCountdown, setCodeCountdown] = useState(0);
-  const [farmCountdown, setFarmCountdown] = useState(initialToken === "multi" ? 5 : 0);
-  const [autoEnterLastFarm, setAutoEnterLastFarm] = useState(initialToken === "multi");
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [testScenarioLabel, setTestScenarioLabel] = useState("");
   const [selectedTestScenario, setSelectedTestScenario] = useState<TestScenarioValue | "">("");
@@ -115,18 +109,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     return () => window.clearTimeout(timer);
   }, [codeCountdown]);
 
-  useEffect(() => {
-    if (!autoEnterLastFarm || step !== "farm-select") return undefined;
-    if (farmCountdown <= 0) {
-      enterConsole();
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      setFarmCountdown((current) => Math.max(0, current - 1));
-    }, 1000);
-    return () => window.clearTimeout(timer);
-  }, [autoEnterLastFarm, farmCountdown, step]);
-
   const clearMessage = () => {
     setError("");
     setNotice("");
@@ -136,13 +118,28 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     window.location.hash = "";
   };
 
+  const enterSelectedFarm = () => {
+    setNewJoinedFarms((current) => current.filter((farm) => farm !== selectedFarm));
+    enterConsole();
+  };
+
   const switchAccount = () => {
     window.localStorage.removeItem("sentri_console_token");
     resetLoginForm("phone");
   };
 
   const continueRegistration = () => {
-    setStep("pending-farm-select");
+    setStep("register-password");
+  };
+
+  const openFarmSelect = (extraFarms: string[] = []) => {
+    const mergedFarms = Array.from(new Set([...farmOptions, ...extraFarms]));
+    setFarmChoices(mergedFarms);
+    setSelectedFarm(mergedFarms[0] || farmOptions[0]);
+    setNewJoinedFarms(extraFarms);
+    setFarmSearch("");
+    setShowAllFarms(false);
+    setStep("farm-select");
   };
 
   const resolveLoginResult = (scenario: string | null) => {
@@ -152,13 +149,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
       return;
     }
     if (scenario === "multi") {
-      setAutoEnterLastFarm(window.localStorage.getItem("sentri_console_token") === "multi");
-      setFarmCountdown(5);
       setStep("farm-select");
-      return;
-    }
-    if (scenario === "incomplete") {
-      setStep("pending-farm-select");
       return;
     }
     if (scenario === "mismatch") {
@@ -186,10 +177,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     setSkipRegisterPassword(false);
     setFarmChoices(farmOptions);
     setSelectedFarm(farmOptions[0]);
+    setNewJoinedFarms([]);
     setFarmSearch("");
     setShowAllFarms(false);
-    setAutoEnterLastFarm(false);
-    setFarmCountdown(0);
     setCodeSent(false);
     setCodeCountdown(0);
     if (scenario === "none") {
@@ -220,12 +210,11 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     setIdentityNumber("");
     setFarmChoices(farmOptions);
     setSelectedFarm(farmOptions[0]);
+    setNewJoinedFarms([]);
     setFarmSearch("");
     setShowAllFarms(false);
     setSelectedPendingFarms([pendingFarmOptions[0]]);
     setSkipRegisterPassword(false);
-    setAutoEnterLastFarm(false);
-    setFarmCountdown(0);
     setCodeSent(false);
     setCodeCountdown(0);
     setSelectedTestScenario("");
@@ -277,28 +266,11 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const routeAfterIdentityVerified = (normalizedAccount: string) => {
     setSavedAccountLabel(normalizedAccount);
     if (selectedTestScenario === "multi") {
-      setFarmChoices(farmOptions);
-      setSelectedFarm(farmOptions[0]);
-      setFarmSearch("");
-      setShowAllFarms(false);
-      setAutoEnterLastFarm(true);
-      setFarmCountdown(5);
-      setStep("farm-select");
+      openFarmSelect();
       return;
     }
     if (selectedTestScenario === "mixedRelation") {
-      setSkipRegisterPassword(true);
-      setStep("mixed-relation");
-      return;
-    }
-    if (selectedTestScenario === "multiplePending") {
-      setSelectedPendingFarms([pendingFarmOptions[0], pendingFarmOptions[1]]);
-      setStep("pending-farm-select");
-      return;
-    }
-    if (selectedTestScenario === "incomplete") {
-      setSelectedPendingFarms([pendingFarmOptions[0]]);
-      setStep("pending-farm-select");
+      openFarmSelect([pendingFarmOptions[0]]);
       return;
     }
     if (selectedTestScenario === "none") {
@@ -306,17 +278,12 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
       return;
     }
     if (normalizedAccount.includes("mixed") || normalizedAccount === "13812340005") {
-      setSkipRegisterPassword(true);
-      setStep("mixed-relation");
-      return;
-    }
-    if (normalizedAccount === "13812340006") {
-      setSelectedPendingFarms([pendingFarmOptions[0], pendingFarmOptions[1]]);
-      setStep("pending-farm-select");
+      openFarmSelect([pendingFarmOptions[0]]);
       return;
     }
     if (normalizedAccount.includes("new") || normalizedAccount === "13812340003") {
-      setStep("pending-farm-select");
+      setSelectedPendingFarms([pendingFarmOptions[0]]);
+      setStep("register-password");
       return;
     }
     if (normalizedAccount.includes("unknown") || normalizedAccount === "13812340004") {
@@ -324,13 +291,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
       return;
     }
     if (normalizedAccount.includes("multi") || normalizedAccount === "13812340002") {
-      setFarmChoices(farmOptions);
-      setSelectedFarm(farmOptions[0]);
-      setFarmSearch("");
-      setShowAllFarms(false);
-      setAutoEnterLastFarm(false);
-      setFarmCountdown(0);
-      setStep("farm-select");
+      openFarmSelect();
       return;
     }
     setStep("success");
@@ -431,21 +392,17 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     if (normalizedAccount.includes("multi")) {
       window.localStorage.setItem("sentri_console_token", "multi");
       setSavedAccountLabel(normalizedAccount);
-      setFarmChoices(farmOptions);
-      setSelectedFarm(farmOptions[0]);
-      setFarmSearch("");
-      setShowAllFarms(false);
-      setAutoEnterLastFarm(false);
-      setFarmCountdown(0);
+      openFarmSelect();
       resolveLoginResult("multi");
       return;
     }
     if (normalizedAccount.includes("new")) {
-      setStep("pending-farm-select");
+      setSelectedPendingFarms([pendingFarmOptions[0]]);
+      setStep("register-password");
       return;
     }
     if (normalizedAccount.includes("mixed")) {
-      setStep("mixed-relation");
+      openFarmSelect([pendingFarmOptions[0]]);
       return;
     }
     window.localStorage.setItem("sentri_console_token", "valid");
@@ -522,21 +479,18 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
 
     if (step === "farm-select") {
       const normalizedFarmSearch = showAllFarms ? farmSearch.trim() : "";
-      const frequentFarms = farmChoices.slice(0, 3);
+      const lastLoginFarm = farmChoices[0];
+      const frequentFarms = farmChoices.slice(1, 3);
       const filteredFarms = farmChoices.filter((farm) => farm.includes(normalizedFarmSearch));
       const isLargeFarmList = farmChoices.length > 10;
       const visibleFarms = normalizedFarmSearch
         ? filteredFarms
         : isLargeFarmList && !showAllFarms
-          ? frequentFarms
+          ? farmChoices.slice(0, 3)
           : farmChoices;
-      const hiddenFarmCount = Math.max(0, farmChoices.length - frequentFarms.length);
+      const hiddenFarmCount = Math.max(0, farmChoices.length - 3);
       const chooseFarm = (farm: string) => {
         setSelectedFarm(farm);
-        if (farm !== farmChoices[0]) {
-          setAutoEnterLastFarm(false);
-          setFarmCountdown(0);
-        }
       };
 
       return (
@@ -544,12 +498,8 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
           <ResultIcon tone="success" />
           <Title level={2}>选择厂区</Title>
           <Text type="secondary" className="new-login-copy">
-            当前账号可进入多个厂区，请选择本次要进入的厂区。
+            你可以进入多个厂区，请选择这次要打开的厂区。
           </Text>
-          <div className="new-login-farm-heading">
-            <span>{normalizedFarmSearch ? "搜索结果" : isLargeFarmList && !showAllFarms ? "推荐厂区" : "全部厂区"}</span>
-            <em>{farmChoices.length} 个</em>
-          </div>
           {showAllFarms ? (
             <Input
               size="large"
@@ -570,7 +520,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
               >
                 <span>
                   {farm}
-                  {frequentFarms.includes(farm) ? <em>推荐</em> : null}
+                  {farm === lastLoginFarm ? <em className="is-last-login">上次登录</em> : null}
+                  {newJoinedFarms.includes(farm) ? <em className="is-new-joined">新</em> : null}
+                  {frequentFarms.includes(farm) ? <em>常用</em> : null}
                 </span>
                 {selectedFarm === farm ? <CheckCircleOutlined /> : null}
               </button>
@@ -594,29 +546,14 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
                 </>
               ) : (
                 <>
-                  更多厂区（{hiddenFarmCount}） <DownOutlined />
+                  展开全部厂区（{hiddenFarmCount}） <DownOutlined />
                 </>
               )}
             </Button>
           ) : null}
-          {autoEnterLastFarm ? (
-            <div className="new-login-countdown-action">
-              <Button
-                type="primary"
-                size="large"
-                block
-                className="new-login-submit new-login-submit--countdown"
-                style={{ "--login-progress": `${(5 - farmCountdown) * 20}%` } as CSSProperties}
-                onClick={enterConsole}
-              >
-                {farmCountdown}s 后进入上次登录的厂区
-              </Button>
-            </div>
-          ) : (
-            <Button type="primary" size="large" block className="new-login-submit" onClick={enterConsole}>
-              进入厂区
-            </Button>
-          )}
+          <Button type="primary" size="large" block className="new-login-submit" onClick={enterSelectedFarm}>
+            进入厂区
+          </Button>
         </>
       );
     }
@@ -702,71 +639,10 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
       );
     }
 
-    if (step === "mixed-relation") {
-      return (
-        <>
-          <ResultIcon tone="success" />
-          <Title level={2}>注册成功</Title>
-          <Text type="secondary" className="new-login-copy">
-            已有厂区可进入，也可继续注册其他厂区。
-          </Text>
-          <div className="new-login-farm-list">
-            <button type="button" className="is-active" onClick={() => setSelectedFarm(farmOptions[0])}>
-              <span>{farmOptions[0]}</span>
-              <CheckCircleOutlined />
-            </button>
-          </div>
-          <Button type="primary" size="large" block className="new-login-submit" onClick={enterConsole}>
-            进入厂区
-          </Button>
-          <Button size="large" block className="new-login-secondary-action" onClick={() => {
-            setSkipRegisterPassword(true);
-            setStep("pending-farm-select");
-          }}>
-            继续注册其他厂区
-          </Button>
-        </>
-      );
-    }
-
-    if (step === "pending-farm-select") {
-      return (
-        <>
-          <BackButton onClick={() => setStep("phone")} />
-          <Title level={2}>选择待加入厂区</Title>
-          <Text type="secondary" className="new-login-copy">
-            该手机号存在待注册员工记录，可选择一个或多个厂区完成绑定。
-          </Text>
-          <Checkbox.Group
-            className="new-login-checkbox-list"
-            value={selectedPendingFarms}
-            onChange={(values) => setSelectedPendingFarms(values.map(String))}
-          >
-            {pendingFarmOptions.map((farm) => (
-              <Checkbox key={farm} value={farm}>
-                {farm}
-              </Checkbox>
-            ))}
-          </Checkbox.Group>
-          {error ? <Alert type="error" showIcon message={error} /> : null}
-          <Button type="primary" size="large" block className="new-login-submit" onClick={() => {
-            if (selectedPendingFarms.length === 0) {
-              setError("请选择要加入的厂区。");
-              return;
-            }
-            clearMessage();
-            setStep(skipRegisterPassword ? "register-success" : "register-password");
-          }}>
-            下一步
-          </Button>
-        </>
-      );
-    }
-
     if (step === "register-password") {
       return (
         <>
-          <BackButton onClick={() => setStep("pending-farm-select")} />
+          <BackButton onClick={() => setStep("phone")} />
           <Title level={2}>设置密码</Title>
           <Text type="secondary" className="new-login-copy">后续可使用手机号和密码登录 Sentri。</Text>
           <Input.Password size="large" placeholder="请输入密码" value={newPassword} onChange={(event) => {
@@ -830,8 +706,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
               setSelectedFarm(selectedPendingFarms[0]);
               setFarmSearch("");
               setShowAllFarms(false);
-              setAutoEnterLastFarm(false);
-              setFarmCountdown(0);
               setStep("farm-select");
               return;
             }
@@ -1108,21 +982,13 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
                 <span>13812340002</span>
                 <em>多厂区</em>
               </button>
-              <button type="button" onClick={() => useTestAccount("13812340003", "phone")}>
-                <span>13812340003</span>
-                <em>单个待注册厂区</em>
-              </button>
               <button type="button" onClick={() => useTestAccount("13812340004", "phone")}>
                 <span>13812340004</span>
                 <em>账号不存在</em>
               </button>
               <button type="button" onClick={() => useTestAccount("13812340005", "phone")}>
                 <span>13812340005</span>
-                <em>已注册+待注册</em>
-              </button>
-              <button type="button" onClick={() => useTestAccount("13812340006", "phone")}>
-                <span>13812340006</span>
-                <em>多个待注册厂区</em>
+                <em>已注册+新厂区</em>
               </button>
             </div>
             <Text type="secondary" className="new-login-test-hint">

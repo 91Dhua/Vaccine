@@ -439,9 +439,14 @@ export function VaccineTaskDetailPage({
     <div>
       <div className="page-header">
         <div>
-          <Button type="link" icon={<ArrowLeftOutlined />} style={{ paddingInline: 0 }} onClick={onBack}>
-            返回任务列表
-          </Button>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            className="task-detail-back-icon"
+            onClick={onBack}
+            aria-label="返回"
+            title="返回"
+          />
           <Title level={4} style={{ margin: 0 }}>
             接种任务详情
           </Title>
