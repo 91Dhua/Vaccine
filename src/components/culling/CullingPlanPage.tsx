@@ -44,13 +44,7 @@ function formatTargetUnit(mode: CullingTargetMode, value: number, target: number
   return `头 · ${ratio}%`;
 }
 
-export function CullingPlanPage({
-  onOpenBatchDetail,
-  onOpenTaskDetail
-}: {
-  onOpenBatchDetail?: () => void;
-  onOpenTaskDetail?: () => void;
-} = {}) {
+export function CullingPlanPage() {
   const [planEnabled, setPlanEnabled] = useState(true);
   const [replacementEnabled, setReplacementEnabled] = useState(false);
   const [targetMode, setTargetMode] = useState<CullingTargetMode>("percentage");
@@ -359,14 +353,6 @@ export function CullingPlanPage({
           scroll={{ x: 900 }}
         />
       </Modal>
-      <div className="culling-page-footer">
-        <Button className="culling-detail-entry-button" onClick={() => onOpenBatchDetail?.()}>
-          批次详情
-        </Button>
-        <Button className="culling-detail-entry-button" type="primary" onClick={() => onOpenTaskDetail?.()}>
-          任务详情
-        </Button>
-      </div>
     </div>
   );
 }

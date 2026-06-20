@@ -3,11 +3,13 @@ import {
   HeartFilled,
   MedicineBoxOutlined,
   RightOutlined,
-  SwapOutlined
+  SwapOutlined,
+  TagOutlined
 } from "@ant-design/icons";
 import type { KeyboardEvent } from "react";
 import type { FixtureHomeTask } from "../mobileHomeFixtures";
 import type { MobileHomeTaskCard } from "../mobileHomeTypes";
+import type { TreatmentHomeCardInfo } from "../mobileTreatmentTaskUtils";
 
 function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>, onOpen: () => void) {
   if (event.key === "Enter" || event.key === " ") {
@@ -71,6 +73,64 @@ export function VaccinationHomeCard({
           <span>{scopeMode === "room" ? "点击进入本单元疫苗任务" : "点击选择单元进入疫苗任务"}</span>
           <RightOutlined />
         </div>
+      </div>
+    </div>
+  );
+}
+
+type TreatmentHomeCardProps = {
+  card: TreatmentHomeCardInfo;
+  onOpen: () => void;
+};
+
+export function TreatmentHomeCard({ card, onOpen }: TreatmentHomeCardProps) {
+  return (
+    <div
+      className="mv-mission-card mv-mission-card--pressable mv-mission-card--treatment"
+      role="button"
+      tabIndex={0}
+      aria-label="治疗任务，点击进入治疗执行"
+      onClick={onOpen}
+      onKeyDown={(event) => handleCardKeyDown(event, onOpen)}
+    >
+      <div className="mv-treatment-card__head">
+        <div className="mv-mission-card__icon mv-mission-card__icon--treatment">
+          <MedicineBoxOutlined />
+        </div>
+        <div className="mv-treatment-card__main">
+          <div className="mv-mission-card__title">可执行第{card.pendingDoseIndex + 1}剂次</div>
+          <div className="mv-mission-card__sub">{card.subtitle}</div>
+        </div>
+      </div>
+
+      <div className="mv-treatment-card__drug">
+        <TagOutlined />
+        <span>{card.drugName}</span>
+      </div>
+
+      <div className="mv-treatment-card__execute">
+        <span className="mv-treatment-card__play">▶</span>
+        <span>
+          <strong>{card.pendingDoseLabel}</strong>
+          <em>{card.pendingHeads} 头</em>
+        </span>
+        <button type="button" className="mv-treatment-card__btn" onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}>
+          执行 <RightOutlined />
+        </button>
+      </div>
+
+      <div className="mv-treatment-card__meta">
+        <span>
+          剂量
+          <strong>300 mg</strong>
+        </span>
+        <span>
+          剂次
+          <strong>3 剂次</strong>
+        </span>
       </div>
     </div>
   );

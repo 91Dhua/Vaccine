@@ -1,4 +1,4 @@
-export type MobileHomeTaskKind = "vaccination" | "production" | "transfer";
+export type MobileHomeTaskKind = "vaccination" | "treatment" | "production" | "transfer";
 
 /** 首页任务卡片（接种由猪只任务聚合生成，其它为演示数据） */
 export type MobileHomeTaskCard = {

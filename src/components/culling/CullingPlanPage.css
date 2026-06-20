@@ -534,20 +534,3 @@
   color: #dc2626;
   font-weight: 800;
 }
-
-.culling-page-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.culling-detail-entry-button {
-  min-width: 112px;
-  height: 38px;
-  border-radius: 10px;
-}
-
-.culling-detail-entry-button.ant-btn-primary {
-  background: #111827;
-}

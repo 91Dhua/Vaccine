@@ -11,6 +11,8 @@ import { EmployeeLoginFlowPage } from "./components/EmployeeLoginFlowPage";
 import { EmployeeManagementPage } from "./components/EmployeeManagementPage";
 import { NewLoginFlowPage } from "./components/NewLoginFlowPage";
 import { NewEntryApplicationFlowPage } from "./components/NewEntryApplicationFlowPage";
+import { MedicalTaskSchemePage } from "./components/MedicalTaskSchemePage";
+import { ConsoleInventoryPage } from "./components/inventory/ConsoleInventoryPage";
 import OnboardingFlow from "./components/onboarding/OnboardingFlow";
 import {
   ReviewSamplingManagementPage,
@@ -595,6 +597,11 @@ export default function App() {
     };
   });
   const activeTask = tasksWithSupplementState.find((task) => task.id === activeTaskId) || null;
+  useEffect(() => {
+    document.querySelector<HTMLElement>(".app-content")?.scrollTo({ top: 0, left: 0 });
+    window.scrollTo({ top: 0, left: 0 });
+  }, [activeKey]);
+
   const consoleMenuItems = [
     {
       key: "personnel",
@@ -611,9 +618,26 @@ export default function App() {
       ]
     },
     {
+      key: "treatment",
+      label: "治疗",
+      children: [
+        { key: "treatment-scheme-a", label: "先选任务类型" },
+        { key: "treatment-scheme-b", label: "先选药品" }
+      ]
+    },
+    {
       key: "pig-culling",
       label: "淘汰&留种",
-      children: [{ key: "culling-plan", label: "母猪淘汰&后备留种" }]
+      children: [
+        { key: "culling-plan", label: "母猪淘汰&后备留种" },
+        { key: "culling-detail", label: "任务详情" },
+        { key: "culling-batch-detail", label: "批次详情" }
+      ]
+    },
+    {
+      key: "inventory",
+      label: "库存",
+      children: [{ key: "inventory-management", label: "库存管理" }]
     },
     {
       key: "settings",
@@ -649,7 +673,7 @@ export default function App() {
           <Menu
             mode="inline"
             selectedKeys={[activeKey]}
-            defaultOpenKeys={["personnel", "immunity", "pig-culling", "settings"]}
+            defaultOpenKeys={["personnel", "immunity", "treatment", "pig-culling", "inventory", "settings"]}
             onClick={(info) => setConsoleActiveKey(info.key)}
             items={consoleMenuItems}
           />
@@ -670,19 +694,30 @@ export default function App() {
           ) : activeKey === "employee-management" ? (
             <EmployeeManagementPage />
           ) : activeKey === "culling-plan" ? (
-            <CullingPlanPage
-              onOpenBatchDetail={() => setConsoleActiveKey("culling-batch-detail")}
-              onOpenTaskDetail={() => setConsoleActiveKey("culling-detail")}
+            <CullingPlanPage />
+          ) : activeKey === "culling-outcome-culling" ? (
+            <CullingOutcomeDetailPage
+              detailType="culling"
+              onBack={() => setConsoleActiveKey("culling-plan")}
             />
-          ) : activeKey === "culling-outcome-detail" ? (
-            <CullingOutcomeDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
+          ) : activeKey === "culling-outcome-retained" ? (
+            <CullingOutcomeDetailPage
+              detailType="retained"
+              onBack={() => setConsoleActiveKey("culling-plan")}
+            />
           ) : activeKey === "culling-batch-detail" ? (
             <CullingBatchDetailPage
               onBack={() => setConsoleActiveKey("culling-plan")}
-              onOpenOutcomeDetail={() => setConsoleActiveKey("culling-outcome-detail")}
+              onOpenOutcomeDetail={(tab = "culling") => {
+                setConsoleActiveKey(
+                  tab === "retained" ? "culling-outcome-retained" : "culling-outcome-culling"
+                );
+              }}
             />
           ) : activeKey === "culling-detail" ? (
             <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
+          ) : activeKey === "inventory-management" ? (
+            <ConsoleInventoryPage />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage
@@ -792,6 +827,10 @@ export default function App() {
                 ]);
               }}
             />
+          ) : activeKey === "treatment-scheme-a" ? (
+            <MedicalTaskSchemePage scheme="A" />
+          ) : activeKey === "treatment-scheme-b" ? (
+            <MedicalTaskSchemePage scheme="B" />
           ) : activeKey === "new-register-flow" ? (
             <EmployeeLoginFlowPage />
           ) : activeKey === "initialization" ? (

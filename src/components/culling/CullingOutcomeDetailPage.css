@@ -28,12 +28,3 @@
   font-size: 22px;
   font-weight: 760;
 }
-
-.culling-outcome-tabs {
-  min-height: 320px;
-  padding: 0 4px;
-}
-
-.culling-outcome-tabs .ant-tabs-nav {
-  margin-bottom: 14px;
-}

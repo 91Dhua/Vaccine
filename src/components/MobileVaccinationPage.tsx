@@ -1,5 +1,7 @@
 import {
   BellOutlined,
+  ClockCircleOutlined,
+  DeleteOutlined,
   DeploymentUnitOutlined,
   ExclamationCircleFilled,
   FilterOutlined,
@@ -7,6 +9,7 @@ import {
   LeftOutlined,
   MedicineBoxOutlined,
   MoreOutlined,
+  PlusOutlined,
   RightOutlined,
   SearchOutlined,
   TagOutlined,
@@ -41,6 +44,21 @@ import { buildVaccinationHomeCards } from "../buildMobileHomeCards";
 import { filterFixtureTasks, MOBILE_HOME_FIXTURE_TASKS } from "../mobileHomeFixtures";
 import type { MobileHomeTaskCard } from "../mobileHomeTypes";
 import { MobileWeaningCheckFlow } from "./MobileWeaningCheckFlow";
+import { MobileInventoryToolsPage } from "./inventory/MobileInventoryToolsPage";
+import {
+  addPigsToTreatment,
+  buildTreatmentHomeCard,
+  executeTreatmentDose,
+  mockTreatmentTask,
+  removePigsFromTreatment,
+  resolveCurrentTreatmentDoseIndex,
+  skipTreatmentDose,
+  terminateTreatmentTask,
+  treatmentDoseStats,
+  type MobileTreatmentPig,
+  type MobileTreatmentTask,
+  type TreatmentPigStatus
+} from "../mobileTreatmentTaskUtils";
 import {
   exemptionHitRuleDisplay,
   filterTasksByLocation,
@@ -58,7 +76,7 @@ import {
   workshopForRoom,
   WORKSHOPS
 } from "../mobileWorkshops";
-import { FixtureMissionCard, VaccinationHomeCard } from "./MobileHomeTaskCards";
+import { FixtureMissionCard, TreatmentHomeCard, VaccinationHomeCard } from "./MobileHomeTaskCards";
 
 const { Text, Title } = Typography;
 
@@ -135,8 +153,10 @@ function ExemptionHitPopover({ task }: { task: MobilePigTask }) {
   );
 }
 
-type Screen = "hub" | "pigList" | "weaning";
+type Screen = "hub" | "tools" | "pigList" | "weaning" | "treatmentList" | "treatmentAddPigs";
 type PigDrawerPhase = "detail" | "execute";
+type TreatmentRoomTab = "treatment" | "detail";
+type TreatmentReasonAction = "remove" | "skip" | "terminate" | "add" | null;
 
 const LOG_TYPE_LABEL: Record<MobileExecutionLog["type"], string> = {
   started: "开始执行",
@@ -206,6 +226,29 @@ function pigTypeLabel(t: MobilePigTask): string {
   if (group) return group.split("·")[0].trim();
   return "猪只";
 }
+
+function treatmentStatusLabel(status: TreatmentPigStatus): {
+  label: string;
+  tone: "pending" | "done" | "skipped" | "removed";
+} {
+  if (status === "done") return { label: "已治疗", tone: "done" };
+  if (status === "skipped") return { label: "已跳过", tone: "skipped" };
+  if (status === "removed") return { label: "已移出", tone: "removed" };
+  return { label: "待治疗", tone: "pending" };
+}
+
+function treatmentSearchMatches(pig: MobileTreatmentPig, q: string): boolean {
+  const raw = q.trim().toLowerCase();
+  if (!raw) return true;
+  return [pig.id, pig.label, pig.stall].some((part) => part.toLowerCase().includes(raw));
+}
+
+const treatmentCandidatePigs: MobileTreatmentPig[] = [
+  { id: "pig-add-001", label: "000101", stall: "A1" },
+  { id: "pig-add-002", label: "000102", stall: "A1" },
+  { id: "pig-add-003", label: "000103", stall: "A2" },
+  { id: "pig-add-004", label: "000104", stall: "A2" }
+];
 
 interface Props {
   pigTasks: MobilePigTask[];
@@ -422,6 +465,16 @@ export function MobileVaccinationPage({
   const [pigListRoomTab, setPigListRoomTab] = useState<"immunity" | "vaccine">("immunity");
   const [endTaskModalOpen, setEndTaskModalOpen] = useState(false);
   const [endTaskConfirmChecked, setEndTaskConfirmChecked] = useState(false);
+  const [treatmentTask, setTreatmentTask] = useState<MobileTreatmentTask>(mockTreatmentTask);
+  const [treatmentDrawerOpen, setTreatmentDrawerOpen] = useState(false);
+  const [treatmentRoomTab, setTreatmentRoomTab] = useState<TreatmentRoomTab>("treatment");
+  const [treatmentSearch, setTreatmentSearch] = useState("");
+  const [treatmentSelectedIds, setTreatmentSelectedIds] = useState<string[]>([]);
+  const [treatmentMoreOpen, setTreatmentMoreOpen] = useState(false);
+  const [treatmentReasonAction, setTreatmentReasonAction] = useState<TreatmentReasonAction>(null);
+  const [treatmentReason, setTreatmentReason] = useState("");
+  const [treatmentConfirmOpen, setTreatmentConfirmOpen] = useState(false);
+  const [addPigSelectedIds, setAddPigSelectedIds] = useState<string[]>([]);
 
   const resolvedWorkshopId =
     scopeMode === "room" ? workshopForRoom(roomIdDirect)?.id ?? "ws-1" : workshopId;
@@ -584,6 +637,45 @@ export function MobileVaccinationPage({
     [pigTasks, scopeMode, resolvedWorkshopId, roomIdDirect]
   );
 
+  const treatmentHomeCard = useMemo(() => buildTreatmentHomeCard(treatmentTask), [treatmentTask]);
+  const treatmentDoseIndex = useMemo(
+    () => resolveCurrentTreatmentDoseIndex(treatmentTask),
+    [treatmentTask]
+  );
+  const treatmentDose = treatmentTask.doses[treatmentDoseIndex] ?? treatmentTask.doses[0];
+  const treatmentStats = useMemo(
+    () => treatmentDoseStats(treatmentTask, treatmentDoseIndex),
+    [treatmentTask, treatmentDoseIndex]
+  );
+  const treatmentVisibleInScope =
+    treatmentTask.status !== "已终止" &&
+    (scopeMode === "workshop" || roomIdDirect === treatmentTask.roomId);
+  const treatmentDisplayedPigs = useMemo(
+    () => treatmentTask.pigs.filter((pig) => treatmentSearchMatches(pig, treatmentSearch)),
+    [treatmentTask.pigs, treatmentSearch]
+  );
+  const treatmentPigsByStall = useMemo(() => {
+    const groups = new Map<string, MobileTreatmentPig[]>();
+    for (const pig of treatmentDisplayedPigs) {
+      if (!groups.has(pig.stall)) groups.set(pig.stall, []);
+      groups.get(pig.stall)!.push(pig);
+    }
+    return Array.from(groups.entries()).map(([stall, pigs]) => ({ stall, pigs }));
+  }, [treatmentDisplayedPigs]);
+  const treatmentSelectableIds = useMemo(
+    () =>
+      treatmentDisplayedPigs
+        .filter((pig) => (treatmentDose?.pigStatus[pig.id] ?? "pending") === "pending")
+        .map((pig) => pig.id),
+    [treatmentDisplayedPigs, treatmentDose]
+  );
+  const treatmentSelectedSet = useMemo(() => new Set(treatmentSelectedIds), [treatmentSelectedIds]);
+  const treatmentAllSelected =
+    treatmentSelectableIds.length > 0 &&
+    treatmentSelectableIds.every((id) => treatmentSelectedSet.has(id));
+  const treatmentPartSelected =
+    treatmentSelectableIds.some((id) => treatmentSelectedSet.has(id)) && !treatmentAllSelected;
+
   useEffect(() => {
     if (!drawerOpen) {
       setRoomPickerView("pick");
@@ -731,6 +823,95 @@ export function MobileVaccinationPage({
     if (!card.batchId) return;
     setDrawerCard(card);
     setDrawerOpen(true);
+  };
+
+  const openTreatmentCard = () => {
+    if (scopeMode === "room") {
+      setTreatmentRoomTab("treatment");
+      setTreatmentSelectedIds([]);
+      setTreatmentSearch("");
+      setScreen("treatmentList");
+      return;
+    }
+    setTreatmentDrawerOpen(true);
+  };
+
+  const enterTreatmentRoom = () => {
+    setTreatmentDrawerOpen(false);
+    setTreatmentRoomTab("treatment");
+    setTreatmentSelectedIds([]);
+    setTreatmentSearch("");
+    setScreen("treatmentList");
+  };
+
+  const toggleTreatmentSelected = useCallback((id: string, checked: boolean) => {
+    setTreatmentSelectedIds((prev) => {
+      const set = new Set(prev);
+      if (checked) set.add(id);
+      else set.delete(id);
+      return Array.from(set);
+    });
+  }, []);
+
+  const toggleTreatmentAllSelected = useCallback((checked: boolean) => {
+    setTreatmentSelectedIds((prev) => {
+      const set = new Set(prev);
+      for (const id of treatmentSelectableIds) {
+        if (checked) set.add(id);
+        else set.delete(id);
+      }
+      return Array.from(set);
+    });
+  }, [treatmentSelectableIds]);
+
+  const openTreatmentReason = (action: Exclude<TreatmentReasonAction, null>) => {
+    setTreatmentReason("");
+    setTreatmentMoreOpen(false);
+    setTreatmentReasonAction(action);
+  };
+
+  const closeTreatmentReason = () => {
+    setTreatmentReasonAction(null);
+    setTreatmentReason("");
+  };
+
+  const finishTreatmentAndReturn = (text: string) => {
+    setTreatmentSelectedIds([]);
+    setTreatmentConfirmOpen(false);
+    message.success(text);
+    setScreen("hub");
+  };
+
+  const confirmTreatmentReasonAction = () => {
+    if (!treatmentReason.trim()) {
+      message.warning("请先填写原因");
+      return;
+    }
+    if (treatmentReasonAction === "remove") {
+      setTreatmentTask((prev) => removePigsFromTreatment(prev, treatmentDoseIndex, treatmentSelectedIds));
+      closeTreatmentReason();
+      finishTreatmentAndReturn("已移出处方");
+      return;
+    }
+    if (treatmentReasonAction === "skip") {
+      setTreatmentTask((prev) => skipTreatmentDose(prev, treatmentDoseIndex, treatmentSelectedIds));
+      closeTreatmentReason();
+      finishTreatmentAndReturn("已跳过本剂次");
+      return;
+    }
+    if (treatmentReasonAction === "terminate") {
+      setTreatmentTask((prev) => terminateTreatmentTask(prev));
+      closeTreatmentReason();
+      finishTreatmentAndReturn("处方已终止");
+      return;
+    }
+    if (treatmentReasonAction === "add") {
+      const selected = treatmentCandidatePigs.filter((pig) => addPigSelectedIds.includes(pig.id));
+      setTreatmentTask((prev) => addPigsToTreatment(prev, selected));
+      setAddPigSelectedIds([]);
+      closeTreatmentReason();
+      finishTreatmentAndReturn("已添加猪只");
+    }
   };
 
   const enterRoomFromDrawer = (roomId: string) => {
@@ -882,6 +1063,78 @@ export function MobileVaccinationPage({
     [pigTasks, roomBatchActivePigLines, runRoomBatchMarkVaccinated, modalContainer]
   );
 
+  if (screen === "tools") {
+    const siteSelectValue = scopeMode === "workshop" ? workshopId : roomIdDirect;
+    const siteSelectOptions =
+      scopeMode === "workshop"
+        ? WORKSHOPS.map((w) => ({ label: w.label, value: w.id }))
+        : allRoomOptions().map((o) => ({
+            label: `${o.roomLabel} · ${o.workshopLabel}`,
+            value: o.roomId
+          }));
+
+    return (
+      <div className="mv-root mv-root--hub">
+        <div className="mv-app-shell">
+          <div className="mv-statusbar" aria-hidden>
+            <span className="mv-statusbar__time">9:41</span>
+            <span className="mv-statusbar__icons">
+              <i className="mv-signal" />
+              <i className="mv-wifi" />
+              <i className="mv-battery" />
+            </span>
+          </div>
+
+          <header className="mv-topbar mv-topbar--reference">
+            <button type="button" className="mv-avatar-btn" aria-label="个人">
+              <span className="mv-avatar-face">👩‍🌾</span>
+            </button>
+            <Select
+              className="mv-section-selector-select"
+              bordered={false}
+              popupMatchSelectWidth={false}
+              value={siteSelectValue}
+              onChange={(v) =>
+                scopeMode === "workshop"
+                  ? setWorkshopId(v as string)
+                  : setRoomIdDirect(v as string)
+              }
+              options={siteSelectOptions}
+            />
+            <button type="button" className="mv-bell-btn" aria-label="通知">
+              <BellOutlined />
+            </button>
+          </header>
+
+          <MobileInventoryToolsPage />
+
+          <nav className="mv-bottom-nav mv-bottom-nav--reference" aria-label="主导航">
+            <button
+              type="button"
+              className="mv-bottom-nav__item"
+              onClick={() => setScreen("hub")}
+            >
+              <HomeOutlined />
+              <span>首页</span>
+            </button>
+            <button
+              type="button"
+              className="mv-bottom-nav__fab"
+              aria-label="快捷操作"
+              onClick={() => message.info("演示：可接入扫码、快速登记等能力")}
+            >
+              <UnorderedListOutlined />
+            </button>
+            <button type="button" className="mv-bottom-nav__item mv-bottom-nav__item--active">
+              <ToolOutlined />
+              <span>工具</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+    );
+  }
+
   if (screen === "hub") {
     const siteSelectValue = scopeMode === "workshop" ? workshopId : roomIdDirect;
     const siteSelectOptions =
@@ -975,12 +1228,15 @@ export function MobileVaccinationPage({
               </section>
 
               <section className="mv-hub-section">
-                {vaccinationHomeCards.length === 0 && fixtureCards.length === 0 ? (
+                {vaccinationHomeCards.length === 0 && fixtureCards.length === 0 && !treatmentVisibleInScope ? (
                   <div className="mv-mission-empty">
                     <Text type="secondary">当前场区暂无任务</Text>
                   </div>
                 ) : (
                   <div className="mv-mission-list">
+                    {treatmentVisibleInScope ? (
+                      <TreatmentHomeCard card={treatmentHomeCard} onOpen={openTreatmentCard} />
+                    ) : null}
                     {vaccinationHomeCards.map((card) => {
                       const { done, total, pct } = vaccinationCardProgress(card);
                       return (
@@ -1028,7 +1284,7 @@ export function MobileVaccinationPage({
             <button
               type="button"
               className="mv-bottom-nav__item"
-              onClick={() => message.info("演示：工具箱入口")}
+              onClick={() => setScreen("tools")}
             >
               <ToolOutlined />
               <span>工具</span>
@@ -1155,6 +1411,53 @@ export function MobileVaccinationPage({
               </div>
             </div>
           )}
+        </Drawer>
+
+        <Drawer
+          title="选择进入单元"
+          placement="bottom"
+          height="auto"
+          getContainer={false}
+          rootClassName="mv-room-drawer mv-treatment-room-drawer"
+          open={treatmentDrawerOpen}
+          onClose={() => setTreatmentDrawerOpen(false)}
+        >
+          <div className="mv-room-pick">
+            <button type="button" className="mv-room-pick__summary" onClick={enterTreatmentRoom}>
+              <span className="mv-room-pick__summary-text">
+                本治疗任务猪只：<strong>{treatmentTask.pigs.length}</strong> 头
+              </span>
+              <span className="mv-room-pick__summary-action">进入 &gt;</span>
+            </button>
+            <div className="mv-room-pick__groups">
+              <div className="mv-room-pick__group">
+                <div className="mv-room-pick__group-head">
+                  <div className="mv-room-pick__group-head-text">
+                    <div className="mv-room-pick__tier">治疗任务</div>
+                    <div className="mv-room-pick__tier-sub">{treatmentTask.drugName} · {treatmentTask.treatmentMethod}</div>
+                  </div>
+                </div>
+                <div className="mv-room-pick__units">
+                  <div className="mv-room-pick__unit-row">
+                    <div className="mv-room-pick__unit-main">
+                      <span className="mv-room-pick__unit-name">{treatmentTask.roomLabel}</span>
+                      <span className="mv-room-pick__unit-count">
+                        待治疗 {treatmentStats.pendingHeads} / 共 {treatmentStats.totalHeads} 头
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="mv-room-drawer__enter-btn"
+                      aria-label={`进入 ${treatmentTask.roomLabel}`}
+                      onClick={enterTreatmentRoom}
+                    >
+                      <RightOutlined />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </Drawer>
 
         <Drawer
@@ -1761,6 +2064,420 @@ export function MobileVaccinationPage({
             modalContainer={modalContainer}
           />
         ) : null}
+      </>
+    );
+  }
+
+  if (screen === "treatmentAddPigs") {
+    const existing = new Set(treatmentTask.pigs.map((pig) => pig.id));
+    const candidates = treatmentCandidatePigs.filter((pig) => !existing.has(pig.id));
+    const allAddSelected =
+      candidates.length > 0 && candidates.every((pig) => addPigSelectedIds.includes(pig.id));
+
+    return (
+      <div className="mv-root mv-treatment-root">
+        <div className="mv-statusbar" aria-label="手机状态栏">
+          <span>9:41</span>
+          <span className="mv-status-icons" aria-hidden>
+            <span className="mv-signal" />
+            <span className="mv-wifi" />
+            <span className="mv-battery" />
+          </span>
+        </div>
+        <div className="mv-treatment-page-head">
+          <Button
+            type="text"
+            icon={<LeftOutlined />}
+            aria-label="返回"
+            className="mv-piglist-toolbar__back"
+            onClick={() => setScreen("treatmentList")}
+          />
+          <Title level={5}>添加猪只</Title>
+          <span />
+        </div>
+        <div className="mv-treatment-scroll">
+          <div className="mv-piglist-toolbar-row">
+            <Input
+              allowClear
+              className="mv-piglist-search"
+              prefix={<SearchOutlined className="mv-piglist-search__prefix" />}
+              placeholder="身份信息/栏位"
+            />
+            <Button type="text" icon={<FilterOutlined />} className="mv-piglist-icon-btn" aria-label="筛选" />
+          </div>
+          <div className="mv-treatment-selected-strip">
+            <strong>已选 {addPigSelectedIds.length} 头</strong>
+            <span>
+              全选{" "}
+              <Checkbox
+                checked={allAddSelected}
+                onChange={(event) =>
+                  setAddPigSelectedIds(event.target.checked ? candidates.map((pig) => pig.id) : [])
+                }
+              />
+            </span>
+          </div>
+          {candidates.length ? (
+            <div className="mv-treatment-stall-list">
+              <div className="mv-treatment-stall-card">
+                <div className="mv-treatment-stall-title">A1</div>
+                {candidates.map((pig) => (
+                  <label key={pig.id} className="mv-treatment-pig-row">
+                    <span>{pig.label}</span>
+                    <Checkbox
+                      checked={addPigSelectedIds.includes(pig.id)}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        setAddPigSelectedIds((prev) =>
+                          checked ? [...prev, pig.id] : prev.filter((id) => id !== pig.id)
+                        );
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Card className="mv-card mv-empty">
+              <Text type="secondary">暂无可添加猪只。</Text>
+            </Card>
+          )}
+        </div>
+        <div className="mv-treatment-bottom-bar">
+          <Button
+            type="primary"
+            block
+            size="large"
+            disabled={addPigSelectedIds.length === 0}
+            autoInsertSpace={false}
+            onClick={() => openTreatmentReason("add")}
+          >
+            添加猪只
+          </Button>
+        </div>
+        <Modal
+          className="mv-treatment-modal"
+          title="添加猪只"
+          open={treatmentReasonAction === "add"}
+          getContainer={modalContainer}
+          okText="添加"
+          cancelText="取消"
+          destroyOnHidden
+          onCancel={closeTreatmentReason}
+          onOk={confirmTreatmentReasonAction}
+        >
+          <p className="mv-treatment-modal-copy">
+            确认将 {addPigSelectedIds.length} 只猪添加至 {treatmentTask.prescriptionId} 处方的治疗中吗？
+          </p>
+          <Text type="secondary">添加猪只原因</Text>
+          <Input.TextArea
+            rows={5}
+            value={treatmentReason}
+            onChange={(event) => setTreatmentReason(event.target.value)}
+            placeholder="请输入添加猪只原因"
+          />
+        </Modal>
+      </div>
+    );
+  }
+
+  if (screen === "treatmentList") {
+    const selectedCount = treatmentSelectedIds.length;
+    const doseLabel = `${treatmentDoseIndex + 1}/${treatmentTask.doseTimes} 剂次`;
+    const reasonTitle =
+      treatmentReasonAction === "remove"
+        ? "移出处方"
+        : treatmentReasonAction === "skip"
+          ? "跳过剂次"
+          : treatmentReasonAction === "terminate"
+            ? "终止处方"
+            : "";
+    const reasonButtonText =
+      treatmentReasonAction === "remove"
+        ? "移出处方"
+        : treatmentReasonAction === "skip"
+          ? "跳过剂次"
+          : "终止";
+
+    return (
+      <>
+        <div className="mv-root mv-treatment-root">
+          <div className="mv-statusbar" aria-label="手机状态栏">
+            <span>9:41</span>
+            <span className="mv-status-icons" aria-hidden>
+              <span className="mv-signal" />
+              <span className="mv-wifi" />
+              <span className="mv-battery" />
+            </span>
+          </div>
+          <div className="mv-treatment-page-head">
+            <Button
+              type="text"
+              icon={<LeftOutlined />}
+              aria-label="返回"
+              className="mv-piglist-toolbar__back"
+              onClick={() => {
+                setScreen("hub");
+                setTreatmentSelectedIds([]);
+              }}
+            />
+            <Title level={5}>{treatmentTask.roomLabel}</Title>
+            <Button
+              type="text"
+              icon={<MoreOutlined />}
+              aria-label="更多操作"
+              className="mv-piglist-icon-btn"
+              onClick={() => setTreatmentMoreOpen(true)}
+            />
+          </div>
+          <Tabs
+            activeKey={treatmentRoomTab}
+            onChange={(key) => setTreatmentRoomTab(key as TreatmentRoomTab)}
+            className="mv-piglist-room-tabs mv-treatment-tabs"
+            items={[
+              { key: "treatment", label: "治疗" },
+              { key: "detail", label: "处方详情" }
+            ]}
+          />
+
+          <div className="mv-treatment-scroll">
+            {treatmentRoomTab === "treatment" ? (
+              <>
+                <div className="mv-section-bar-title">治疗详情</div>
+                <Card className="mv-treatment-current-card" bordered={false}>
+                  <div className="mv-treatment-current-card__icon">
+                    <MedicineBoxOutlined />
+                  </div>
+                  <div>
+                    <strong>{treatmentTask.drugName}</strong>
+                    <span>{treatmentTask.drugSpec}</span>
+                    <em>{treatmentTask.treatmentMethod}，{treatmentTask.dosage}/猪</em>
+                  </div>
+                  <Tag>第 {treatmentDoseIndex + 1} 剂次</Tag>
+                </Card>
+
+                <div className="mv-section-bar-title">治疗</div>
+                <div className="mv-piglist-toolbar-row">
+                  <Input
+                    allowClear
+                    className="mv-piglist-search"
+                    prefix={<SearchOutlined className="mv-piglist-search__prefix" />}
+                    placeholder="身份信息/栏位"
+                    value={treatmentSearch}
+                    onChange={(event) => setTreatmentSearch(event.target.value)}
+                  />
+                  <Button type="text" icon={<FilterOutlined />} className="mv-piglist-icon-btn" aria-label="筛选" />
+                </div>
+                <div className="mv-treatment-selected-strip">
+                  <strong>已选 {selectedCount} 头</strong>
+                  <span>
+                    全选{" "}
+                    <Checkbox
+                      checked={treatmentAllSelected}
+                      indeterminate={treatmentPartSelected}
+                      disabled={treatmentSelectableIds.length === 0}
+                      onChange={(event) => toggleTreatmentAllSelected(event.target.checked)}
+                    />
+                  </span>
+                </div>
+
+                <div className="mv-treatment-stall-list">
+                  {treatmentPigsByStall.map((group) => (
+                    <div className="mv-treatment-stall-card" key={group.stall}>
+                      <div className="mv-treatment-stall-title">{group.stall}</div>
+                      {group.pigs.map((pig) => {
+                        const status = treatmentDose?.pigStatus[pig.id] ?? "pending";
+                        const statusInfo = treatmentStatusLabel(status);
+                        const disabled = status !== "pending";
+                        return (
+                          <label
+                            key={pig.id}
+                            className={`mv-treatment-pig-row is-${statusInfo.tone}${treatmentSelectedSet.has(pig.id) ? " is-selected" : ""}`}
+                          >
+                            <span>
+                              <strong>{pig.label}</strong>
+                              <em>{statusInfo.label}</em>
+                            </span>
+                            <Checkbox
+                              disabled={disabled}
+                              checked={treatmentSelectedSet.has(pig.id)}
+                              onChange={(event) => toggleTreatmentSelected(pig.id, event.target.checked)}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mv-treatment-detail">
+                <div className="mv-section-bar-title">处方信息</div>
+                <Card className="mv-treatment-detail-card" bordered={false}>
+                  <div className="mv-treatment-kv">
+                    <span>处方ID</span>
+                    <strong>{treatmentTask.prescriptionId}</strong>
+                  </div>
+                  <div className="mv-treatment-kv">
+                    <span>处方状态</span>
+                    <strong>{treatmentTask.status}</strong>
+                  </div>
+                  <div className="mv-treatment-kv">
+                    <span>猪只数量</span>
+                    <strong>{treatmentTask.pigs.length}</strong>
+                  </div>
+                  <div className="mv-treatment-kv">
+                    <span>舍</span>
+                    <strong>配怀 1（200），配怀 2（200），配怀 3（200），配怀 4（1）</strong>
+                  </div>
+                  <div className="mv-treatment-tag-row">
+                    <span>目标疾病</span>
+                    <div>{treatmentTask.targetDisease.map((item) => <Tag color="red" key={item}>{item}</Tag>)}</div>
+                  </div>
+                  <div className="mv-treatment-tag-row">
+                    <span>目标症状</span>
+                    <div>{treatmentTask.targetSymptoms.map((item) => <Tag color="orange" key={item}>{item}</Tag>)}</div>
+                  </div>
+                  <div className="mv-treatment-kv">
+                    <span>创建人/时间</span>
+                    <strong>{treatmentTask.creator} {treatmentTask.createdAt}</strong>
+                  </div>
+                  <div className="mv-treatment-kv">
+                    <span>处方备注</span>
+                    <strong>{treatmentTask.remark}</strong>
+                  </div>
+                </Card>
+
+                <div className="mv-section-bar-title">药品与治疗</div>
+                {treatmentTask.doses.map((dose) => {
+                  const stats = treatmentDoseStats(treatmentTask, dose.index);
+                  const isCurrent = dose.index === treatmentDoseIndex;
+                  const isDone = stats.pendingHeads === 0;
+                  return (
+                    <Card
+                      key={dose.id}
+                      className={`mv-treatment-dose-card${isCurrent ? " is-current" : ""}${isDone ? " is-done" : ""}`}
+                      bordered={false}
+                    >
+                      <div className="mv-treatment-dose-card__title">
+                        <strong>{treatmentTask.drugName}</strong>
+                        <span>{isDone ? "已执行" : isCurrent ? "可执行" : "等待中"}</span>
+                      </div>
+                      <ul>
+                        <li>{treatmentTask.drugSpec}</li>
+                        <li>{treatmentTask.treatmentMethod}，{treatmentTask.dosage}/猪</li>
+                        <li>{treatmentTask.roomLabel}</li>
+                      </ul>
+                      <div className="mv-treatment-dose-card__foot">
+                        <span>{treatmentTask.pigs.length} 头猪</span>
+                        <span>{dose.index + 1}/{treatmentTask.doseTimes} 剂次</span>
+                        {dose.index > 0 ? <span>间隔 {treatmentTask.intervalHours} 小时</span> : null}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {treatmentRoomTab === "treatment" ? (
+            <div className="mv-treatment-bottom-bar">
+              <Button danger disabled={selectedCount === 0} onClick={() => openTreatmentReason("remove")}>
+                移出处方
+              </Button>
+              <Button disabled={selectedCount === 0} onClick={() => openTreatmentReason("skip")}>
+                跳过剂次
+              </Button>
+              <Button
+                type="primary"
+                disabled={selectedCount === 0}
+                autoInsertSpace={false}
+                onClick={() => setTreatmentConfirmOpen(true)}
+              >
+                治疗
+              </Button>
+            </div>
+          ) : null}
+        </div>
+
+        <Modal
+          title={null}
+          open={treatmentMoreOpen}
+          footer={null}
+          closable={false}
+          width="100%"
+          centered={false}
+          className="mv-more-action-sheet mv-treatment-action-sheet"
+          rootClassName="mv-more-action-sheet-root"
+          getContainer={modalContainer}
+          onCancel={() => setTreatmentMoreOpen(false)}
+        >
+          <div className="mv-more-action-sheet__head">
+            <span>处方操作</span>
+            <Button type="text" onClick={() => setTreatmentMoreOpen(false)}>×</Button>
+          </div>
+          <button type="button" className="mv-more-action-sheet__item" onClick={() => {
+            setTreatmentMoreOpen(false);
+            setAddPigSelectedIds([]);
+            setScreen("treatmentAddPigs");
+          }}>
+            <PlusOutlined />
+            <span>添加猪只</span>
+            <RightOutlined />
+          </button>
+          <button type="button" className="mv-more-action-sheet__item is-danger" onClick={() => openTreatmentReason("terminate")}>
+            <DeleteOutlined />
+            <span>终止处方</span>
+            <RightOutlined />
+          </button>
+        </Modal>
+
+        <Modal
+          className="mv-treatment-modal"
+          title={reasonTitle}
+          open={treatmentReasonAction === "remove" || treatmentReasonAction === "skip" || treatmentReasonAction === "terminate"}
+          getContainer={modalContainer}
+          okText={reasonButtonText}
+          cancelText="取消"
+          okButtonProps={{ danger: treatmentReasonAction !== "skip" }}
+          destroyOnHidden
+          onCancel={closeTreatmentReason}
+          onOk={confirmTreatmentReasonAction}
+        >
+          <p className="mv-treatment-modal-copy">
+            {treatmentReasonAction === "terminate"
+              ? `确认终止 ${treatmentTask.prescriptionId} 处方吗？后续治疗将停止。`
+              : `确认将 ${selectedCount} 只猪从当前治疗中${treatmentReasonAction === "skip" ? "跳过本剂次" : "移出"}吗？`}
+          </p>
+          <Text type="secondary">{reasonTitle}原因</Text>
+          <Input.TextArea
+            rows={5}
+            value={treatmentReason}
+            onChange={(event) => setTreatmentReason(event.target.value)}
+            placeholder={`请输入${reasonTitle}原因`}
+          />
+        </Modal>
+
+        <Modal
+          className="mv-treatment-modal mv-treatment-confirm-modal"
+          title="治疗确认"
+          open={treatmentConfirmOpen}
+          getContainer={modalContainer}
+          okText="确认"
+          cancelText="取消"
+          destroyOnHidden
+          onCancel={() => setTreatmentConfirmOpen(false)}
+          onOk={() => {
+            setTreatmentTask((prev) => executeTreatmentDose(prev, treatmentDoseIndex, treatmentSelectedIds));
+            finishTreatmentAndReturn(`治疗已完成，共完成 ${selectedCount} 头`);
+          }}
+        >
+          <div className="mv-treatment-confirm-box">
+            <div><span>药物</span><strong>{treatmentTask.drugName}</strong></div>
+            <div><span>治疗方式</span><strong>{treatmentTask.treatmentMethod}</strong></div>
+            <div><span>剂次</span><strong>{doseLabel}</strong></div>
+            <div><span>猪只数量</span><strong>{selectedCount} 头</strong></div>
+          </div>
+        </Modal>
       </>
     );
   }

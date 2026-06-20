@@ -223,6 +223,115 @@ function renderTaskTypeCell(row: TaskRow) {
   return <Tag color={color}>{taskType}</Tag>;
 }
 
+function taskStatusTone(status: TaskRow["status"]) {
+  if (status === "待接种") return "pending";
+  if (status === "接种中") return "active";
+  if (status === "已完成") return "done";
+  return "cancelled";
+}
+
+function taskStatusTagColor(status: TaskRow["status"]) {
+  if (status === "待接种") return "default";
+  if (status === "接种中") return "processing";
+  if (status === "已完成") return "success";
+  return "error";
+}
+
+function renderDoseSchedule(row: TaskRow) {
+  if (row.doseTimes <= 1) return "单次接种";
+  return `${row.doseTimes} 次接种 · 间隔 ${row.intervalValue ?? "-"} ${row.intervalUnit ?? ""}`.trim();
+}
+
+function VaccineTaskWorkbenchCard({
+  task,
+  reviewTasks,
+  onViewTask,
+  onDeleteTask
+}: {
+  task: TaskRow;
+  reviewTasks: ReviewSamplingTaskRow[];
+  onViewTask?: (taskId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
+}) {
+  const actual = resolveActualVaccinatedCount(task);
+  const planned = Math.max(task.targetCount, 0);
+  const percent = planned > 0 ? Math.min(100, Math.round((actual / planned) * 100)) : 0;
+  const reviewProgress = resolveReviewProgress(task, reviewTasks);
+  const taskType = resolveVaccineTaskTypeLabel(task);
+
+  return (
+    <div className={`vaccine-task-work-card is-${taskStatusTone(task.status)}`}>
+      <div className="vaccine-task-work-card__head">
+        <div>
+          <div className="vaccine-task-work-card__title-row">
+            <Title level={5}>{task.vaccine}</Title>
+            <Tag color={taskStatusTagColor(task.status)}>{task.status}</Tag>
+          </div>
+          <Text type="secondary">{task.brand || "未填写品牌"} · {task.dosageForm || task.administrationRoute || "接种任务"}</Text>
+        </div>
+        <Button type="link" onClick={() => onViewTask?.(task.id)}>
+          {task.status === "待接种" ? "查看任务" : "进入详情"}
+        </Button>
+      </div>
+
+      <div className="vaccine-task-work-card__meta">
+        <div>
+          <span>接种方式</span>
+          <strong>{task.administrationRoute || "—"}</strong>
+        </div>
+        <div>
+          <span>剂量</span>
+          <strong>{task.dosage}</strong>
+        </div>
+        <div>
+          <span>接种日期</span>
+          <strong>{task.schedule}</strong>
+        </div>
+      </div>
+
+      <div className="vaccine-task-work-card__note">
+        <span>{renderDoseSchedule(task)}</span>
+        <span>{task.targetPigGroupLabel || task.productionLineBatch || `${task.targetCount} 头猪`}</span>
+      </div>
+
+      <div className="vaccine-task-work-card__rows">
+        <button type="button" onClick={() => onViewTask?.(task.id)}>
+          <span>{task.doseTimes > 1 ? `1/${task.doseTimes} 剂次` : "1/1 剂次"}</span>
+          <strong>{task.targetCount} 头猪</strong>
+          <em>{task.status === "已完成" ? "已完成" : task.status === "接种中" ? "继续执行" : "可执行"} ›</em>
+        </button>
+      </div>
+
+      <div className="vaccine-task-work-card__footer">
+        <div className="vaccine-task-work-card__progress">
+          <span>{task.status === "已完成" ? "完成情况" : "接种进度"}</span>
+          <strong>{actual} / {planned} 头</strong>
+          <Progress percent={percent} size="small" showInfo={false} strokeColor={task.status === "已完成" ? "#2FA872" : "#43B883"} />
+        </div>
+        <Space size={8} wrap>
+          {renderTaskTypeCell(task)}
+          {reviewProgress ? (
+            <Tag color={reviewProgress.result === "不合格" ? "error" : "green"}>
+              复核 {reviewProgress.total > 0 ? `${reviewProgress.completed}/${reviewProgress.total}` : "已配置"}
+            </Tag>
+          ) : null}
+          {task.status === "待接种" && onDeleteTask ? (
+            <Popconfirm
+              title="删除接种任务"
+              description="删除后任务状态将变为已取消，并同步移除该任务下发到 Mobile 的接种数据。"
+              okText="删除"
+              cancelText="取消"
+              onConfirm={() => onDeleteTask(task.id)}
+            >
+              <Button type="text" danger icon={<DeleteOutlined />}>删除</Button>
+            </Popconfirm>
+          ) : null}
+        </Space>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   tasks: TaskRow[];
   reviewTasks?: ReviewSamplingTaskRow[];
@@ -400,35 +509,60 @@ export function VaccineTaskListPage({ onCreateTask, onViewTask, onDeleteTask, ta
     { key: "接种中", label: "接种中", rows: tasks.filter((task) => task.status === "接种中"), status: "接种中" as const },
     { key: "已完成", label: "已完成", rows: tasks.filter((task) => task.status === "已完成"), status: "已完成" as const }
   ];
+  const totalPending = tabItems.find((item) => item.key === "待接种")?.rows.length ?? 0;
+  const totalActive = tabItems.find((item) => item.key === "接种中")?.rows.length ?? 0;
+  const totalDone = tabItems.find((item) => item.key === "已完成")?.rows.length ?? 0;
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="vaccine-task-workbench">
+      <div className="vaccine-task-mobile-head">
         <div>
-          <Title level={4} style={{ margin: 0 }}>
-            疫苗任务
-          </Title>
-          <Text type="secondary">查看不同状态下的接种任务</Text>
+          <Text type="secondary">Zone1 - Farrowing</Text>
+          <Title level={4}>疫苗任务</Title>
+          <Text type="secondary">按原健康与治疗任务结构查看、执行和追踪接种任务</Text>
         </div>
         <Button type="primary" onClick={onCreateTask}>
           创建疫苗任务
         </Button>
       </div>
 
-      <Card className="section-card">
+      <div className="vaccine-task-summary-strip">
+        <div>
+          <span>待接种</span>
+          <strong>{totalPending}</strong>
+        </div>
+        <div>
+          <span>接种中</span>
+          <strong>{totalActive}</strong>
+        </div>
+        <div>
+          <span>已完成</span>
+          <strong>{totalDone}</strong>
+        </div>
+      </div>
+
+      <Card className="section-card vaccine-task-workbench-card">
         <Tabs
           defaultActiveKey="待接种"
           items={tabItems.map((tab) => ({
             key: tab.key,
-            label: tab.label,
+            label: `${tab.label} ${tab.rows.length}`,
             children: (
-              <Table<TaskRow>
-                rowKey="id"
-                dataSource={tab.rows}
-                pagination={false}
-                scroll={{ x: "max-content" }}
-                locale={{ emptyText: "暂无任务" }}
-                columns={taskTableColumns(tab.status, reviewTasks, onViewTask, onDeleteTask)}
-              />
+              <div className="vaccine-task-work-list">
+                {tab.rows.length > 0 ? (
+                  tab.rows.map((task) => (
+                    <VaccineTaskWorkbenchCard
+                      key={task.id}
+                      task={task}
+                      reviewTasks={reviewTasks}
+                      onViewTask={onViewTask}
+                      onDeleteTask={onDeleteTask}
+                    />
+                  ))
+                ) : (
+                  <div className="vaccine-task-empty">暂无{tab.label}任务</div>
+                )}
+              </div>
             )
           }))}
         />

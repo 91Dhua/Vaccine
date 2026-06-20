@@ -141,6 +141,13 @@ function taskTypeTagColor(task: TaskRow) {
   return "default";
 }
 
+function detailStatusTone(status: TaskRow["status"]) {
+  if (status === "待接种") return "pending";
+  if (status === "接种中") return "active";
+  if (status === "已完成") return "done";
+  return "cancelled";
+}
+
 export function VaccineTaskDetailPage({
   task,
   pigTasks,
@@ -436,9 +443,9 @@ export function VaccineTaskDetailPage({
           ];
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
+    <div className="vaccine-task-detail-shell">
+      <div className={`vaccine-task-detail-hero is-${detailStatusTone(task.status)}`}>
+        <div className="vaccine-task-detail-hero__top">
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
@@ -447,24 +454,55 @@ export function VaccineTaskDetailPage({
             aria-label="返回"
             title="返回"
           />
-          <Title level={4} style={{ margin: 0 }}>
-            接种任务详情
-          </Title>
-          <Text type="secondary">按任务状态查看配置、进度和目标猪只结果</Text>
+          <Text type="secondary">Zone1 - Farrowing · 接种任务详情</Text>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
-          {task.status === "待接种" && onEdit ? <Button onClick={onEdit}>编辑任务</Button> : null}
-          {task.status === "待接种" && onDelete ? (
-            <Popconfirm
-              title="删除接种任务"
-              description="删除后任务状态将变为已取消，并同步移除该任务下发到 Mobile 的接种数据。"
-              okText="删除"
-              cancelText="取消"
-              onConfirm={onDelete}
-            >
-              <Button danger>删除任务</Button>
-            </Popconfirm>
-          ) : null}
+
+        <div className="vaccine-task-detail-hero__main">
+          <div>
+            <Space size={8} wrap>
+              <Tag color={task.status === "待接种" ? "default" : task.status === "接种中" ? "processing" : task.status === "已取消" ? "error" : "success"}>{task.status}</Tag>
+              <Tag color={taskTypeTagColor(task)}>{taskType}</Tag>
+            </Space>
+            <Title level={3}>{task.vaccine}</Title>
+            <Text type="secondary">{task.brand || "未填写品牌"} · {task.administrationRoute || "—"} · {task.dosage}</Text>
+          </div>
+          <div className="vaccine-task-detail-hero__actions">
+            {task.status === "待接种" && onEdit ? <Button onClick={onEdit}>编辑任务</Button> : null}
+            {task.status === "待接种" && onDelete ? (
+              <Popconfirm
+                title="删除接种任务"
+                description="删除后任务状态将变为已取消，并同步移除该任务下发到 Mobile 的接种数据。"
+                okText="删除"
+                cancelText="取消"
+                onConfirm={onDelete}
+              >
+                <Button danger>删除任务</Button>
+              </Popconfirm>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="vaccine-task-detail-hero__stats">
+          <div>
+            <span>接种日期</span>
+            <strong>{task.schedule}</strong>
+          </div>
+          <div>
+            <span>目标猪只</span>
+            <strong>{task.targetCount} 头</strong>
+          </div>
+          <div>
+            <span>接种进度</span>
+            <strong>{vaccinatedRows.length} / {task.targetCount}</strong>
+          </div>
+        </div>
+
+        <div className="vaccine-task-detail-hero__progress">
+          <Progress
+            percent={progressPercent}
+            strokeColor={task.status === "待接种" ? "#94a3b8" : task.status === "接种中" ? "#43B883" : task.status === "已取消" ? "#ef4444" : "#2FA872"}
+            showInfo={false}
+          />
         </div>
       </div>
 
@@ -596,7 +634,7 @@ export function VaccineTaskDetailPage({
         </Card>
       ) : null}
 
-      <Card className="section-card">
+      <Card className="section-card vaccine-task-detail-execution-card">
         <div className="task-detail-card-head">
           <Title level={5} className="task-detail-section-title" style={{ marginTop: 0, marginBottom: 0 }}>
             接种猪只列表

@@ -88,6 +88,125 @@
   font-weight: 560;
 }
 
+.culling-batch-progress-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.culling-batch-progress-label-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.culling-batch-progress-view.ant-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  color: #166534;
+}
+
+.culling-batch-progress-view.ant-btn:hover,
+.culling-batch-progress-view.ant-btn:focus {
+  background: #edf8f1;
+  color: #14532d;
+}
+
+.culling-batch-progress-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: #166534;
+  font-weight: 760;
+}
+
+.culling-batch-progress-divider,
+.culling-batch-progress-unit {
+  color: #64748b;
+  font-weight: 620;
+}
+
+.culling-batch-progress-tooltip .ant-tooltip-inner {
+  background: #ffffff;
+  color: #2f855a;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+}
+
+.culling-batch-progress-tooltip .ant-tooltip-arrow::before {
+  background: #ffffff;
+}
+
+.culling-batch-pending-reminder {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto max-content;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 100%;
+  padding: 7px 9px;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(251, 146, 60, 0.1);
+}
+
+.culling-batch-pending-reminder::before {
+  position: absolute;
+  top: 50%;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border-left: 1px solid #fed7aa;
+  border-bottom: 1px solid #fed7aa;
+  background: #fff7ed;
+  content: "";
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.culling-batch-pending-reminder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #ea580c;
+  font-size: 13px;
+}
+
+.culling-batch-pending-reminder-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.culling-batch-pending-reminder-copy strong {
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.culling-batch-pending-reminder-copy span {
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
 .culling-batch-status-tag {
   margin: 0;
   border: none;
@@ -136,5 +255,11 @@
 
   .culling-batch-info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .culling-batch-pending-reminder {
+    width: 100%;
+    max-width: 280px;
+    margin-left: 7px;
   }
 }

@@ -5,7 +5,11 @@ import {
   CloseCircleOutlined,
   DownOutlined,
   ExclamationCircleOutlined,
+  LockOutlined,
+  LoginOutlined,
+  QrcodeOutlined,
   SearchOutlined,
+  SafetyCertificateOutlined,
   UpOutlined,
   UserOutlined
 } from "@ant-design/icons";
@@ -19,6 +23,7 @@ type LoginStep =
   | "login-methods"
   | "code"
   | "password"
+  | "qr"
   | "farm-select"
   | "incomplete-registration"
   | "register-password"
@@ -50,13 +55,6 @@ const ADMIN_CONTACT = {
   phone: "13812345678",
   email: "admin@sentri.cn"
 };
-const testScenarios = [
-  { value: "valid", label: "有效 token" },
-  { value: "none", label: "无token/token已过期" },
-  { value: "multi", label: "多厂区 token" },
-  { value: "mixedRelation", label: "已注册+新厂区" }
-] as const;
-type TestScenarioValue = (typeof testScenarios)[number]["value"];
 type NewLoginFlowPageProps = {
   onOpenEntryApplication?: () => void;
 };
@@ -87,7 +85,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const [identityNumber, setIdentityNumber] = useState("");
   const [farmChoices, setFarmChoices] = useState<string[]>(farmOptions);
   const [selectedFarm, setSelectedFarm] = useState(farmOptions[0]);
-  const [newJoinedFarms, setNewJoinedFarms] = useState<string[]>([]);
   const [farmSearch, setFarmSearch] = useState("");
   const [showAllFarms, setShowAllFarms] = useState(false);
   const [selectedPendingFarms, setSelectedPendingFarms] = useState<string[]>([pendingFarmOptions[0]]);
@@ -96,10 +93,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   const [codeSent, setCodeSent] = useState(false);
   const [codeCountdown, setCodeCountdown] = useState(0);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
-  const [testScenarioLabel, setTestScenarioLabel] = useState("");
-  const [selectedTestScenario, setSelectedTestScenario] = useState<TestScenarioValue | "">("");
   const [skipRegisterPassword, setSkipRegisterPassword] = useState(false);
   const [savedAccountLabel, setSavedAccountLabel] = useState(SAVED_TOKEN_ACCOUNT);
+  const [qrScanned, setQrScanned] = useState(false);
 
   useEffect(() => {
     if (codeCountdown <= 0) return undefined;
@@ -119,7 +115,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
   };
 
   const enterSelectedFarm = () => {
-    setNewJoinedFarms((current) => current.filter((farm) => farm !== selectedFarm));
     enterConsole();
   };
 
@@ -132,11 +127,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     setStep("register-password");
   };
 
-  const openFarmSelect = (extraFarms: string[] = []) => {
-    const mergedFarms = Array.from(new Set([...farmOptions, ...extraFarms]));
-    setFarmChoices(mergedFarms);
-    setSelectedFarm(mergedFarms[0] || farmOptions[0]);
-    setNewJoinedFarms(extraFarms);
+  const openFarmSelect = () => {
+    setFarmChoices(farmOptions);
+    setSelectedFarm(farmOptions[0]);
     setFarmSearch("");
     setShowAllFarms(false);
     setStep("farm-select");
@@ -163,41 +156,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     resolveLoginResult(window.localStorage.getItem("sentri_console_token"));
   };
 
-  const applyTestScenario = (scenario: TestScenarioValue, label: string) => {
-    clearMessage();
-    setAccount("");
-    setCode("");
-    setPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setLastName("");
-    setFirstName("");
-    setIdentityNumber("");
-    setSelectedPendingFarms([pendingFarmOptions[0]]);
-    setSkipRegisterPassword(false);
-    setFarmChoices(farmOptions);
-    setSelectedFarm(farmOptions[0]);
-    setNewJoinedFarms([]);
-    setFarmSearch("");
-    setShowAllFarms(false);
-    setCodeSent(false);
-    setCodeCountdown(0);
-    if (scenario === "none") {
-      window.localStorage.removeItem("sentri_console_token");
-    } else {
-      window.localStorage.setItem("sentri_console_token", scenario);
-    }
-    setSavedAccountLabel(scenario === "multi" ? "multi****@sentri.cn" : SAVED_TOKEN_ACCOUNT);
-    setTestScenarioLabel(label);
-    setSelectedTestScenario(scenario);
-    if (scenario === "valid") {
-      setStep("success");
-    } else {
-      setStep("phone");
-    }
-    setTestPanelOpen(false);
-  };
-
   const useTestAccount = (nextAccount: string, nextStep: LoginStep) => {
     clearMessage();
     setAccount(nextAccount);
@@ -208,17 +166,15 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     setLastName("");
     setFirstName("");
     setIdentityNumber("");
+    setQrScanned(false);
     setFarmChoices(farmOptions);
     setSelectedFarm(farmOptions[0]);
-    setNewJoinedFarms([]);
     setFarmSearch("");
     setShowAllFarms(false);
     setSelectedPendingFarms([pendingFarmOptions[0]]);
     setSkipRegisterPassword(false);
     setCodeSent(false);
     setCodeCountdown(0);
-    setSelectedTestScenario("");
-    setTestScenarioLabel("");
     setStep(nextStep);
     setTestPanelOpen(false);
   };
@@ -258,6 +214,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     setPassword("");
     setNewPassword("");
     setConfirmPassword("");
+    setQrScanned(false);
     setCodeSent(false);
     setCodeCountdown(0);
     setStep(nextStep);
@@ -265,23 +222,11 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
 
   const routeAfterIdentityVerified = (normalizedAccount: string) => {
     setSavedAccountLabel(normalizedAccount);
-    if (selectedTestScenario === "multi") {
-      openFarmSelect();
+    if (!isAccountInEmployeeList(normalizedAccount)) {
+      setStep("no-permission");
       return;
     }
-    if (selectedTestScenario === "mixedRelation") {
-      openFarmSelect([pendingFarmOptions[0]]);
-      return;
-    }
-    if (selectedTestScenario === "none") {
-      setStep("success");
-      return;
-    }
-    if (normalizedAccount.includes("mixed") || normalizedAccount === "13812340005") {
-      openFarmSelect([pendingFarmOptions[0]]);
-      return;
-    }
-    if (normalizedAccount.includes("new") || normalizedAccount === "13812340003") {
+    if (normalizedAccount.includes("new") || normalizedAccount.includes("incomplete") || normalizedAccount === "13812340003") {
       setSelectedPendingFarms([pendingFarmOptions[0]]);
       setStep("register-password");
       return;
@@ -396,17 +341,24 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
       resolveLoginResult("multi");
       return;
     }
-    if (normalizedAccount.includes("new")) {
+    if (normalizedAccount.includes("new") || normalizedAccount.includes("incomplete")) {
       setSelectedPendingFarms([pendingFarmOptions[0]]);
       setStep("register-password");
       return;
     }
-    if (normalizedAccount.includes("mixed")) {
-      openFarmSelect([pendingFarmOptions[0]]);
+    window.localStorage.setItem("sentri_console_token", "valid");
+    setSavedAccountLabel(normalizedAccount);
+    resolveLoginResult("valid");
+  };
+
+  const finishQrLogin = () => {
+    clearMessage();
+    if (!qrScanned) {
+      setError("请先使用已登录设备扫码确认。");
       return;
     }
     window.localStorage.setItem("sentri_console_token", "valid");
-    setSavedAccountLabel(normalizedAccount);
+    setSavedAccountLabel(SAVED_TOKEN_ACCOUNT);
     resolveLoginResult("valid");
   };
 
@@ -521,7 +473,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
                 <span>
                   {farm}
                   {farm === lastLoginFarm ? <em className="is-last-login">上次登录</em> : null}
-                  {newJoinedFarms.includes(farm) ? <em className="is-new-joined">新</em> : null}
                   {frequentFarms.includes(farm) ? <em>常用</em> : null}
                 </span>
                 {selectedFarm === farm ? <CheckCircleOutlined /> : null}
@@ -568,7 +519,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
           </Text>
           <div className="new-login-option-list">
             <Button type="primary" size="large" block className="new-login-submit" onClick={continueRegistration}>继续完成注册</Button>
-            <Button size="large" block onClick={() => resetLoginForm("login-methods")}>换账号登录</Button>
+            <Button size="large" block onClick={() => resetLoginForm("phone")}>换账号登录</Button>
           </div>
         </>
       );
@@ -577,13 +528,12 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     if (step === "phone") {
       return (
         <>
-          <div className="new-login-card-logo">
-            <span className="new-login-logo new-login-logo--large">S</span>
+          <div className="new-login-login-head">
+            <Title level={2}>登录 Sentri</Title>
+            <Text type="secondary" className="new-login-copy">
+              输入手机号或邮箱，验证后系统会判断员工关系与注册状态。
+            </Text>
           </div>
-          <Title level={2}>验证手机号/邮箱</Title>
-          <Text type="secondary" className="new-login-copy">
-            输入手机号或邮箱，系统会查询员工与厂区关系。
-          </Text>
           <Input
             size="large"
             placeholder="手机号/邮箱"
@@ -614,8 +564,21 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
           {error ? <Alert type="error" showIcon message={error} /> : null}
           <Text type="secondary" className="new-login-helper">演示验证码：{DEMO_CODE}</Text>
           <Button type="primary" size="large" block className="new-login-submit" onClick={finishPhoneVerification}>
-            继续
+            登录 / 继续注册
           </Button>
+          <div className="new-login-other-methods">
+            <Text type="secondary">其他登录方式</Text>
+            <div>
+              <button type="button" onClick={() => resetLoginForm("password")}>
+                <LockOutlined />
+                <span>账号密码</span>
+              </button>
+              <button type="button" onClick={() => resetLoginForm("qr")}>
+                <QrcodeOutlined />
+                <span>扫码登录</span>
+              </button>
+            </div>
+          </div>
         </>
       );
     }
@@ -742,7 +705,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     if (step === "login-methods") {
       return (
         <>
-          <BackButton onClick={() => setStep("entry")} />
+          <BackButton onClick={() => setStep("phone")} />
           <div className="new-login-main-content">
             <Title level={2}>选择登录方式</Title>
             <Text type="secondary" className="new-login-copy">
@@ -756,6 +719,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
               </Button>
               <Button size="large" block onClick={() => resetLoginForm("password")}>
                 密码登录
+              </Button>
+              <Button size="large" block onClick={() => resetLoginForm("qr")}>
+                扫码登录
               </Button>
             </div>
           </div>
@@ -803,7 +769,7 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
     if (step === "password") {
       return (
         <>
-          <BackButton onClick={() => resetLoginForm("login-methods")} />
+          <BackButton onClick={() => resetLoginForm("phone")} />
           <Title level={2}>密码登录</Title>
           <Text type="secondary" className="new-login-copy">使用手机号或邮箱，以及已设置的密码登录。</Text>
           <Input size="large" placeholder="手机号/邮箱" value={account} onChange={(event) => {
@@ -828,6 +794,62 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
           <Button type="primary" size="large" block className="new-login-submit" onClick={finishLogin}>
             登录
           </Button>
+          <div className="new-login-other-methods">
+            <Text type="secondary">其他登录方式</Text>
+            <div>
+              <button type="button" onClick={() => resetLoginForm("code")}>
+                <SafetyCertificateOutlined />
+                <span>验证码</span>
+              </button>
+              <button type="button" onClick={() => resetLoginForm("qr")}>
+                <QrcodeOutlined />
+                <span>扫码登录</span>
+              </button>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (step === "qr") {
+      return (
+        <>
+          <BackButton onClick={() => resetLoginForm("phone")} />
+          <Title level={2}>扫码登录</Title>
+          <Text type="secondary" className="new-login-copy">
+            使用已登录并保存登录密钥的设备扫码，确认后即可登录。
+          </Text>
+          <div className={qrScanned ? "new-login-qr-box is-scanned" : "new-login-qr-box"}>
+            <div className="new-login-qr-grid" aria-label="登录二维码">
+              <QrcodeOutlined />
+            </div>
+            <span>{qrScanned ? "已扫码确认" : "请使用已登录设备扫码"}</span>
+          </div>
+          {error ? <Alert type="error" showIcon message={error} /> : null}
+          <Button size="large" block className="new-login-secondary-action" onClick={() => {
+            clearMessage();
+            setQrScanned(true);
+            setNotice("已收到扫码确认。");
+          }}>
+            模拟已扫码确认
+          </Button>
+          {notice ? <Alert type="success" showIcon message={notice} /> : null}
+          <Button type="primary" size="large" block className="new-login-submit" onClick={finishQrLogin}>
+            进入 Sentri
+          </Button>
+          <div className="new-login-other-methods">
+            <Text type="secondary">其他登录方式</Text>
+            <div>
+              <button type="button" onClick={() => resetLoginForm("code")}>
+                <SafetyCertificateOutlined />
+                <span>验证码</span>
+              </button>
+              <button type="button" onClick={() => resetLoginForm("password")}>
+                <LockOutlined />
+                <span>密码</span>
+              </button>
+            </div>
+          </div>
         </>
       );
     }
@@ -915,17 +937,12 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
         <Text type="secondary" className="new-login-copy">
           系统将优先识别本机登录状态，无法识别时可使用其他方式登录。
         </Text>
-        <Button type="primary" size="large" block className="new-login-submit" onClick={checkStoredToken}>
-          继续登录
+          <Button type="primary" size="large" block className="new-login-submit" onClick={checkStoredToken}>
+          <LoginOutlined /> 继续登录
         </Button>
         <Text type="secondary" className="new-login-footnote">
           将优先使用本机已保存的登录状态。
         </Text>
-        {testScenarioLabel ? (
-          <Text type="secondary" className="new-login-test-current">
-            当前测试场景：{testScenarioLabel}
-          </Text>
-        ) : null}
       </>
     );
   };
@@ -956,21 +973,6 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
         onCancel={() => setTestPanelOpen(false)}
       >
         <div className="new-login-test-panel">
-          <Text type="secondary">选择测试场景后统一从手机号/邮箱验证开始，验证码通过后进入对应员工关系分支。</Text>
-          <div className="new-login-test-section">
-            <strong>流程场景</strong>
-            <div className="new-login-test-grid">
-              {testScenarios.map((scenario) => (
-                <Button
-                  key={scenario.value}
-                  className={testScenarioLabel === scenario.label ? "is-active" : ""}
-                  onClick={() => applyTestScenario(scenario.value, scenario.label)}
-                >
-                  {testScenarioLabel === scenario.label ? `已选择：${scenario.label}` : scenario.label}
-                </Button>
-              ))}
-            </div>
-          </div>
           <div className="new-login-test-section">
             <strong>测试账号</strong>
             <div className="new-login-test-list">
@@ -986,9 +988,9 @@ export function NewLoginFlowPage({ onOpenEntryApplication }: NewLoginFlowPagePro
                 <span>13812340004</span>
                 <em>账号不存在</em>
               </button>
-              <button type="button" onClick={() => useTestAccount("13812340005", "phone")}>
-                <span>13812340005</span>
-                <em>已注册+新厂区</em>
+              <button type="button" onClick={() => useTestAccount("13812340003", "phone")}>
+                <span>13812340003</span>
+                <em>新注册用户</em>
               </button>
             </div>
             <Text type="secondary" className="new-login-test-hint">
