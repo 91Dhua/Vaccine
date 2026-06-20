@@ -213,12 +213,52 @@
   white-space: nowrap;
 }
 
-.culling-detail-plan-progress-list {
-  display: grid;
-  gap: 14px;
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid #edf2f7;
+.culling-detail-progress-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.culling-detail-progress-field-view.ant-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  color: #166534;
+}
+
+.culling-detail-progress-field-view.ant-btn:hover,
+.culling-detail-progress-field-view.ant-btn:focus {
+  background: #edf8f1;
+  color: #14532d;
+}
+
+.culling-detail-progress-field-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: #166534;
+  font-size: 15px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.culling-detail-progress-field-divider,
+.culling-detail-progress-field-unit {
+  color: #64748b;
+  font-weight: 620;
+}
+
+.culling-detail-progress-field-tooltip .ant-tooltip-inner {
+  background: #ffffff;
+  color: #2f855a;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+}
+
+.culling-detail-progress-field-tooltip .ant-tooltip-arrow::before {
+  background: #ffffff;
 }
 
 .culling-detail-plan-progress {
@@ -232,12 +272,6 @@
 
 .culling-detail-progress--compact {
   margin: 8px 0 0;
-}
-
-.culling-detail-plan-progress-list--standalone {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
 }
 
 .culling-detail-progress-summary {

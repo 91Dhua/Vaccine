@@ -1,4 +1,4 @@
-import { ArrowLeftOutlined, MenuOutlined, RightOutlined, SearchOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, EyeOutlined, MenuOutlined, RightOutlined, SearchOutlined } from "@ant-design/icons";
 import { Alert, Avatar, Breadcrumb, Button, Card, Input, InputNumber, Modal, Progress, Table, Tabs, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { Key } from "react";
@@ -910,6 +910,38 @@ export function CullingTaskDetailPage({
                   <div className="culling-detail-label">实际执行人</div>
                   <div className="culling-detail-value">-</div>
                 </div>
+                <div>
+                  <div className="culling-detail-label">
+                    <TaskProgressLabel
+                      label="淘汰进度"
+                      tooltip="查看淘汰详情"
+                      onClick={() => setDetailSubPage("culling")}
+                    />
+                  </div>
+                  <div className="culling-detail-value">
+                    <TaskProgressValue
+                      done={decidedCullingCount}
+                      total={plannedCullingCount}
+                      tooltip="确认淘汰 / 目标淘汰"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="culling-detail-label">
+                    <TaskProgressLabel
+                      label="留种进度"
+                      tooltip="查看留种详情"
+                      onClick={() => setDetailSubPage("retained")}
+                    />
+                  </div>
+                  <div className="culling-detail-value">
+                    <TaskProgressValue
+                      done={retainedDone}
+                      total={retainedTarget}
+                      tooltip="标记留种 / 目标留种"
+                    />
+                  </div>
+                </div>
               </div>
             </Card>
 
@@ -967,36 +999,6 @@ export function CullingTaskDetailPage({
           </Card>
 
 
-          <Card className="culling-detail-card culling-detail-record-card" bordered={false}>
-            <div className="culling-detail-section-head culling-detail-section-head--stack">
-              <div>
-                <h2 className="culling-detail-card-title">淘汰与留种进度</h2>
-                <p className="culling-detail-section-subtitle">点击进度条可查看对应淘汰/留种详情</p>
-              </div>
-            </div>
-            <div className="culling-detail-plan-progress-list culling-detail-plan-progress-list--standalone">
-              <DetailPlanProgress
-                label="确认淘汰 / 目标淘汰"
-                tooltip="确认淘汰数量 / 目标淘汰数量"
-                done={decidedCullingCount}
-                total={plannedCullingCount}
-                unit="头"
-                strokeColor="#f97316"
-                clickable
-                onClick={() => setDetailSubPage("culling")}
-              />
-              <DetailPlanProgress
-                label="已标记留种 / 留种目标"
-                tooltip="已标记留种仔猪 / 留种目标"
-                done={retainedDone}
-                total={retainedTarget}
-                unit="头"
-                strokeColor="#22c55e"
-                clickable
-                onClick={() => setDetailSubPage("retained")}
-              />
-            </div>
-          </Card>
         </>
       ) : null}
 
@@ -1211,6 +1213,53 @@ function CullingCheckResult({
       <span>{title}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function TaskProgressLabel({
+  label,
+  tooltip,
+  onClick
+}: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+}) {
+  return (
+    <span className="culling-detail-progress-field-label">
+      <span>{label}</span>
+      <Tooltip title={tooltip}>
+        <Button
+          type="text"
+          size="small"
+          className="culling-detail-progress-field-view"
+          icon={<EyeOutlined />}
+          aria-label={tooltip}
+          onClick={onClick}
+        />
+      </Tooltip>
+    </span>
+  );
+}
+
+function TaskProgressValue({
+  done,
+  total,
+  tooltip
+}: {
+  done: number;
+  total: number;
+  tooltip: string;
+}) {
+  return (
+    <Tooltip title={tooltip} overlayClassName="culling-detail-progress-field-tooltip">
+      <span className="culling-detail-progress-field-value">
+        <span>{done}</span>
+        <span className="culling-detail-progress-field-divider">/</span>
+        <span>{total}</span>
+        <span className="culling-detail-progress-field-unit">头</span>
+      </span>
+    </Tooltip>
   );
 }
 
