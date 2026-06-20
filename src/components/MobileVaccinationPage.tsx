@@ -41,6 +41,7 @@ import { buildVaccinationHomeCards } from "../buildMobileHomeCards";
 import { filterFixtureTasks, MOBILE_HOME_FIXTURE_TASKS } from "../mobileHomeFixtures";
 import type { MobileHomeTaskCard } from "../mobileHomeTypes";
 import { MobileWeaningCheckFlow } from "./MobileWeaningCheckFlow";
+import { MobileInventoryToolsPage } from "./inventory/MobileInventoryToolsPage";
 import {
   exemptionHitRuleDisplay,
   filterTasksByLocation,
@@ -135,7 +136,7 @@ function ExemptionHitPopover({ task }: { task: MobilePigTask }) {
   );
 }
 
-type Screen = "hub" | "pigList" | "weaning";
+type Screen = "hub" | "tools" | "pigList" | "weaning";
 type PigDrawerPhase = "detail" | "execute";
 
 const LOG_TYPE_LABEL: Record<MobileExecutionLog["type"], string> = {
@@ -882,6 +883,78 @@ export function MobileVaccinationPage({
     [pigTasks, roomBatchActivePigLines, runRoomBatchMarkVaccinated, modalContainer]
   );
 
+  if (screen === "tools") {
+    const siteSelectValue = scopeMode === "workshop" ? workshopId : roomIdDirect;
+    const siteSelectOptions =
+      scopeMode === "workshop"
+        ? WORKSHOPS.map((w) => ({ label: w.label, value: w.id }))
+        : allRoomOptions().map((o) => ({
+            label: `${o.roomLabel} · ${o.workshopLabel}`,
+            value: o.roomId
+          }));
+
+    return (
+      <div className="mv-root mv-root--hub">
+        <div className="mv-app-shell">
+          <div className="mv-statusbar" aria-hidden>
+            <span className="mv-statusbar__time">9:41</span>
+            <span className="mv-statusbar__icons">
+              <i className="mv-signal" />
+              <i className="mv-wifi" />
+              <i className="mv-battery" />
+            </span>
+          </div>
+
+          <header className="mv-topbar mv-topbar--reference">
+            <button type="button" className="mv-avatar-btn" aria-label="个人">
+              <span className="mv-avatar-face">👩‍🌾</span>
+            </button>
+            <Select
+              className="mv-section-selector-select"
+              bordered={false}
+              popupMatchSelectWidth={false}
+              value={siteSelectValue}
+              onChange={(v) =>
+                scopeMode === "workshop"
+                  ? setWorkshopId(v as string)
+                  : setRoomIdDirect(v as string)
+              }
+              options={siteSelectOptions}
+            />
+            <button type="button" className="mv-bell-btn" aria-label="通知">
+              <BellOutlined />
+            </button>
+          </header>
+
+          <MobileInventoryToolsPage />
+
+          <nav className="mv-bottom-nav mv-bottom-nav--reference" aria-label="主导航">
+            <button
+              type="button"
+              className="mv-bottom-nav__item"
+              onClick={() => setScreen("hub")}
+            >
+              <HomeOutlined />
+              <span>首页</span>
+            </button>
+            <button
+              type="button"
+              className="mv-bottom-nav__fab"
+              aria-label="快捷操作"
+              onClick={() => message.info("演示：可接入扫码、快速登记等能力")}
+            >
+              <UnorderedListOutlined />
+            </button>
+            <button type="button" className="mv-bottom-nav__item mv-bottom-nav__item--active">
+              <ToolOutlined />
+              <span>工具</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+    );
+  }
+
   if (screen === "hub") {
     const siteSelectValue = scopeMode === "workshop" ? workshopId : roomIdDirect;
     const siteSelectOptions =
@@ -1028,7 +1101,7 @@ export function MobileVaccinationPage({
             <button
               type="button"
               className="mv-bottom-nav__item"
-              onClick={() => message.info("演示：工具箱入口")}
+              onClick={() => setScreen("tools")}
             >
               <ToolOutlined />
               <span>工具</span>

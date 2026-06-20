@@ -25,6 +25,7 @@ import {
   CullingPlanPage,
   CullingTaskDetailPage
 } from "./components/culling";
+import { ConsoleInventoryPage } from "./components/inventory/ConsoleInventoryPage";
 import { MobileVaccinationPage } from "./components/MobileVaccinationPage";
 import { MobileSimulationShell } from "./mobileSimulationContext";
 import { generateConsoleTaskId } from "./consoleTaskId";
@@ -616,6 +617,11 @@ export default function App() {
       children: [{ key: "culling-plan", label: "母猪淘汰&后备留种" }]
     },
     {
+      key: "inventory",
+      label: "库存",
+      children: [{ key: "inventory-management", label: "库存管理" }]
+    },
+    {
       key: "settings",
       label: "设置",
       children: [
@@ -649,7 +655,7 @@ export default function App() {
           <Menu
             mode="inline"
             selectedKeys={[activeKey]}
-            defaultOpenKeys={["personnel", "immunity", "pig-culling", "settings"]}
+            defaultOpenKeys={["personnel", "immunity", "pig-culling", "inventory", "settings"]}
             onClick={(info) => setConsoleActiveKey(info.key)}
             items={consoleMenuItems}
           />
@@ -683,6 +689,8 @@ export default function App() {
             />
           ) : activeKey === "culling-detail" ? (
             <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
+          ) : activeKey === "inventory-management" ? (
+            <ConsoleInventoryPage />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage
