@@ -637,7 +637,10 @@ export default function App() {
     {
       key: "inventory",
       label: "库存",
-      children: [{ key: "inventory-management", label: "库存管理" }]
+      children: [
+        { key: "inventory-management", label: "库存管理" },
+        { key: "inventory-ledgers", label: "库存流水" }
+      ]
     },
     {
       key: "settings",
@@ -645,7 +648,7 @@ export default function App() {
       children: [
         { key: "initialization", label: "初始化" },
         { key: "new-login-flow", label: "新登陆流程" },
-        { key: "vaccine-settings", label: "药品管理" }
+        { key: "vaccine-settings", label: "物料管理" }
       ]
     }
   ];
@@ -717,7 +720,9 @@ export default function App() {
           ) : activeKey === "culling-detail" ? (
             <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
           ) : activeKey === "inventory-management" ? (
-            <ConsoleInventoryPage />
+            <ConsoleInventoryPage initialView="home" />
+          ) : activeKey === "inventory-ledgers" ? (
+            <ConsoleInventoryPage initialView="ledgers" />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage

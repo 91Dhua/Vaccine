@@ -1,7 +1,11 @@
 import {
   buildInventoryCategoryTabs,
-  buildInventoryLedgerTabCounts,
   buildInventoryRecentActivities,
+  buildInventoryOutboundTransaction,
+  buildInventoryStocktakeScope,
+  buildInventoryStocktakeTransaction,
+  buildInventoryStocktakeDifferences,
+  buildInventoryScrapTransaction,
   buildInventoryReceiveEntry,
   buildInventoryReceiveEntryFromSearch,
   buildInventoryLedgerQuantityDisplay,
@@ -16,9 +20,11 @@ import {
   getInventoryLotsForMaterial,
   getInventoryReceiveMaterialOptions,
   hasInventoryMaterialBusinessRecords,
+  isInventoryDifferenceWithinTolerance,
   inventorySeedLedgers,
   inventorySeedLots,
   inventorySeedMaterials,
+  resolveInventoryToleranceDifferences,
   toggleInventoryMaterialStatus,
   updateInventoryMaterial,
   validateInventoryMaterialEdit,
@@ -48,7 +54,7 @@ if (!disinfectant || disinfectant.stockRisk !== "负库存") {
 
 const expiredLot = inventorySeedLots.find((lot) => lot.status === "过期");
 if (!expiredLot || expiredLot.materialId !== "mat-vaccine-prrs") {
-  throw new Error("模拟数据应覆盖过期批次，支撑过期库存处理页面");
+  throw new Error("模拟数据应覆盖过期批次，支撑过期库存风险与报废处理场景");
 }
 
 const riskItems = buildInventoryRiskItems(inventorySeedMaterials, inventorySeedLots, summaries);
@@ -58,6 +64,21 @@ if (riskItems.length < 4) {
 
 if (riskItems[0].type !== "负库存" || riskItems[1].type !== "过期") {
   throw new Error("库存首页风险待办应优先展示负库存与过期批次");
+}
+
+const unsupportedRiskActions = ["核对消耗", "优先使用", "安排补货"];
+if (riskItems.some((item) => item.actionText && unsupportedRiskActions.includes(item.actionText))) {
+  throw new Error("库存首页风险待办不应展示系统不存在的核对消耗、优先使用、安排补货操作");
+}
+
+const riskActionMap = new Map(riskItems.map((item) => [item.type, item.actionText]));
+if (
+  riskActionMap.get("负库存") !== "发起盘点" ||
+  riskActionMap.get("低库存") !== "入库" ||
+  riskActionMap.get("临期") !== "发起盘点" ||
+  riskActionMap.get("过期") !== "报废"
+) {
+  throw new Error("库存风险默认主动作应固定为：负库存发起盘点、低库存入库、临期发起盘点、已过期报废");
 }
 
 const toolSummary = summaries.find((item) => item.category === "工具");
@@ -74,17 +95,26 @@ if (recentActivities[0].occurredAt < recentActivities[1].occurredAt) {
 }
 
 const categoryTabs = buildInventoryCategoryTabs(summaries);
-const expectedCategoryOrder = ["饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具", "精液", "其他"];
+const expectedCategoryOrder = ["饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具", "其他"];
 if (categoryTabs.map((tab) => tab.key).join(",") !== expectedCategoryOrder.join(",")) {
-  throw new Error("库存列表分类 tab 应固定展示完整物料类型，并按饲料、兽药、疫苗、消毒用品、保健品、工具、精液、其他排序");
+  throw new Error("库存列表分类 tab 应固定展示完整物料类型，并按饲料、兽药、疫苗、消毒用品、保健品、工具、其他排序");
+}
+
+const categoryTabKeys = categoryTabs.map((tab) => String(tab.key));
+if (categoryTabKeys.includes("精液")) {
+  throw new Error("库存管理不应展示精液分类 tab，精液暂不纳入库存管理");
 }
 
 if (!categoryTabs.some((tab) => tab.key === "兽药" && tab.count === 1)) {
   throw new Error("库存列表分类 tab 应统计该类型物料数量");
 }
 
-if (!categoryTabs.some((tab) => tab.key === "保健品" && tab.count === 0) || !categoryTabs.some((tab) => tab.key === "其他" && tab.count === 0)) {
-  throw new Error("库存列表分类 tab 即使当前无物料，也应展示保健品与其他分类");
+if (!categoryTabs.some((tab) => tab.key === "保健品" && tab.count === 1)) {
+  throw new Error("库存列表分类 tab 应统计保健品物料数量");
+}
+
+if (!categoryTabs.some((tab) => tab.key === "其他" && tab.count === 0)) {
+  throw new Error("库存列表分类 tab 即使当前无物料，也应展示其他分类");
 }
 
 if (categoryTabs.some((tab) => ["物料管理", "批次明细", "库存流水", "预警中心", "过期库存处理"].includes(tab.label))) {
@@ -212,49 +242,59 @@ if (sortedLotsWithUsedUp[sortedLotsWithUsedUp.length - 1]?.lotNo !== "FL-202601-
   throw new Error("物料详情批次排序应把已用完批次放在最后");
 }
 
-const ledgerTabCounts = buildInventoryLedgerTabCounts(inventorySeedLedgers);
-if (ledgerTabCounts.inbound !== 2 || ledgerTabCounts.outbound !== 4) {
-  throw new Error("出/入库记录页应按入库与出库两个 tab 分类统计记录");
+const allLedgerRecords = filterInventoryLedgers({
+  ledgers: inventorySeedLedgers,
+  materials: inventorySeedMaterials
+});
+if (allLedgerRecords.length !== inventorySeedLedgers.length) {
+  throw new Error("库存流水页应作为整体列表展示所有库存变化，不应再按入库和出库 tab 拆分");
 }
 
 const ledgerQuantityDisplay = buildInventoryLedgerQuantityDisplay(inventorySeedLedgers[0]);
 if (
   ledgerQuantityDisplay.changeText !== inventorySeedLedgers[0].quantityText ||
-  ledgerQuantityDisplay.balanceText !== inventorySeedLedgers[0].afterStockText
+  ledgerQuantityDisplay.balanceText !== inventorySeedLedgers[0].afterStockText ||
+  ledgerQuantityDisplay.directionText !== "库存上升"
 ) {
-  throw new Error("出/入库记录页应把变化数量与结存数量合并为一个展示字段");
+  throw new Error("库存流水页应把变化数量、结存数量和库存上升/下降结果合并展示");
+}
+
+const outboundQuantityDisplay = buildInventoryLedgerQuantityDisplay(inventorySeedLedgers[1]);
+if (outboundQuantityDisplay.directionText !== "库存下降") {
+  throw new Error("库存流水页应在列表中明确展示库存下降结果");
 }
 
 const inboundFlorfRecords = filterInventoryLedgers({
   ledgers: inventorySeedLedgers,
   materials: inventorySeedMaterials,
-  direction: "inbound",
   keyword: "氟苯尼考",
   dateRange: ["2026-06-17", "2026-06-17"]
 });
-if (inboundFlorfRecords.length !== 1 || inboundFlorfRecords[0].type !== "采购入库") {
-  throw new Error("入库 tab 应支持按日期范围与物料名称复合查询");
+if (
+  inboundFlorfRecords.length !== 2 ||
+  !inboundFlorfRecords.some((record) => record.type === "采购入库") ||
+  !inboundFlorfRecords.some((record) => record.type === "业务消耗")
+) {
+  throw new Error("库存流水整体列表应支持按日期范围与物料名称复合查询，并同时展示上升和下降流水");
 }
 
 const sourceOnlyRecords = filterInventoryLedgers({
   ledgers: inventorySeedLedgers,
   materials: inventorySeedMaterials,
-  direction: "outbound",
   keyword: "治疗任务"
 });
 if (sourceOnlyRecords.length !== 0) {
-  throw new Error("出/入库记录页不展示来源业务列后，关键词搜索不应再按来源业务匹配");
+  throw new Error("库存流水页不展示来源业务列后，关键词搜索不应再按来源业务匹配");
 }
 
 const outboundLossRecords = filterInventoryLedgers({
   ledgers: inventorySeedLedgers,
   materials: inventorySeedMaterials,
-  direction: "outbound",
-  outboundTypes: ["盘亏"],
+  ledgerTypes: ["盘亏"],
   keyword: "蓝耳"
 });
 if (outboundLossRecords.length !== 1 || outboundLossRecords[0].type !== "盘亏") {
-  throw new Error("出库 tab 应支持按出库方式与物料名称复合查询");
+  throw new Error("库存流水整体列表应支持按流水类型与物料名称复合查询");
 }
 
 if (generateInventoryLotNo("2026-06-19", 1) !== "RK-20260619-001") {
@@ -276,7 +316,7 @@ const receivedEntry = buildInventoryReceiveEntry({
   safetyStockBase: 500,
   note: "新增治疗物料",
   expiryDate: "2026-12-31",
-  unitPrice: 52,
+  unitPrice: 1040,
   supplier: "华牧供应",
   supplierPhone: "13800000000",
   receiveDate: "2026-06-19",
@@ -294,6 +334,7 @@ if (
   receivedEntry.material.brand !== "华牧" ||
   receivedEntry.material.baseUnit !== "ml" ||
   receivedEntry.material.auxiliaryUnit !== "瓶" ||
+  receivedEntry.material.packageConversions?.length !== 1 ||
   !receivedEntry.material.unitSystem.includes("1瓶 = 100ml") ||
   receivedEntry.material.safetyStockBase !== 500 ||
   receivedEntry.material.note !== "新增治疗物料" ||
@@ -301,7 +342,8 @@ if (
   newLotInDetail.inboundUnit !== "瓶" ||
   newLotInDetail.convertedQtyBase !== 2000 ||
   newLotInDetail.remainingQtyBase !== 2000 ||
-  newLotInDetail.unitPrice !== 52 ||
+  newLotInDetail.unitPrice !== 1040 ||
+  newLotInDetail.baseUnitCost !== 0.52 ||
   newLotInDetail.supplier !== "华牧供应" ||
   newLotInDetail.supplierPhone !== "13800000000" ||
   newLotInDetail.productionDate
@@ -309,19 +351,20 @@ if (
   throw new Error("采购入库新增物料时必须补齐列表与详情会展示的主数据，并保存批次信息");
 }
 
+if (calculateInventoryBaseQuantity(2, "盒", inventorySeedMaterials[0].baseUnit, inventorySeedMaterials[0].packageConversions || []) !== 2000) {
+  throw new Error("采购入库应使用物料主数据中的包装规格自动换算入库数量");
+}
+
 const existingMaterialReceive = buildInventoryReceiveEntry({
   mode: "existing",
   material: inventorySeedMaterials[0],
   lotId: "lot-existing-florfenicol",
   expiryDate: "2027-01-31",
-  unitPrice: 58,
+  unitPrice: 1160,
   inboundQuantity: 2,
-  inboundUnit: "箱",
-  baseQuantity: 12000,
-  packageConversions: [
-    { fromUnit: "瓶", quantity: 100, toUnit: "ml" },
-    { fromUnit: "箱", quantity: 60, toUnit: "瓶" }
-  ],
+  inboundUnit: "盒",
+  baseQuantity: 2000,
+  packageConversions: inventorySeedMaterials[0].packageConversions || [],
   supplier: "华牧供应",
   supplierPhone: "13800000001",
   receiveDate: "2026-06-19",
@@ -332,9 +375,41 @@ if (
   existingMaterialReceive.material.category !== "兽药" ||
   existingMaterialReceive.lot.materialId !== inventorySeedMaterials[0].id ||
   existingMaterialReceive.lot.lotNo !== "RK-20260619-002" ||
-  existingMaterialReceive.lot.convertedQtyBase !== 12000
+  existingMaterialReceive.lot.inboundUnit !== "盒" ||
+  existingMaterialReceive.lot.convertedQtyBase !== 2000 ||
+  existingMaterialReceive.lot.baseUnitCost !== 0.58 ||
+  existingMaterialReceive.lot.packageConversions?.length !== 2
 ) {
-  throw new Error("采购入库应同时支持给已有物料新增系统批次");
+  throw new Error("采购入库应使用已有物料的包装规格新增系统批次");
+}
+
+const baseUnitOnlyReceive = buildInventoryReceiveEntry({
+  mode: "new",
+  materialId: "mat-receive-direct-ml",
+  lotId: "lot-receive-direct-ml",
+  materialName: "直接核算入库物料",
+  category: "兽药",
+  brand: "华牧",
+  baseUnit: "ml",
+  packageConversions: [],
+  inboundQuantity: 500,
+  inboundUnit: "ml",
+  baseQuantity: 500,
+  expiryDate: "2026-12-31",
+  unitPrice: 52,
+  supplier: "华牧供应",
+  supplierPhone: "13800000004",
+  receiveDate: "2026-06-19",
+  sequence: 5
+});
+if (
+  baseUnitOnlyReceive.material.baseUnit !== "ml" ||
+  baseUnitOnlyReceive.material.auxiliaryUnit !== undefined ||
+  baseUnitOnlyReceive.lot.inboundUnit !== "ml" ||
+  baseUnitOnlyReceive.lot.convertedQtyBase !== 500 ||
+  (baseUnitOnlyReceive.lot.packageConversions || []).length !== 0
+) {
+  throw new Error("采购入库不展示包装规格时，应允许直接按核算单位记录入库数量");
 }
 
 const multiLevelConversions = [
@@ -409,4 +484,622 @@ if (
   receiveFromNewSearch.material.note !== "新增兽药"
 ) {
   throw new Error("采购入库搜索不到物料时，应直接按用户输入新增物料并补齐结构化主数据和批次数量");
+}
+
+const outboundTransaction = buildInventoryOutboundTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  materialId: "mat-drug-florfenicol",
+  outboundQuantity: 900,
+  purpose: "治疗任务领用",
+  remark: "测试出库",
+  operator: "赵库管",
+  outboundDate: "2026-06-24",
+  ledgerIdPrefix: "ledger-outbound-test"
+});
+const firstFlorfenicolLotAfterOutbound = outboundTransaction.lots.find((lot) => lot.id === "lot-flor-001");
+const secondFlorfenicolLotAfterOutbound = outboundTransaction.lots.find((lot) => lot.id === "lot-flor-002");
+if (
+  firstFlorfenicolLotAfterOutbound?.remainingQtyBase !== 0 ||
+  firstFlorfenicolLotAfterOutbound.status !== "已耗尽" ||
+  secondFlorfenicolLotAfterOutbound?.remainingQtyBase !== 950 ||
+  outboundTransaction.ledgers.length !== 2 ||
+  outboundTransaction.ledgers[0].lotNo !== "FL-202606-A" ||
+  outboundTransaction.ledgers[0].operator !== "赵库管" ||
+  outboundTransaction.ledgers[0].occurredAt !== "2026-06-24 10:00" ||
+  outboundTransaction.ledgers[0].source !== "治疗任务领用" ||
+  outboundTransaction.ledgers[0].remark !== "测试出库"
+) {
+  throw new Error("手工出库应按 FEFO 自动补齐批次、领用人和出库日期，并生成业务消耗流水");
+}
+
+const negativeOutboundTransaction = buildInventoryOutboundTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  materialId: "mat-tool-needle",
+  outboundQuantity: 20,
+  purpose: "工具领用",
+  operator: "赵库管",
+  outboundDate: "2026-06-24",
+  ledgerIdPrefix: "ledger-negative-outbound-test"
+});
+const needleMaterialAfterNegativeOutbound = negativeOutboundTransaction.materials.find((item) => item.id === "mat-tool-needle");
+if (
+  needleMaterialAfterNegativeOutbound?.negativeStockBase !== 8 ||
+  negativeOutboundTransaction.ledgers.length !== 2 ||
+  negativeOutboundTransaction.ledgers[1].lotNo ||
+  negativeOutboundTransaction.ledgers[1].afterStockText !== "-8个"
+) {
+  throw new Error("手工出库库存不足时应扣完可用批次，并把不足数量记录为物料级负库存流水");
+}
+
+const expiredOutboundTransaction = buildInventoryOutboundTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  materialId: "mat-vaccine-prrs",
+  outboundQuantity: 100,
+  purpose: "过期库存核对领用",
+  operator: "赵库管",
+  outboundDate: "2026-06-24",
+  ledgerIdPrefix: "ledger-expired-outbound-test"
+});
+const expiredLotAfterOutbound = expiredOutboundTransaction.lots.find((lot) => lot.id === "lot-prrs-001");
+const expiredOutboundMaterial = expiredOutboundTransaction.materials.find((item) => item.id === "mat-vaccine-prrs");
+if (
+  expiredLotAfterOutbound?.remainingQtyBase !== 80 ||
+  expiredOutboundTransaction.ledgers.length !== 1 ||
+  expiredOutboundTransaction.ledgers[0].lotNo !== "PRRS-202512-X" ||
+  expiredOutboundTransaction.ledgers[0].afterStockText !== "80头份" ||
+  expiredOutboundMaterial?.negativeStockBase
+) {
+  throw new Error("过期批次未报废前应默认可继续使用，出库应按 FEFO 扣减过期批次而不是生成负库存");
+}
+
+const abnormalStocktakeScope = buildInventoryStocktakeScope({
+  mode: "异常盘点",
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  summaries
+});
+if (
+  abnormalStocktakeScope.length < 3 ||
+  !abnormalStocktakeScope.some((item) => item.materialName === "戊二醛消毒液" && item.reason === "负库存" && item.bookQtyBase === -12) ||
+  !abnormalStocktakeScope.some((item) => item.materialName === "氟苯尼考") ||
+  !abnormalStocktakeScope.some((item) => item.materialName === "蓝耳二联疫苗" && item.reason === "已过期")
+) {
+  throw new Error("异常盘点应默认带出负库存、低库存、临期和已过期物料");
+}
+
+if (abnormalStocktakeScope.some((item) => item.lotId || item.lotNo)) {
+  throw new Error("盘点范围应只盘点物料总数，不应带出具体批次");
+}
+
+const targetedStocktakeScope = buildInventoryStocktakeScope({
+  mode: "指定物料盘点",
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  summaries,
+  targetMaterialId: "mat-disinfectant-glutaraldehyde"
+});
+if (targetedStocktakeScope.length !== 1 || targetedStocktakeScope[0].materialName !== "戊二醛消毒液") {
+  throw new Error("从风险物料行发起盘点时，应只带入该物料");
+}
+
+const selectableStocktakeScope = buildInventoryStocktakeScope({
+  mode: "指定物料盘点",
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  summaries
+});
+const selectableStocktakeCategories = new Set(selectableStocktakeScope.map((row) => row.category));
+if (
+  selectableStocktakeScope.length < inventorySeedMaterials.length ||
+  !selectableStocktakeScope.some((row) => row.materialName === "妊娠母猪料" && row.category === "饲料") ||
+  !selectableStocktakeScope.some((row) => row.materialName === "氟苯尼考" && row.category === "兽药") ||
+  selectableStocktakeCategories.size < 4
+) {
+  throw new Error("指定物料盘点范围页应平铺全部物料候选，并展示可筛选的物料类别");
+}
+
+const stocktakeTransaction = buildInventoryStocktakeTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  scopeRows: [
+    ...abnormalStocktakeScope,
+    ...buildInventoryStocktakeScope({
+      mode: "指定物料盘点",
+      materials: inventorySeedMaterials,
+      lots: inventorySeedLots,
+      summaries,
+      targetMaterialId: "mat-tool-needle"
+    })
+  ],
+  actualQuantities: {
+    "stocktake-material-mat-disinfectant-glutaraldehyde": 0,
+    "stocktake-material-mat-drug-florfenicol": 1750,
+    "stocktake-material-mat-vaccine-prrs": 180,
+    "stocktake-material-mat-tool-needle": 15
+  },
+  operator: "张三",
+  stocktakeNo: "PD20260624001",
+  occurredAt: "2026-06-24 10:45",
+  ledgerIdPrefix: "ledger-stocktake-test"
+});
+const disinfectantAfterStocktake = stocktakeTransaction.materials.find((item) => item.id === "mat-disinfectant-glutaraldehyde");
+const florfenicolLotAfterStocktake = stocktakeTransaction.lots.find((item) => item.id === "lot-flor-001");
+const expiredLotAfterStocktake = stocktakeTransaction.lots.find((item) => item.id === "lot-prrs-001");
+const stocktakeGainLot = stocktakeTransaction.lots.find((item) => item.materialId === "mat-tool-needle" && item.lotNo === "盘盈调整批次");
+const disinfectantStocktakeLedger = stocktakeTransaction.ledgers.find((ledger) => ledger.materialId === "mat-disinfectant-glutaraldehyde");
+if (
+  disinfectantAfterStocktake?.negativeStockBase !== 0 ||
+  florfenicolLotAfterStocktake?.remainingQtyBase !== 750 ||
+  expiredLotAfterStocktake?.remainingQtyBase !== 180 ||
+  stocktakeGainLot?.remainingQtyBase !== 3 ||
+  stocktakeGainLot.expiryDate !== "" ||
+  stocktakeGainLot.supplier !== undefined ||
+  stocktakeGainLot.stocktakeAdjustmentType !== "盘盈库存" ||
+  stocktakeTransaction.ledgers.length !== 3 ||
+  !stocktakeTransaction.ledgers.every((ledger) => ledger.type === "盘点调整" && ledger.source === "盘点单 PD20260624001") ||
+  disinfectantStocktakeLedger?.quantityText !== "+12L" ||
+  disinfectantStocktakeLedger.afterStockText !== "0L" ||
+  stocktakeTransaction.summary.adjustmentCount !== 3
+) {
+  throw new Error("盘点确认后应按物料总数生成调整：盘亏按 FEFO 扣批次，盘盈生成盘盈调整批次");
+}
+
+const expiredLossStocktakeTransaction = buildInventoryStocktakeTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  scopeRows: [
+    {
+      id: "stocktake-material-mat-vaccine-prrs",
+      materialId: "mat-vaccine-prrs",
+      materialName: "蓝耳二联疫苗",
+      brand: "百利",
+      category: "疫苗",
+      bookQtyBase: 180,
+      baseUnit: "头份",
+      reason: "已过期",
+      status: "可盘点"
+    }
+  ],
+  actualQuantities: {
+    "stocktake-material-mat-vaccine-prrs": 100
+  },
+  operator: "张三",
+  stocktakeNo: "PD20260624003",
+  occurredAt: "2026-06-24 13:00",
+  ledgerIdPrefix: "ledger-stocktake-expired-loss"
+});
+const expiredLotAfterStocktakeLoss = expiredLossStocktakeTransaction.lots.find((lot) => lot.id === "lot-prrs-001");
+if (
+  expiredLotAfterStocktakeLoss?.remainingQtyBase !== 100 ||
+  expiredLossStocktakeTransaction.ledgers.length !== 1 ||
+  expiredLossStocktakeTransaction.ledgers[0].afterStockText !== "100头份"
+) {
+  throw new Error("过期批次未报废前应默认可继续使用，盘亏应按 FEFO 扣减过期批次");
+}
+
+const noReasonStocktakeTransaction = buildInventoryStocktakeTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  scopeRows: [
+    {
+      id: "stocktake-material-no-reason",
+      materialId: "mat-drug-florfenicol",
+      materialName: "氟苯尼考",
+      brand: "A品牌",
+      category: "兽药",
+      bookQtyBase: 1850,
+      baseUnit: "ml",
+      reason: "低库存",
+      status: "可盘点"
+    }
+  ],
+  actualQuantities: {
+    "stocktake-material-no-reason": 1900
+  },
+  operator: "张三",
+  stocktakeNo: "PD20260624002",
+  occurredAt: "2026-06-24 12:00",
+  ledgerIdPrefix: "ledger-stocktake-no-reason"
+});
+if (
+  noReasonStocktakeTransaction.ledgers.length !== 1 ||
+  noReasonStocktakeTransaction.ledgers[0].quantityText !== "+50ml" ||
+  noReasonStocktakeTransaction.ledgers[0].remark
+) {
+  throw new Error("盘点只记录现场实数和库存差异，不应要求或保存差异原因");
+}
+
+const toleranceDifferences = buildInventoryStocktakeDifferences({
+  scopeRows: [
+    {
+      id: "stocktake-material-tolerance-florfenicol",
+      materialId: "mat-drug-florfenicol",
+      materialName: "氟苯尼考",
+      brand: "A品牌",
+      category: "兽药",
+      bookQtyBase: 1850,
+      baseUnit: "ml",
+      reason: "低库存",
+      status: "可盘点"
+    }
+  ],
+  actualQuantities: {
+    "stocktake-material-tolerance-florfenicol": 1852
+  },
+  operator: "张三",
+  stocktakeNo: "PD20260624004",
+  occurredAt: "2026-06-24 14:00",
+  idPrefix: "diff-tolerance-test"
+});
+const toleranceResolution = resolveInventoryToleranceDifferences({
+  differences: toleranceDifferences,
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  operator: "系统",
+  occurredAt: "2026-06-24 14:00",
+  ledgerIdPrefix: "ledger-tolerance-test"
+});
+if (
+  toleranceDifferences.length !== 1 ||
+  !isInventoryDifferenceWithinTolerance(toleranceDifferences[0]) ||
+  toleranceResolution.pendingDifferences.length !== 0 ||
+  toleranceResolution.processedDifferences[0]?.method !== "原因不明盘盈" ||
+  toleranceResolution.ledgers[0]?.type !== "盘盈" ||
+  toleranceResolution.ledgers[0]?.quantityText !== "+2ml"
+) {
+  throw new Error("兽药 2ml 盘盈应命中 Layer 1 容差并自动处理，不应进入盘点差异处理页");
+}
+
+const scrapTransaction = buildInventoryScrapTransaction({
+  materials: inventorySeedMaterials,
+  lots: inventorySeedLots,
+  lotId: "lot-prrs-001",
+  scrapQuantity: 180,
+  reason: "超过有效期",
+  handlingMethod: "无害化处理",
+  operator: "李静",
+  occurredAt: "2026-06-24 11:20",
+  ledgerId: "ledger-scrap-test"
+});
+const lotAfterScrap = scrapTransaction.lots.find((lot) => lot.id === "lot-prrs-001");
+if (
+  lotAfterScrap?.remainingQtyBase !== 0 ||
+  lotAfterScrap.status !== "已耗尽" ||
+  scrapTransaction.ledger.type !== "报废" ||
+  scrapTransaction.ledger.quantityText !== "-180头份" ||
+  scrapTransaction.ledger.afterStockText !== "0头份" ||
+  scrapTransaction.ledger.remark !== "报废原因：超过有效期；处理方式：无害化处理"
+) {
+  throw new Error("过期报废确认后应扣减批次库存、关闭过期风险，并生成流水类型为报废的库存流水");
+}
+
+const { readFileSync } = await Function("specifier", "return import(specifier)")("node:fs");
+const appSource = readFileSync(new URL("../../App.tsx", import.meta.url), "utf8");
+const consoleInventorySource = readFileSync(new URL("./ConsoleInventoryPage.tsx", import.meta.url), "utf8");
+const inventoryDataSource = readFileSync(new URL("./inventoryData.ts", import.meta.url), "utf8");
+const materialProfileFieldsSource = readFileSync(new URL("./MaterialProfileFields.tsx", import.meta.url), "utf8");
+const inventoryStyleSource = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
+
+if (
+  consoleInventorySource.includes("inventory-dashboard-summary") ||
+  consoleInventorySource.includes("库存概览")
+) {
+  throw new Error("库存首页上方不应继续保留库存概览摘要卡片，应改为图表与风险并排展示");
+}
+
+if (
+  !consoleInventorySource.includes("库存金额占比") ||
+  !consoleInventorySource.includes("库存消耗趋势") ||
+  !consoleInventorySource.includes("消耗金额 Top 物料") ||
+  !consoleInventorySource.includes("inventory-analytics-grid") ||
+  !consoleInventorySource.includes("inventory-trend-chart") ||
+  !consoleInventorySource.includes("inventory-analytics-card--risk")
+) {
+  throw new Error("库存首页上方应改为金额占比、Top 物料、库存风险并排，趋势图单独成行");
+}
+
+if (consoleInventorySource.includes("本月消耗趋势")) {
+  throw new Error("消耗趋势图应统一命名为库存消耗趋势，不应再保留本月消耗趋势旧文案");
+}
+
+if (
+  !consoleInventorySource.includes("inventoryAnalyticsTimeRangeOptions") ||
+  !consoleInventorySource.includes('["近7天", "近30天", "本月", "上月", "自定义"]') ||
+  !consoleInventorySource.includes("setAnalyticsTimeRange(item)")
+) {
+  throw new Error("库存消耗趋势应支持近7天、近30天、本月、上月、自定义时间范围筛选");
+}
+
+if (!consoleInventorySource.includes('useState<InventoryAnalyticsTimeRange>("本月")')) {
+  throw new Error("库存消耗趋势时间范围默认应为本月");
+}
+
+if (
+  !consoleInventorySource.includes("inventory-risk-row__side") ||
+  !inventoryStyleSource.includes(".inventory-analytics-card--risk .inventory-risk-row__side")
+) {
+  throw new Error("库存风险卡片中的数值和操作按钮应收敛到同一行右侧区块，避免单条风险占用过高页面高度");
+}
+
+if (
+  !consoleInventorySource.includes("inventoryAnalyticsCategoryFilterOptions") ||
+  !consoleInventorySource.includes('setAnalyticsCategoryFilter(item)') ||
+  !consoleInventorySource.includes('["全部", "饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具"]')
+) {
+  throw new Error("库存消耗趋势图应支持按全部、饲料、兽药、疫苗、消毒用品、保健品、工具筛选");
+}
+
+if (!consoleInventorySource.includes("inventory-risk-filter-tags")) {
+  throw new Error("库存概览风险筛选标签应收敛到库存风险标题右侧");
+}
+
+if (consoleInventorySource.includes("查看全部风险")) {
+  throw new Error("库存风险标题右侧不应继续展示查看全部风险按钮");
+}
+
+if (consoleInventorySource.includes("按负库存、过期、临期、低库存排序")) {
+  throw new Error("库存风险标题旁不应展示排序说明文案");
+}
+
+const hiddenHomepageDescriptions = [
+  "统一金额口径，方便场长快速看清库存资金占用",
+  "主要花费在哪些物资上",
+  "按风险优先级集中查看待处理物料",
+  "按日查看消耗金额波动，比单个汇总数字更适合做经营判断"
+];
+if (hiddenHomepageDescriptions.some((description) => consoleInventorySource.includes(description))) {
+  throw new Error("库存首页经营分析卡片标题下不应展示解释性描述文案");
+}
+
+const legacyRiskTitle = `风险物料${"TOP"}`;
+const legacyActionHint = `今天优先处理${"的问题"}`;
+if (consoleInventorySource.includes(legacyRiskTitle) || consoleInventorySource.includes(legacyActionHint)) {
+  throw new Error("库存首页不应继续展示旧风险标题或旧待办说明文案");
+}
+
+if (consoleInventorySource.includes("inventory-overview-metrics")) {
+  throw new Error("库存概览不应继续使用嵌套的库存核心指标卡片");
+}
+
+if (inventoryStyleSource.includes(".inventory-dashboard-section + .inventory-dashboard-section")) {
+  throw new Error("库存概览不应继续使用三列硬分割线样式");
+}
+
+if (consoleInventorySource.includes("差异原因")) {
+  throw new Error("盘点执行、确认和详情页不应再展示差异原因字段");
+}
+
+if (
+  !inventoryStyleSource.includes(".inventory-detail-tabs .ant-tabs-tabpane:not(.ant-tabs-tabpane-hidden)") ||
+  !inventoryStyleSource.includes("gap: 18px;")
+) {
+  throw new Error("物料详情页各模块卡片之间应有稳定间距，避免模块贴在一起");
+}
+
+if (!consoleInventorySource.includes("<Text type=\"secondary\">消耗记录</Text>")) {
+  throw new Error("物料详情页关联业务与消耗分析中，消耗来源标题应改为消耗记录");
+}
+
+if (
+  consoleInventorySource.includes("主要消耗来源") ||
+  consoleInventorySource.includes("selectedConsumptionSources.map") ||
+  consoleInventorySource.includes("消耗 {formatInventoryQty(item.quantity")
+) {
+  throw new Error("物料详情页关联业务与消耗分析不应再展示主要消耗来源汇总标签");
+}
+
+if (
+  !consoleInventorySource.includes("Math.abs(selectedConsumptionQty") ||
+  !consoleInventorySource.includes("Math.abs(selectedConsumptionCost")
+) {
+  throw new Error("物料详情消耗统计卡片应按用户视角展示正数消耗数量和金额");
+}
+
+if (!consoleInventorySource.includes('message.success("出库成功")')) {
+  throw new Error("出库成功 toast 只应展示用户结果文案：出库成功");
+}
+
+if (consoleInventorySource.includes("出库已完成，系统已补齐批次、领用人与出库日期")) {
+  throw new Error("出库 toast 不应把系统补齐批次、领用人、出库日期等内部逻辑展示给用户");
+}
+
+if (
+  consoleInventorySource.includes("inventory-stocktake-addbar") ||
+  consoleInventorySource.includes("添加物料") ||
+  consoleInventorySource.includes("stocktakeAddMaterialId") ||
+  consoleInventorySource.includes("手动搜索并选择需要盘点的物料")
+) {
+  throw new Error("指定物料盘点范围页不应再让用户逐个搜索添加物料");
+}
+
+if (
+  !consoleInventorySource.includes("rowSelection={stocktakeScopeRowSelection}") ||
+  !consoleInventorySource.includes("stocktakeScopeSelectedRowIds") ||
+  !consoleInventorySource.includes("stocktakeScopeCategory")
+) {
+  throw new Error("指定物料盘点范围页应通过复选框和物料类别筛选选择盘点目标");
+}
+
+if (
+  !consoleInventorySource.includes("自动选择当前负库存、低库存、临期、过期等风险物料，适合快速修复库存异常。")
+) {
+  throw new Error("发起盘点弹窗异常盘点说明应说明适合快速修复库存异常");
+}
+
+if (
+  !consoleInventorySource.includes("receiveMaterialSpecLine") ||
+  !consoleInventorySource.includes("本次入库：") ||
+  !consoleInventorySource.includes("receiveIncreasePreview")
+) {
+  throw new Error("采购入库选择物料后应展示规格说明，并在入库数量旁提示本次将增加多少库存");
+}
+
+if (
+  !consoleInventorySource.includes('material.category === "饲料"') ||
+  !consoleInventorySource.includes("formatInventoryQty(summary.currentStockBase, material.baseUnit)")
+) {
+  throw new Error("采购入库规格行应仅对饲料展示约包装数，兽药等物料按库存单位展示当前库存");
+}
+
+if (
+  !consoleInventorySource.includes("饲料类需填写适用猪只与适用阶段") ||
+  !inventoryDataSource.includes('key: "applicablePigTypes"') ||
+  !inventoryDataSource.includes('key: "applicableStages"') ||
+  !inventoryDataSource.includes("requiredInQuick: true") ||
+  !materialProfileFieldsSource.includes("initialValue={[{}]}") ||
+  !materialProfileFieldsSource.includes("请输入起始天") ||
+  !materialProfileFieldsSource.includes("请输入结束天")
+) {
+  throw new Error("采购入库快建饲料时，适用猪只和适用阶段应必填，且适用阶段默认展示一行完整生产状态区间输入");
+}
+
+if (consoleInventorySource.includes('label="供应商电话" name="supplierPhone" rules={')) {
+  throw new Error("采购入库供应商电话应为选填，不应配置必填校验");
+}
+
+const receiveModalSourceStart = consoleInventorySource.indexOf('title="采购入库"');
+const receiveModalSourceEnd = consoleInventorySource.indexOf("{renderExpiredActionModal()}", receiveModalSourceStart);
+const receiveModalSource =
+  receiveModalSourceStart >= 0 && receiveModalSourceEnd > receiveModalSourceStart
+    ? consoleInventorySource.slice(receiveModalSourceStart, receiveModalSourceEnd)
+    : "";
+const receiveMaterialSectionIndex = receiveModalSource.indexOf("入库物料信息");
+const receivePurchaseSectionIndex = receiveModalSource.indexOf("<strong>采购信息</strong>");
+const receivePackageSectionIndex = receiveModalSource.indexOf("<strong>规格与包装</strong>");
+if (
+  !receiveModalSource ||
+  receiveMaterialSectionIndex === -1 ||
+  receivePurchaseSectionIndex === -1 ||
+  receivePackageSectionIndex === -1 ||
+  !(receiveMaterialSectionIndex < receivePurchaseSectionIndex && receivePurchaseSectionIndex < receivePackageSectionIndex)
+) {
+  throw new Error("采购入库弹窗模块顺序应为入库物料信息、采购信息、规格与包装");
+}
+
+if (
+  receiveModalSource.includes("<strong>预警与备注</strong>") ||
+  receiveModalSource.includes("<strong>批次与采购信息</strong>") ||
+  receiveModalSource.includes('label="安全库存"') ||
+  receiveModalSource.includes("核算单位说明") ||
+  receiveModalSource.includes("请选择库存核算单位")
+) {
+  throw new Error("采购入库弹窗不应继续在批次流程中提供安全库存输入或核算单位、预警与备注旧模块");
+}
+
+if (
+  receiveModalSource.indexOf('label="备注" name="note"') === -1 ||
+  receiveModalSource.indexOf('label="备注" name="note"') < receivePurchaseSectionIndex ||
+  receiveModalSource.indexOf('label="备注" name="note"') > receivePackageSectionIndex
+) {
+  throw new Error("采购入库备注字段应移动到采购信息模块内");
+}
+
+if (
+  appSource.includes('label: "过期/报废处理"') ||
+  appSource.includes('"inventory-scrap-records"') ||
+  consoleInventorySource.includes("<Title level={3}>过期/报废处理</Title>")
+) {
+  throw new Error("过期/报废处理不应继续保留独立导航或独立页面");
+}
+
+if (
+  !consoleInventorySource.includes('actionText: resolveRiskPrimaryAction(item.type)') ||
+  !consoleInventorySource.includes("resolveRiskAuxiliaryAction(item.type)")
+) {
+  throw new Error("库存风险区应按风险类型固定主动作和辅助动作");
+}
+
+if (
+  consoleInventorySource.includes("恢复使用") ||
+  consoleInventorySource.includes("restoreExpiredLot") ||
+  consoleInventorySource.includes('if (actionText === "恢复使用")')
+) {
+  throw new Error("过期批次不再自动冻结，库存首页和物料详情不应展示恢复使用动作");
+}
+
+if (
+  !consoleInventorySource.includes('title: "操作"') ||
+  !consoleInventorySource.includes("openExpiredScrapModal(row)")
+) {
+  throw new Error("物料详情批次列表应保留过期批次的报废入口");
+}
+
+if (
+  inventoryDataSource.includes('"过期报废"') ||
+  consoleInventorySource.includes('"过期报废"')
+) {
+  throw new Error("已处理报废应合并到库存流水中，流水类型统一为报废，不再使用过期报废");
+}
+
+if (consoleInventorySource.includes('title: "追溯说明"')) {
+  throw new Error("库存流水页面不应展示追溯说明字段");
+}
+
+const ledgerMaterialColumnIndex = consoleInventorySource.indexOf('title: "物料"');
+const ledgerCategoryColumnIndex = consoleInventorySource.indexOf('title: "分类"', ledgerMaterialColumnIndex);
+const ledgerLotColumnIndex = consoleInventorySource.indexOf('title: "批次"', ledgerMaterialColumnIndex);
+if (
+  ledgerMaterialColumnIndex === -1 ||
+  ledgerCategoryColumnIndex === -1 ||
+  ledgerLotColumnIndex === -1 ||
+  !(ledgerMaterialColumnIndex < ledgerCategoryColumnIndex && ledgerCategoryColumnIndex < ledgerLotColumnIndex)
+) {
+  throw new Error("库存流水页面应在物料与批次之间展示分类字段");
+}
+
+if (
+  consoleInventorySource.includes("stocktake-task") ||
+  consoleInventorySource.includes("创建盘点任务") ||
+  !consoleInventorySource.includes("beginStocktakeExecution")
+) {
+  throw new Error("确认盘点范围后应直接进入盘点操作，不应创建盘点任务");
+}
+
+if (
+  consoleInventorySource.includes("系统已自动冻结") ||
+  consoleInventorySource.includes("冻结后不可用于") ||
+  !inventoryDataSource.includes("盘盈调整批次") ||
+  !consoleInventorySource.includes("盘盈库存，出库优先消耗") ||
+  !consoleInventorySource.includes("系统估算约")
+) {
+  throw new Error("物料详情批次库存不应展示过期自动冻结说明，并需保留盘盈调整批次提示");
+}
+
+if (
+  !consoleInventorySource.includes("盘点差异处理") ||
+  !consoleInventorySource.includes("difference-list") ||
+  !consoleInventorySource.includes("buildInventoryStocktakeDifferences") ||
+  !consoleInventorySource.includes("buildInventoryDifferenceResolution")
+) {
+  throw new Error("盘点应改为提交生成待处理差异、在盘点差异处理页逐条处理的闭环");
+}
+
+if (consoleInventorySource.includes("确认并调整库存")) {
+  throw new Error("提交盘点不应再直接确认并调整库存，应生成待处理差异");
+}
+
+if (
+  !inventoryDataSource.includes('"消耗冲销"') ||
+  !inventoryDataSource.includes('"入库更正"') ||
+  !inventoryDataSource.includes("inventoryDifferenceMethodMetas") ||
+  !inventoryDataSource.includes("buildInventoryDifferenceResolution")
+) {
+  throw new Error("差异处理应新增消耗冲销/入库更正流水类型与差异处理方式映射");
+}
+
+if (!appSource.includes("inventory-ledgers") || !appSource.includes('initialView="ledgers"')) {
+  throw new Error("库存流水应保留为库存模块独立导航与页面");
+}
+
+if (
+  appSource.includes("inventory-stocktake-records") ||
+  appSource.includes('initialView="stocktake-records"') ||
+  consoleInventorySource.includes('inventoryView === "stocktake-records"') ||
+  consoleInventorySource.includes('setInventoryView("stocktake-records")') ||
+  consoleInventorySource.includes("返回盘点记录")
+) {
+  throw new Error("盘点记录不应再保留独立导航、页面或跳转入口");
 }

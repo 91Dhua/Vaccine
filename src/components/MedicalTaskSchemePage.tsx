@@ -3,14 +3,12 @@ import {
   Card,
   Cascader,
   Checkbox,
-  Col,
   DatePicker,
   Drawer,
   Empty,
   Input,
   InputNumber,
   Modal,
-  Row,
   Select,
   Space,
   Steps,
@@ -594,42 +592,6 @@ function HealthDiagnosisHome({
   );
 }
 
-function SelectedPigSummary({ context }: { context: CreateTargetContext }) {
-  const isDiseaseSource = context.source === "disease";
-
-  return (
-    <Card className="section-card medical-task-card" title="治疗对象">
-      <Space direction="vertical" size={10} className="medical-task-summary">
-        <div>
-          <Text type="secondary">创建方式</Text>
-          <Text strong>{isDiseaseSource ? "按疾病批量创建" : "按选中猪只创建"}</Text>
-        </div>
-        <div>
-          <Text type="secondary">目标猪只</Text>
-          <Text strong>{context.pigs.length} 头</Text>
-        </div>
-        <div>
-          <Text type="secondary">来源</Text>
-          <Text strong>
-            {isDiseaseSource
-              ? `健康诊疗 · ${context.criteria.diseases.join("、") || "疾病标签"}`
-              : "健康诊疗 · 手动勾选"}
-          </Text>
-        </div>
-        {isDiseaseSource ? (
-          <div>
-            <Text type="secondary">疾病与症状</Text>
-            <div className="medical-disease-tags">
-              {context.criteria.diseases.map((tag) => <Tag color="green" key={tag}>{tag}</Tag>)}
-              {context.criteria.symptoms.map((tag) => <Tag color="gold" key={tag}>{tag}</Tag>)}
-            </div>
-          </div>
-        ) : null}
-      </Space>
-    </Card>
-  );
-}
-
 function TaskTypeCard({
   active,
   kind,
@@ -1029,39 +991,88 @@ function TaskPreview({
   onBack: () => void;
 }) {
   const isVaccination = kind === "vaccination";
+  const isDiseaseSource = context.source === "disease";
   const countText = `${context.pigs.length} 头`;
+  const taskName = isVaccination ? "疫苗接种任务" : "治疗用药任务";
+  const actionName = isVaccination ? "接种" : "治疗";
+  const contentText = isVaccination ? "非瘟灭活疫苗 · 肌内注射 · 2 毫升" : "阿莫西林注射液 · 肌内注射 · 5 毫升";
+  const scheduleText = isVaccination ? "2026-02-10" : "2026-02-10 起，连续 3 天";
+  const sourceText = isDiseaseSource ? "健康诊疗 · 按疾病批量创建" : "健康诊疗 · 手动勾选";
+  const previewRows = [
+    { label: isVaccination ? "接种内容" : "治疗内容", value: contentText },
+    { label: "执行时间", value: scheduleText },
+    { label: "目标猪只", value: countText }
+  ];
 
   return (
-    <Card className="section-card medical-task-card medical-task-step-card" title="确认信息">
-      <Space direction="vertical" size={10} className="medical-task-summary">
-        <div>
-          <Text type="secondary">任务类型</Text>
-          <Text strong>{isVaccination ? "疫苗接种任务" : "治疗用药任务"}</Text>
-        </div>
-        <div>
-          <Text type="secondary">{isVaccination ? "接种内容" : "治疗内容"}</Text>
-          <Text strong>{isVaccination ? "非瘟灭活疫苗 · 肌内注射 · 2 毫升" : "阿莫西林注射液 · 肌内注射 · 5 毫升"}</Text>
-        </div>
-        <div>
-          <Text type="secondary">执行时间</Text>
-          <Text strong>{isVaccination ? "2026-02-10" : "2026-02-10 起，连续 3 天"}</Text>
-        </div>
-        <div>
-          <Text type="secondary">目标猪只</Text>
-          <Text strong>{countText}</Text>
-        </div>
-        {context.source === "disease" ? (
-          <div>
-            <Text type="secondary">筛选标签</Text>
-            <Text strong>
-              {[...context.criteria.diseases, ...context.criteria.symptoms].join("、")}
-            </Text>
+    <Card
+      className="section-card medical-task-card medical-task-step-card medical-task-preview-card"
+      title="确认信息"
+    >
+      <div className="medical-task-preview">
+        <div className="medical-task-preview__summary">
+          <div className="medical-task-preview__title">
+            <span className="medical-task-preview__icon">
+              <MedicineBoxOutlined />
+            </span>
+            <div>
+              <Text type="secondary">任务类型</Text>
+              <Title level={5}>{taskName}</Title>
+            </div>
           </div>
-        ) : null}
-      </Space>
-      <div className="medical-task-step-actions">
-        <Button onClick={onBack}>上一步</Button>
-        <Button type="primary">确认下发</Button>
+          <div className="medical-task-preview__meta">
+            <div>
+              <Text type="secondary">目标猪只</Text>
+              <strong>{countText}</strong>
+            </div>
+            <Tag color={isVaccination ? "green" : "blue"}>{actionName}</Tag>
+          </div>
+        </div>
+
+        <div className="medical-task-preview__content">
+          <section className="medical-task-preview__section">
+            <div className="medical-task-preview__section-title">任务信息</div>
+            <div className="medical-task-preview__rows">
+              {previewRows.map((row) => (
+                <div className="medical-task-preview__row" key={row.label}>
+                  <Text type="secondary">{row.label}</Text>
+                  <Text strong>{row.value}</Text>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="medical-task-preview__section">
+            <div className="medical-task-preview__section-title">执行对象</div>
+            <div className="medical-task-preview__object">
+              <div>
+                <Text type="secondary">创建方式</Text>
+                <Text strong>{isDiseaseSource ? "按疾病批量创建" : "按选中猪只创建"}</Text>
+              </div>
+              <div>
+                <Text type="secondary">来源</Text>
+                <Text strong>{sourceText}</Text>
+              </div>
+              {isDiseaseSource ? (
+                <div>
+                  <Text type="secondary">疾病与症状</Text>
+                  <div className="medical-create-target-tags">
+                    {context.criteria.diseases.map((tag) => <Tag color="green" key={tag}>{tag}</Tag>)}
+                    {context.criteria.symptoms.map((tag) => <Tag color="gold" key={tag}>{tag}</Tag>)}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+
+        <div className="medical-task-preview__footer">
+          <Text type="secondary">确认后将生成 {countText}的{taskName}，并同步到 Mobile 执行端。</Text>
+          <div className="medical-task-step-actions medical-task-preview__actions">
+            <Button onClick={onBack}>上一步</Button>
+            <Button type="primary" icon={<CheckOutlined />}>确认下发</Button>
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -1153,25 +1164,6 @@ function CreateTargetStrip({ context }: { context: CreateTargetContext }) {
   );
 }
 
-function StepLayout({
-  summary,
-  children
-}: {
-  summary: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Row gutter={[16, 16]} className="medical-task-step-layout">
-      <Col xs={24} lg={6} xl={5}>
-        {summary}
-      </Col>
-      <Col xs={24} lg={18} xl={19}>
-        {children}
-      </Col>
-    </Row>
-  );
-}
-
 function SchemeBDrugStep({
   drug,
   setDrug,
@@ -1259,11 +1251,7 @@ function ConfirmStep({
   kind: TaskKind;
   onBack: () => void;
 }) {
-  return (
-    <StepLayout summary={<SelectedPigSummary context={context} />}>
-      <TaskPreview kind={kind} context={context} onBack={onBack} />
-    </StepLayout>
-  );
+  return <TaskPreview kind={kind} context={context} onBack={onBack} />;
 }
 
 function MedicalCreateFlow({
