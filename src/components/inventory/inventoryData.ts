@@ -1181,6 +1181,7 @@ export const inventorySeedDifferences: InventoryDifferenceRecord[] = [
     direction: "盘盈",
     status: "待处理",
     financeStatus: "无需确认",
+    relatedLotNo: "FL-202606-B",
     createdAt: "2026-06-26 10:45",
     operator: "系统"
   },
@@ -2045,7 +2046,7 @@ export function buildInventoryDifferenceResolution(
             };
           });
           usedLotNo = target.lotNo;
-        } else {
+        } else if (input.method === "入库少录补金额") {
           const estimatedBaseUnitCost = estimateInventoryAverageBaseUnitCost(input.lots, record.materialId);
           const newLotNo = "补录入库批次";
           nextLots = [
@@ -2065,6 +2066,8 @@ export function buildInventoryDifferenceResolution(
             }
           ];
           usedLotNo = newLotNo;
+        } else {
+          throw new Error("未找到可回补的原批次。");
         }
       }
     }
@@ -2119,16 +2122,28 @@ export function resolveInventoryToleranceDifferences(
       return;
     }
 
-    const method: InventoryDifferenceMethod = difference.direction === "盘盈" ? "原因不明盘盈" : "原因不明盘亏";
-    const resolution = buildInventoryDifferenceResolution({
-      record: difference,
-      method,
-      materials: nextMaterials,
-      lots: nextLots,
-      operator: input.operator,
-      occurredAt: input.occurredAt,
-      ledgerIdPrefix: `${input.ledgerIdPrefix}-${index + 1}`
-    });
+    if (difference.direction === "盘盈" && !difference.relatedLotNo) {
+      pendingDifferences.push(difference);
+      return;
+    }
+
+    const method: InventoryDifferenceMethod = difference.direction === "盘盈" ? "任务出库多扣" : "原因不明盘亏";
+    let resolution: InventoryDifferenceResolution;
+    try {
+      resolution = buildInventoryDifferenceResolution({
+        record: difference,
+        method,
+        materials: nextMaterials,
+        lots: nextLots,
+        operator: input.operator,
+        occurredAt: input.occurredAt,
+        ledgerIdPrefix: `${input.ledgerIdPrefix}-${index + 1}`,
+        relatedLotNo: difference.direction === "盘盈" ? difference.relatedLotNo : undefined
+      });
+    } catch {
+      pendingDifferences.push(difference);
+      return;
+    }
 
     nextMaterials = resolution.materials;
     nextLots = resolution.lots;

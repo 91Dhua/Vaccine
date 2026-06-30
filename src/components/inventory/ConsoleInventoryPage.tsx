@@ -1310,7 +1310,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       setInventoryView("stocktake-complete");
       message.success(
         pendingDifferenceCount > 0
-          ? `已自动处理 ${toleranceResolution.processedDifferences.length} 条小差异，仍有 ${pendingDifferenceCount} 条待处理`
+          ? `已自动处理 ${toleranceResolution.processedDifferences.length} 条小差异，仍有 ${pendingDifferenceCount} 条进入盘点差异处理`
           : toleranceResolution.processedDifferences.length > 0
             ? `盘点完成，${toleranceResolution.processedDifferences.length} 条小差异已自动处理并生成库存流水`
             : "盘点完成，账实一致，无差异"
@@ -2651,7 +2651,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
               返回修改
             </Button>
             <Title level={3}>盘点差异确认</Title>
-            <Text type="secondary">提交后系统先自动处理容差内小差异，剩余差异进入待处理</Text>
+            <Text type="secondary">提交后系统先自动处理可闭环的小差异，剩余差异进入「盘点差异处理」</Text>
           </div>
         </div>
         <div className="inventory-stocktake-summary">
