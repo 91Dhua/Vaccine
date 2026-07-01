@@ -13,7 +13,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Radio,
   Select,
   Space,
   Table,
@@ -32,6 +31,7 @@ import {
   EditOutlined,
   ExportOutlined,
   EyeOutlined,
+  HistoryOutlined,
   InfoCircleOutlined,
   InboxOutlined,
   PlayCircleOutlined,
@@ -49,6 +49,8 @@ import {
   buildInventoryScrapTransaction,
   buildInventorySummaries,
   buildInventoryStocktakeScope,
+  buildBatchInlineNewMaterialDraft,
+  buildMaterialProfileFromForm,
   buildInventoryStocktakeTransaction,
   buildInventoryStocktakeDifferences,
   buildInventoryDifferenceResolution,
@@ -99,14 +101,24 @@ import {
   type InventoryDifferenceMethod
 } from "./inventoryData";
 import { MaterialProfileFields } from "./MaterialProfileFields";
+import {
+  BatchReceivePanel,
+  buildBatchReceiveEntryEffectiveDraft,
+  createEmptyBatchReceiveEntry,
+  isBatchReceiveEntryReady,
+  isBatchReceiveEntrySubmitting,
+  resolveBatchReceiveEntryMaterial,
+  type InventoryBatchReceiveEntry
+} from "./BatchReceivePanel";
 
 const { Text, Title } = Typography;
 const STOCKTAKE_RISK_DAYS = 30;
 
 type InventoryHomeRiskKind = "负库存" | "已过期" | "临期" | "低库存";
 type InventoryListStockStatus = "正常" | "临期" | "低库存" | "负库存";
-type InventoryAnalyticsCategoryFilter = "全部" | "饲料" | "兽药" | "疫苗" | "消毒用品" | "保健品" | "工具";
+type InventoryAnalyticsCategoryFilter = "全部" | InventoryCategory;
 type InventoryAnalyticsTimeRange = "近7天" | "近30天" | "本月" | "上月" | "自定义";
+type InventoryDifferenceTab = "pending" | "processed";
 
 type InventoryValueShareRow = {
   category: InventoryCategory;
@@ -122,17 +134,18 @@ type InventoryTrendPoint = {
 };
 
 type InventoryTopSpendRow = {
-  materialId: string;
+  id: string;
   materialName: string;
   category: InventoryCategory;
   amount: number;
   share: number;
   color: string;
+  isCategorySummary?: boolean;
 };
 
-const inventoryAnalyticsCategoryFilterOptions: InventoryAnalyticsCategoryFilter[] = ["全部", "饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具"];
 const inventoryAnalyticsTimeRangeOptions: InventoryAnalyticsTimeRange[] = ["近7天", "近30天", "本月", "上月", "自定义"];
 const inventoryAmountChartCategories: InventoryCategory[] = ["饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具", "其他"];
+const inventoryAnalyticsCategoryFilterOptions: InventoryAnalyticsCategoryFilter[] = ["全部", ...inventoryAmountChartCategories];
 const inventoryCategoryChartColors: Record<InventoryCategory, string> = {
   饲料: "#4F8CFF",
   兽药: "#35B8A6",
@@ -143,10 +156,80 @@ const inventoryCategoryChartColors: Record<InventoryCategory, string> = {
   其他: "#C3CBD8"
 };
 
+const inventoryDifferenceHandlingOptions: InventoryDifferenceHandlingOption[] = [
+  {
+    key: "restore-consumption",
+    uiLabel: "回补原消耗",
+    method: "任务出库多扣",
+    direction: "盘盈",
+    appliesToText: "之前领用或出库数量记多了，需要冲回。",
+    inventoryText: "优先回补最近扣减的批次，不足时继续回补更早批次。",
+    accountingText: "冲减之前记录的消耗成本。",
+    reasons: ["实际用量少于登记用量", "手工出库多扣", "重复扣减", "其他"],
+    requiredSupplements: []
+  },
+  {
+    key: "correct-inbound-quantity",
+    uiLabel: "更正入库数量（金额不变）",
+    method: "入库数量更正",
+    direction: "盘盈",
+    appliesToText: "实际入库数量更多，只需修正库存数量。",
+    inventoryText: "补回对应批次库存；无法确定时补到最早可用批次。",
+    accountingText: "只调整库存数量，不影响采购金额。",
+    reasons: ["入库数量少录", "包装换算录小", "其他"],
+    requiredSupplements: []
+  },
+  {
+    key: "supplement-inbound-cost",
+    uiLabel: "补录入库数量和金额",
+    method: "入库少录补金额",
+    direction: "盘盈",
+    appliesToText: "有一批货未登记，需要补录入库。",
+    inventoryText: "新增对应批次库存。",
+    accountingText: "补记本次采购金额，形成完整入库记录。",
+    reasons: ["到货未入库", "其他"],
+    requiredSupplements: ["amount"]
+  },
+  {
+    key: "record-business-consumption",
+    uiLabel: "补记业务消耗 / 出库",
+    method: "漏记任务出库",
+    direction: "盘亏",
+    appliesToText: "实物已经领用、使用或发出，只是之前没有登记。",
+    inventoryText: "按库存先进先出的顺序扣减对应批次库存。",
+    accountingText: "按实际领用记录成本，补齐本次业务消耗。",
+    reasons: ["任务用料未提交", "手工领用未登记", "紧急领用后补录", "治疗 / 免疫 / 饲喂漏记", "其他"],
+    requiredSupplements: []
+  },
+  {
+    key: "correct-over-inbound",
+    uiLabel: "更正入库多录",
+    method: "入库多录",
+    direction: "盘亏",
+    appliesToText: "之前入库数量录多了，需要改回实际数量。",
+    inventoryText: "按库存先进先出的顺序扣减对应批次库存。",
+    accountingText: "修正库存数量，不补记历史领用记录。",
+    reasons: ["入库数量多录", "包装换算录大", "重复入库", "批次合并录重", "其他"],
+    requiredSupplements: []
+  },
+  {
+    key: "scrap-loss",
+    uiLabel: "报废 / 损耗处理",
+    method: "破损污染过期报废",
+    direction: "盘亏",
+    appliesToText: "实物已经损坏、过期或无法继续使用。",
+    inventoryText: "按库存先进先出的顺序扣减对应批次库存。",
+    accountingText: "按损耗记录本次成本，作为报废或损耗处理。",
+    reasons: ["破损", "污染", "过期", "变质", "保存异常", "其他"],
+    requiredSupplements: []
+  }
+];
+
 const initialToleranceResolution = resolveInventoryToleranceDifferences({
   differences: inventorySeedDifferences,
   materials: inventorySeedMaterials,
   lots: inventorySeedLots,
+  ledgers: inventorySeedLedgers,
   operator: "系统",
   occurredAt: "2026-06-26 10:46",
   ledgerIdPrefix: "ledger-auto-tolerance-seed"
@@ -184,10 +267,26 @@ type InventoryHomeRiskRow = {
   brand: string;
   lotNo?: string;
   valueText: string;
+  dateText?: string;
   detailText: string;
+  adviceText: string;
   actionText?: string;
   auxiliaryActionText?: string;
   priority: number;
+};
+
+type InventoryDifferenceSupplementRequirement = "amount" | "note";
+
+type InventoryDifferenceHandlingOption = {
+  key: string;
+  uiLabel: string;
+  method: InventoryDifferenceMethod;
+  direction: InventoryDifferenceRecord["direction"];
+  appliesToText: string;
+  inventoryText: string;
+  accountingText: string;
+  reasons: string[];
+  requiredSupplements: InventoryDifferenceSupplementRequirement[];
 };
 
 type InventoryStocktakeRecord = {
@@ -221,6 +320,8 @@ type InventoryStocktakeTaskFormValues = {
   remark?: string;
 };
 
+type MaterialDetailTabKey = "detail" | "ledger";
+
 const materialStatusFilterOptions: InventoryMaterialStatusFilter[] = ["全部", "启用中", "已停用"];
 const materialEditCategoryOptions: InventoryCategory[] = ["饲料", "兽药", "保健品", "疫苗", "消毒用品", "工具", "其他"];
 const stocktakeReasonOptions = ["异常复核", "月度盘点", "临时抽查", "交接盘点", "库存修正", "其他"];
@@ -248,6 +349,10 @@ function formatInventoryDateTime(value?: string) {
 
 function formatInventoryDate(value?: string) {
   return value ? value.slice(0, 10) : "—";
+}
+
+function formatInventoryShortDate(value?: string) {
+  return value ? formatMonthDay(value.slice(0, 10)) : "—";
 }
 
 function resolveBusinessType(source: string) {
@@ -289,6 +394,18 @@ function formatPercent(value: number) {
 
 function formatMonthDay(value: string) {
   return value.slice(5).replace("-", "/");
+}
+
+function formatRelativeExpiryDate(expiryDate?: string) {
+  if (!expiryDate) return "";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${expiryDate}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return "";
+  const diffDays = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays < 0) return `已过期 ${Math.abs(diffDays)} 天`;
+  if (diffDays === 0) return "今天到期";
+  return `${diffDays}天后到期`;
 }
 
 function formatISODate(date: Date) {
@@ -633,12 +750,25 @@ function formatReceiveIncreasePreview(quantity: number | undefined, unit: string
 
 function resolveRiskPrimaryAction(type: InventoryRiskType | InventoryHomeRiskKind) {
   if (type === "负库存") return "发起盘点";
-  if (type === "临期" || type === "低库存") return undefined;
+  if (type === "低库存") return undefined;
+  if (type === "临期") return "发起盘点";
   return "报废";
 }
 
 function resolveRiskAuxiliaryAction(_type: InventoryRiskType | InventoryHomeRiskKind) {
   return undefined;
+}
+
+function resolveRiskAdviceText(type: InventoryHomeRiskKind) {
+  if (type === "负库存") return "账面库存出现负数异常。请立即发起盘点核对实物，修正后即可还原准确的库存数据。";
+  if (type === "已过期") return "该批次物料已过有效期，存在安全隐患。建议及时发起报废，处理后将扣减该批次，防止一线误领误用。";
+  if (type === "临期") return "物料逼近保质期终点。建议核查实物状态并优先安排出库，抢先消耗以避免资产浪费。";
+  return "当前库存已跌破安全线，面临断供风险。请尽快补充入库，库存回升后系统将自动撤销预警。";
+}
+
+function resolveDifferenceHandlingLabel(method?: InventoryDifferenceMethod) {
+  if (!method) return "";
+  return inventoryDifferenceHandlingOptions.find((option) => option.method === method)?.uiLabel || method;
 }
 
 function buildDefaultStocktakeTaskValues(mode: InventoryStocktakeMode): InventoryStocktakeTaskFormValues {
@@ -751,6 +881,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     | "stocktake-complete"
     | "stocktake-detail"
     | "difference-list"
+    | "batch-receive"
   >(initialView);
   const [activeCategory, setActiveCategory] = useState<InventoryCategory>(inventoryCategoryOrder[0]);
   const [summaryKeyword, setSummaryKeyword] = useState("");
@@ -775,21 +906,27 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     ...initialToleranceResolution.pendingDifferences,
     ...initialToleranceResolution.processedDifferences
   ]);
+  const [differenceTab, setDifferenceTab] = useState<InventoryDifferenceTab>("pending");
   const [stocktakeDifferenceResult, setStocktakeDifferenceResult] = useState<InventoryDifferenceRecord[]>([]);
   const [handlingDifferenceId, setHandlingDifferenceId] = useState<string | null>(null);
-  const [handleMethod, setHandleMethod] = useState<InventoryDifferenceMethod | null>(null);
-  const [handleRelatedLotNo, setHandleRelatedLotNo] = useState<string | undefined>(undefined);
+  const [handleOptionKey, setHandleOptionKey] = useState<string | null>(null);
+  const [handleReason, setHandleReason] = useState<string | undefined>(undefined);
+  const [handleReasonNote, setHandleReasonNote] = useState("");
+  const [handleSupplementAmount, setHandleSupplementAmount] = useState<number | undefined>(undefined);
   const [outboundOpen, setOutboundOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [receiveMaterialText, setReceiveMaterialText] = useState("");
   const [receiveMaterialId, setReceiveMaterialId] = useState<string | undefined>();
   const [receiveNewMaterialDraft, setReceiveNewMaterialDraft] = useState<InventoryMaterial | null>(null);
+  const [batchReceiveCategory, setBatchReceiveCategory] = useState<InventoryCategory>("饲料");
+  const [batchReceiveEntries, setBatchReceiveEntries] = useState<InventoryBatchReceiveEntry[]>(() => [createEmptyBatchReceiveEntry()]);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [quickCreateForm] = Form.useForm();
   const quickCreateCategory = (Form.useWatch("category", quickCreateForm) || "饲料") as InventoryCategory;
   const quickCreateBaseUnit = Form.useWatch("baseUnit", quickCreateForm) as string | undefined;
   const quickCreatePackageDrafts = (Form.useWatch("packageConversions", quickCreateForm) || []) as ReceivePackageConversionDraft[];
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [materialDetailTab, setMaterialDetailTab] = useState<MaterialDetailTabKey>("detail");
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [activeHomeRiskType, setActiveHomeRiskType] = useState<InventoryHomeRiskKind | "全部">("全部");
   const [analyticsCategoryFilter, setAnalyticsCategoryFilter] = useState<InventoryAnalyticsCategoryFilter>("全部");
@@ -880,6 +1017,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     return riskItems
       .map((item) => {
         const type: InventoryHomeRiskKind = item.type === "过期" ? "已过期" : item.type;
+        const relativeExpiryText = item.expiryDate ? formatRelativeExpiryDate(item.expiryDate) : "";
         return {
           id: item.id,
           type,
@@ -887,8 +1025,10 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           materialName: item.materialName,
           brand: item.brand,
           lotNo: item.lotNo,
-          valueText: item.valueText,
-          detailText: item.lotNo ? `批次 ${item.lotNo}` : "库存异常，请查看物料详情",
+          valueText: type === "临期" && relativeExpiryText ? relativeExpiryText : item.valueText,
+          dateText: type === "临期" && item.expiryDate ? item.expiryDate : undefined,
+          detailText: item.lotNo ? `批次 ${item.lotNo}` : "库存异常",
+          adviceText: resolveRiskAdviceText(type),
           actionText: resolveRiskPrimaryAction(item.type),
           auxiliaryActionText: resolveRiskAuxiliaryAction(item.type),
           priority: item.priority
@@ -1003,10 +1143,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     () => consumptionTrendPoints.reduce((sum, point) => sum + point.amount, 0),
     [consumptionTrendPoints]
   );
-  const consumptionTrendActiveDays = useMemo(
-    () => consumptionTrendPoints.filter((point) => point.amount > 0).length,
-    [consumptionTrendPoints]
-  );
   const consumptionTrendAverage = useMemo(
     () => (consumptionTrendPoints.length ? consumptionTrendTotal / consumptionTrendPoints.length : 0),
     [consumptionTrendPoints, consumptionTrendTotal]
@@ -1019,8 +1155,40 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       ),
     [consumptionTrendPoints]
   );
+  const feedConsumptionWeight = useMemo(
+    () =>
+      consumptionWindowLedgers.reduce((sum, ledger) => {
+        const material = materialMap.get(ledger.materialId);
+        if (material?.category !== "饲料" || material.baseUnit !== "kg") return sum;
+        const sign = ledger.type === "消耗冲销" ? -1 : 1;
+        return sum + sign * Math.abs(parseLedgerQuantity(ledger.quantityText));
+      }, 0),
+    [consumptionWindowLedgers, materialMap]
+  );
   const windowTopSpendRows = useMemo<InventoryTopSpendRow[]>(() => {
+    if (analyticsCategoryFilter === "全部") {
+      const amountByCategory = consumptionWindowLedgers.reduce((map, ledger) => {
+        const category = materialMap.get(ledger.materialId)?.category || "其他";
+        map.set(category, (map.get(category) || 0) + resolveLedgerConsumptionCost(ledger));
+        return map;
+      }, new Map<InventoryCategory, number>());
+      const totalAmount = Array.from(amountByCategory.values()).reduce((sum, amount) => sum + amount, 0);
+      return Array.from(amountByCategory.entries())
+        .map(([category, amount]) => ({
+          id: `category-${category}`,
+          materialName: category,
+          category,
+          amount,
+          share: totalAmount > 0 ? amount / totalAmount : 0,
+          color: inventoryCategoryChartColors[category],
+          isCategorySummary: true
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5);
+    }
+
     const amountByMaterial = consumptionWindowLedgers.reduce((map, ledger) => {
+      if (materialMap.get(ledger.materialId)?.category !== analyticsCategoryFilter) return map;
       map.set(ledger.materialId, (map.get(ledger.materialId) || 0) + resolveLedgerConsumptionCost(ledger));
       return map;
     }, new Map<string, number>());
@@ -1029,7 +1197,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       .map(([materialId, amount]) => {
         const material = materialMap.get(materialId);
         return {
-          materialId,
+          id: materialId,
           materialName: material?.materialName || "未知物料",
           category: material?.category || "其他",
           amount,
@@ -1039,7 +1207,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       })
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
-  }, [consumptionWindowLedgers, lotByNo, materialAverageCostMap, materialMap]);
+  }, [analyticsCategoryFilter, consumptionWindowLedgers, lotByNo, materialAverageCostMap, materialMap]);
   const analyticsFilterSummaryLabel = analyticsCategoryFilter === "全部" ? "全部分类" : analyticsCategoryFilter;
   const analyticsRangeLabel = analyticsDateWindow.label;
   const largestInventoryShare = Math.max(...sortedInventoryValueShareRows.map((row) => row.share), 0);
@@ -1113,6 +1281,10 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   );
   const receiveMaterialOptions = getInventoryReceiveMaterialOptions(materials);
   const activeOutboundMaterials = materials.filter((material) => getInventoryMaterialStatus(material) === "启用中");
+  const batchReceiveSubmittingEntries = batchReceiveEntries.filter(isBatchReceiveEntrySubmitting);
+  const batchReceiveReadyEntries = batchReceiveEntries.filter((entry) =>
+    isBatchReceiveEntryReady(entry, materials, batchReceiveCategory)
+  );
   const selectedOutboundMaterial = outboundMaterialId
     ? activeOutboundMaterials.find((item) => item.id === outboundMaterialId) || null
     : null;
@@ -1166,9 +1338,15 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     setSummaryKeyword(keyword);
   };
 
-  const openMaterialDetail = (materialId: string) => {
+  const openMaterialDetail = (materialId: string, tab: MaterialDetailTabKey = "detail") => {
     setSelectedMaterialId(materialId);
+    setMaterialDetailTab(tab);
     setInventoryView("detail");
+  };
+
+  const openDifferenceMaterialLedger = (materialId: string) => {
+    closeDifferenceHandler();
+    openMaterialDetail(materialId, "ledger");
   };
 
   const openExpiredScrapModal = (lot: InventoryLot | null) => {
@@ -1275,6 +1453,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         differences: newDifferences,
         materials,
         lots,
+        ledgers,
         operator: "系统",
         occurredAt,
         ledgerIdPrefix: `ledger-auto-tolerance-${Date.now()}`
@@ -1324,6 +1503,10 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     () => differences.filter((item) => item.status === "待处理"),
     [differences]
   );
+  const processedDifferences = useMemo(
+    () => differences.filter((item) => item.status === "已处理"),
+    [differences]
+  );
   const pendingDifferenceMaterialIds = useMemo(
     () => new Set(pendingDifferences.map((item) => item.materialId)),
     [pendingDifferences]
@@ -1339,65 +1522,106 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     () => differences.find((item) => item.id === handlingDifferenceId) || null,
     [differences, handlingDifferenceId]
   );
-  const handlingMethodMeta = useMemo(
-    () => inventoryDifferenceMethodMetas.find((item) => item.method === handleMethod) || null,
-    [handleMethod]
+  const handlingOption = useMemo(
+    () => inventoryDifferenceHandlingOptions.find((item) => item.key === handleOptionKey) || null,
+    [handleOptionKey]
   );
-  const handlingLotOptions = useMemo(() => {
-    if (!handlingDifference) return [];
-    return getInventoryLotsForMaterial(lots, handlingDifference.materialId)
-      .filter((lot) => lot.lotNo)
-      .map((lot) => ({
-        label: `${lot.lotNo}（剩余 ${formatInventoryQty(lot.remainingQtyBase, handlingDifference.baseUnit)}）`,
-        value: lot.lotNo
-      }));
-  }, [handlingDifference, lots]);
+  const handlingMethodMeta = useMemo(
+    () => inventoryDifferenceMethodMetas.find((item) => item.method === handlingOption?.method) || null,
+    [handlingOption]
+  );
+  const canSubmitDifferenceResolution = Boolean(
+    handlingDifference &&
+    handlingOption &&
+    handleReason &&
+    (handleReason !== "其他" || handleReasonNote.trim()) &&
+    (!handlingOption.requiredSupplements.includes("amount") || (handleSupplementAmount && handleSupplementAmount > 0))
+  );
 
+  const resetDifferenceHandlerInputs = () => {
+    setHandleOptionKey(null);
+    setHandleReason(undefined);
+    setHandleReasonNote("");
+    setHandleSupplementAmount(undefined);
+  };
+  const selectDifferenceHandlingOption = (optionKey: string) => {
+    setHandleOptionKey(optionKey);
+    setHandleReason(undefined);
+    setHandleReasonNote("");
+    setHandleSupplementAmount(undefined);
+  };
   const openDifferenceHandler = (difference: InventoryDifferenceRecord) => {
     setHandlingDifferenceId(difference.id);
-    setHandleMethod(null);
-    setHandleRelatedLotNo(difference.relatedLotNo);
+    resetDifferenceHandlerInputs();
   };
   const closeDifferenceHandler = () => {
     setHandlingDifferenceId(null);
-    setHandleMethod(null);
-    setHandleRelatedLotNo(undefined);
+    resetDifferenceHandlerInputs();
   };
   const submitDifferenceResolution = () => {
-    if (!handlingDifference || !handleMethod) {
+    if (!handlingDifference || !handlingOption) {
       message.error("请选择差异处理方式。");
+      return;
+    }
+    if (!handleReason) {
+      message.error("请选择处理原因。");
+      return;
+    }
+    if (handleReason === "其他" && !handleReasonNote.trim()) {
+      message.error("选择其他原因时，请填写原因备注。");
+      return;
+    }
+    if (handlingOption.requiredSupplements.includes("amount") && (!handleSupplementAmount || handleSupplementAmount <= 0)) {
+      message.error("请填写补录金额，且金额必须大于 0。");
       return;
     }
     const occurredAt = `${new Date().toISOString().slice(0, 10)} 11:20`;
     try {
       const resolution = buildInventoryDifferenceResolution({
         record: handlingDifference,
-        method: handleMethod,
+        method: handlingOption.method,
         materials,
         lots,
-        relatedLotNo: handleRelatedLotNo,
-        operator: handlingDifference.operator,
+        ledgers,
+        supplementAmount: handleSupplementAmount,
+        operator: "当前用户",
         occurredAt,
         ledgerIdPrefix: `ledger-diff-${Date.now()}`
       });
+      const reasonRemark = [
+        `处理方式：${handlingOption.uiLabel}`,
+        `原因：${handleReason}`,
+        handleReasonNote.trim() ? `备注：${handleReasonNote.trim()}` : "",
+        handleSupplementAmount !== undefined ? `补录金额：${handleSupplementAmount}元` : ""
+      ].filter(Boolean).join("；");
+      const ledgersWithReason = resolution.ledgers.map((ledger) => ({
+        ...ledger,
+        remark: [ledger.remark, reasonRemark].filter(Boolean).join("；")
+      }));
       setMaterials(resolution.materials);
       setLots(resolution.lots);
-      setLedgers((prev) => [...resolution.ledgers, ...prev]);
+      setLedgers((prev) => [...ledgersWithReason, ...prev]);
       setDifferences((prev) =>
         prev.map((item) =>
           item.id === handlingDifference.id
             ? {
                 ...item,
                 status: "已处理",
-                method: handleMethod,
-                relatedLotNo: handleRelatedLotNo,
+                method: handlingOption.method,
+                relatedLotNo: resolution.ledgers[0]?.lotNo,
+                handlingOptionLabel: handlingOption.uiLabel,
+                handlingReason: handleReason,
+                handlingReasonNote: handleReasonNote.trim() || undefined,
+                supplementAmount: handleSupplementAmount,
                 financeStatus: resolution.financeStatus,
-                resultLedgerIds: resolution.ledgers.map((ledger) => ledger.id),
-                processedAt: occurredAt
+                resultLedgerIds: ledgersWithReason.map((ledger) => ledger.id),
+                processedAt: occurredAt,
+                processedBy: "当前用户"
               }
             : item
         )
       );
+      setDifferenceTab("processed");
       closeDifferenceHandler();
       message.success("差异已处理，库存流水已生成");
     } catch (error) {
@@ -1544,12 +1768,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   };
 
   const buildReceiveProfileValues = (category: InventoryCategory, values: Record<string, unknown>) => {
-    const specs = inventoryCategoryFieldSpecs[category] || [];
-    const profile: Record<string, unknown> = {};
-    specs.forEach((spec) => {
-      profile[String(spec.key)] = values[String(spec.key)];
-    });
-    return profile;
+    return buildMaterialProfileFromForm(category, values);
   };
 
   const openQuickCreateMaterial = () => {
@@ -1732,6 +1951,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       packageConversions,
       supplier: values.supplier,
       supplierPhone: values.supplierPhone,
+      storageLocation: values.storageLocation,
       receiveDate,
       sequence: receiveSequence
     });
@@ -1774,12 +1994,16 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         ),
         operator: "当前用户",
         remark:
-          receivedEntry.lot.inboundUnit === receivedEntry.material.baseUnit
-            ? `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}`
-            : `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}；换算数量：${formatInventoryQty(
-                receivedEntry.lot.convertedQtyBase,
-                receivedEntry.material.baseUnit
-              )}；规格：${formatPackageConversionSummary(packageConversions).join("，")}`
+          [
+            `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}`,
+            receivedEntry.lot.inboundUnit === receivedEntry.material.baseUnit
+              ? ""
+              : `换算数量：${formatInventoryQty(receivedEntry.lot.convertedQtyBase, receivedEntry.material.baseUnit)}`,
+            receivedEntry.lot.inboundUnit === receivedEntry.material.baseUnit
+              ? ""
+              : `规格：${formatPackageConversionSummary(packageConversions).join("，")}`,
+            values.storageLocation ? `存放位置：${values.storageLocation}` : ""
+          ].filter(Boolean).join("；")
       },
       ...prev
     ]);
@@ -1788,6 +2012,151 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     resetReceiveFormState();
     setReceiveOpen(false);
     message.success("已生成系统批次，并写入对应物料列表和批次明细");
+  };
+
+  const submitBatchReceive = () => {
+    if (!batchReceiveReadyEntries.length) {
+      if (batchReceiveSubmittingEntries.length) {
+        message.error("已填写数量的条目需要补齐物料、到期日期、总进货价、供应商和存放位置。");
+      } else {
+        message.error("请至少填写一条入库记录。");
+      }
+      return;
+    }
+
+    const receiveDateValue = new Date().toISOString().slice(0, 10);
+    let baseSequence = lots.filter((lot) => lot.lotNo.startsWith(`RK-${receiveDateValue.replace(/-/g, "")}`)).length + 1;
+    const stockByMaterial = new Map(summaries.map((summary) => [summary.materialId, summary.currentStockBase]));
+    const pendingMaterials: InventoryMaterial[] = [];
+    const nextLots: InventoryLot[] = [];
+    const nextLedgers: InventoryLedgerRow[] = [];
+    const submittedEntryIds: string[] = [];
+
+    try {
+      batchReceiveReadyEntries.forEach((entry, index) => {
+        const materialSource = resolveBatchReceiveEntryMaterial(
+          entry,
+          [...materials, ...pendingMaterials],
+          batchReceiveCategory
+        );
+        if (!materialSource) {
+          throw new Error(`第 ${index + 1} 条：请先选择已有物料或完善新建物料信息。`);
+        }
+
+        const selectedExistingId = entry.materialId || materials.find((item) => item.materialName === materialSource.materialName)?.id;
+        const newDraft =
+          !entry.materialId && entry.newMaterialForm
+            ? buildBatchInlineNewMaterialDraft(batchReceiveCategory, entry.materialKeyword.trim(), entry.newMaterialForm)
+            : null;
+        const draft = buildBatchReceiveEntryEffectiveDraft(entry, materialSource);
+        const inboundQuantity = Number(draft.inboundQuantity || 0);
+        const inboundUnit = draft.inboundUnit || materialSource.baseUnit;
+        const packageConversions = materialSource.packageConversions || [];
+        const baseQuantity = calculateInventoryBaseQuantity(
+          inboundQuantity,
+          inboundUnit,
+          materialSource.baseUnit,
+          packageConversions
+        );
+        if (!baseQuantity) {
+          throw new Error(`${materialSource.materialName} 的入库单位缺少包装规格，无法换算为核算单位。`);
+        }
+
+        const receivedEntry = buildInventoryReceiveEntryFromSearch({
+          materials: [...materials, ...pendingMaterials],
+          selectedMaterialId: newDraft ? undefined : selectedExistingId,
+          materialText: materialSource.materialName,
+          category: newDraft?.category || materialSource.category,
+          brand: newDraft?.brand || materialSource.brand,
+          baseUnit: materialSource.baseUnit,
+          safetyStockBase: newDraft?.safetyStockBase,
+          note: newDraft?.note,
+          newMaterialId: newDraft ? `mat-batch-${Date.now()}-${index}` : `mat-batch-${Date.now()}-${index}`,
+          lotId: `lot-batch-receive-${Date.now()}-${index}`,
+          expiryDate: draft.expiryDate || "",
+          unitPrice: Number(draft.unitPrice || 0),
+          inboundQuantity,
+          inboundUnit,
+          baseQuantity,
+          packageConversions,
+          supplier: draft.supplier,
+          supplierPhone: draft.supplierPhone || undefined,
+          storageLocation: draft.storageLocation?.trim(),
+          receiveDate: receiveDateValue,
+          sequence: baseSequence + index
+        });
+
+        let finalMaterial = receivedEntry.material;
+        if (newDraft) {
+          const { id, materialName, category, brand, baseUnit, unitSystem, packageConversions: builtPackages, auxiliaryUnit } =
+            receivedEntry.material;
+          finalMaterial = {
+            ...newDraft,
+            id,
+            materialName,
+            category,
+            brand,
+            baseUnit,
+            unitSystem,
+            packageConversions: builtPackages,
+            auxiliaryUnit,
+            status: "启用中"
+          };
+        }
+
+        if (!materials.some((item) => item.id === finalMaterial.id) && !pendingMaterials.some((item) => item.id === finalMaterial.id)) {
+          pendingMaterials.push(finalMaterial);
+        }
+
+        const nextStock = (stockByMaterial.get(finalMaterial.id) || 0) + receivedEntry.lot.convertedQtyBase;
+        stockByMaterial.set(finalMaterial.id, nextStock);
+        nextLots.push(receivedEntry.lot);
+
+        const remarkParts = [
+          `批量入库：${batchReceiveCategory}`,
+          `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}`,
+          receivedEntry.lot.inboundUnit === finalMaterial.baseUnit
+            ? ""
+            : `换算数量：${formatInventoryQty(receivedEntry.lot.convertedQtyBase, finalMaterial.baseUnit)}`,
+          receivedEntry.lot.inboundUnit === finalMaterial.baseUnit
+            ? ""
+            : `规格：${formatPackageConversionSummary(packageConversions).join("，")}`,
+          draft.storageLocation ? `存放位置：${draft.storageLocation.trim()}` : "",
+          draft.note ? `备注：${draft.note}` : ""
+        ].filter(Boolean);
+
+        nextLedgers.push({
+          id: `ledger-batch-receive-${Date.now()}-${index}`,
+          occurredAt: `${receiveDateValue} ${String(9 + Math.floor(index / 6)).padStart(2, "0")}:${String(
+            (index % 6) * 10
+          ).padStart(2, "0")}`,
+          type: "采购入库",
+          source: `批量入库 ${receivedEntry.lot.lotNo}`,
+          materialId: finalMaterial.id,
+          lotNo: receivedEntry.lot.lotNo,
+          quantityText: `+${formatInventoryQty(receivedEntry.lot.convertedQtyBase, finalMaterial.baseUnit)}`,
+          afterStockText: formatInventoryQty(nextStock, finalMaterial.baseUnit),
+          operator: "当前用户",
+          remark: remarkParts.join("；")
+        });
+        submittedEntryIds.push(entry.id);
+      });
+
+      if (pendingMaterials.length) {
+        setMaterials((prev) => [...prev, ...pendingMaterials]);
+      }
+      setLots((prev) => [...prev, ...nextLots]);
+      setLedgers((prev) => [...nextLedgers, ...prev]);
+      setBatchReceiveEntries((prev) => {
+        const remaining = prev.filter((entry) => !submittedEntryIds.includes(entry.id));
+        return remaining.length ? remaining : [createEmptyBatchReceiveEntry()];
+      });
+      setActiveCategory(batchReceiveCategory);
+      setSummaryKeyword("");
+      message.success(`批量入库成功，已生成 ${nextLots.length} 个批次和 ${nextLedgers.length} 条库存流水`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "批量入库失败，请检查入库信息。");
+    }
   };
 
   const submitOutbound = async () => {
@@ -1998,6 +2367,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     },
     { title: "供应商", dataIndex: "supplier", render: (value) => value || "—" },
     { title: "供应商电话", dataIndex: "supplierPhone", render: (value) => value || "—" },
+    { title: "存放位置", dataIndex: "storageLocation", render: (value) => value || "—" },
     {
       title: "入库时间",
       dataIndex: "lotNo",
@@ -2299,7 +2669,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       cancelText="取消"
       destroyOnClose
       onOk={confirmQuickCreateMaterial}
-      onCancel={() => setQuickCreateOpen(false)}
+      onCancel={() => {
+        setQuickCreateOpen(false);
+      }}
       className="compact-modal"
     >
       <Alert
@@ -2555,6 +2927,35 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   const selectedStocktakeRecord = selectedStocktakeRecordNo
     ? stocktakeRecords.find((record) => record.no === selectedStocktakeRecordNo) || null
     : null;
+
+  if (inventoryView === "batch-receive") {
+    return (
+      <div className="inventory-console-page inventory-batch-receive-page">
+        <div className="inventory-console-header">
+          <div>
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+              返回库存管理
+            </Button>
+            <Title level={3}>批量入库</Title>
+            <Text type="secondary">按卡片逐条维护到货记录，字段与采购入库一致，一次提交多条入库</Text>
+          </div>
+        </div>
+
+        <BatchReceivePanel
+          category={batchReceiveCategory}
+          onCategoryChange={setBatchReceiveCategory}
+          entries={batchReceiveEntries}
+          onEntriesChange={setBatchReceiveEntries}
+          materials={materials}
+          summaries={summaries}
+          readyCount={batchReceiveReadyEntries.length}
+          onCancel={() => setInventoryView("home")}
+          onClear={() => setBatchReceiveEntries([createEmptyBatchReceiveEntry()])}
+          onSubmit={submitBatchReceive}
+        />
+      </div>
+    );
+  }
 
   if (inventoryView === "stocktake-scope") {
     return (
@@ -2936,7 +3337,12 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           />
         ) : null}
 
-        <Tabs className="inventory-detail-tabs" items={detailTabItems} />
+        <Tabs
+          className="inventory-detail-tabs"
+          activeKey={materialDetailTab}
+          onChange={(key) => setMaterialDetailTab(key as MaterialDetailTabKey)}
+          items={detailTabItems}
+        />
       </div>
     );
   }
@@ -2994,7 +3400,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   }
 
   if (inventoryView === "difference-list") {
-    const differenceColumns: ColumnsType<InventoryDifferenceRecord> = [
+    const baseDifferenceColumns: ColumnsType<InventoryDifferenceRecord> = [
       {
         title: "物料",
         dataIndex: "materialName",
@@ -3048,11 +3454,19 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         )
       },
       {
-        title: "处理方式",
-        dataIndex: "method",
-        render: (value: InventoryDifferenceRecord["method"]) =>
-          value ? inventoryDifferenceMethodMetas.find((meta) => meta.method === value)?.label || value : <Text type="secondary">—</Text>
-      },
+        title: "盘点人/时间",
+        dataIndex: "createdAt",
+        sorter: (a, b) => a.createdAt.localeCompare(b.createdAt),
+        render: (_, record) => (
+          <div className="inventory-cell-stack">
+            <span>{record.operator}</span>
+            <Text type="secondary">{record.createdAt}</Text>
+          </div>
+        )
+      }
+    ];
+    const pendingDifferenceColumns: ColumnsType<InventoryDifferenceRecord> = [
+      ...baseDifferenceColumns,
       {
         title: "操作",
         key: "action",
@@ -3066,6 +3480,75 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         )
       }
     ];
+    const processedDifferenceColumns: ColumnsType<InventoryDifferenceRecord> = [
+      ...baseDifferenceColumns,
+      {
+        title: "处理方式",
+        dataIndex: "method",
+        render: (value: InventoryDifferenceRecord["method"], record) => (
+          <div className="inventory-cell-stack">
+            <span>{record.handlingOptionLabel || resolveDifferenceHandlingLabel(value)}</span>
+            {record.handlingReason ? <Text type="secondary">{record.handlingReason}</Text> : null}
+          </div>
+        )
+      },
+      {
+        title: "处理人/时间",
+        dataIndex: "processedAt",
+        sorter: (a, b) => (a.processedAt || "").localeCompare(b.processedAt || ""),
+        render: (_, record) => (
+          <div className="inventory-cell-stack">
+            <span>{record.processedBy || record.operator || "系统"}</span>
+            <Text type="secondary">{record.processedAt || "—"}</Text>
+          </div>
+        )
+      }
+    ];
+    const handlingDifferenceMaterial = handlingDifference
+      ? materials.find((material) => material.id === handlingDifference.materialId) || null
+      : null;
+    const handlingDifferenceSummary = handlingDifference
+      ? summaries.find((summary) => summary.materialId === handlingDifference.materialId) || null
+      : null;
+    const handlingDifferenceLedgers = handlingDifference
+      ? ledgers
+          .filter((ledger) => ledger.materialId === handlingDifference.materialId)
+          .slice()
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      : [];
+    const handlingDifferenceDate = handlingDifference?.createdAt.slice(0, 10);
+    const recentWindowStart = handlingDifferenceDate
+      ? (() => {
+          const date = new Date(`${handlingDifferenceDate}T00:00:00`);
+          date.setDate(date.getDate() - 29);
+          return formatISODate(date);
+        })()
+      : "";
+    const recentDifferenceLedgers = handlingDifferenceDate
+      ? handlingDifferenceLedgers.filter((ledger) => {
+          const ledgerDate = ledger.occurredAt.slice(0, 10);
+          return ledgerDate >= recentWindowStart && ledgerDate <= handlingDifferenceDate;
+        })
+      : handlingDifferenceLedgers;
+    const latestStocktakeRecord = handlingDifference
+      ? stocktakeRecords
+          .filter((record) => record.completedAt || record.createdAt)
+          .map((record) => {
+            const scopeRow = record.scopeRows.find((row) => row.materialId === handlingDifference.materialId);
+            const actualQty =
+              scopeRow && typeof record.actualQuantities[scopeRow.id] === "number"
+                ? record.actualQuantities[scopeRow.id]
+                : undefined;
+            return {
+              record,
+              scopeRow,
+              actualQty,
+              occurredAt: record.completedAt || record.createdAt
+            };
+          })
+          .filter((item) => item.scopeRow && item.occurredAt < handlingDifference.createdAt)
+          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))[0]
+      : undefined;
     return (
       <div className="inventory-console-page">
         <div className="inventory-console-header">
@@ -3083,30 +3566,56 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           </div>
         </div>
         <Card className="inventory-console-card">
-          {pendingDifferences.length ? (
-            <Table
-              rowKey="id"
-              className="inventory-console-table"
-              columns={differenceColumns}
-              dataSource={pendingDifferences}
-              pagination={false}
-              scroll={{ x: 980 }}
-            />
-          ) : (
-            <div className="inventory-empty-panel">暂无待处理盘点差异</div>
-          )}
+          <Tabs
+            activeKey={differenceTab}
+            onChange={(key) => setDifferenceTab(key as InventoryDifferenceTab)}
+            items={[
+              {
+                key: "pending",
+                label: `待处理 ${pendingDifferences.length}`,
+                children: pendingDifferences.length ? (
+                  <Table
+                    rowKey="id"
+                    className="inventory-console-table"
+                    columns={pendingDifferenceColumns}
+                    dataSource={pendingDifferences}
+                    pagination={false}
+                    scroll={{ x: 1040 }}
+                  />
+                ) : (
+                  <div className="inventory-empty-panel">暂无待处理盘点差异</div>
+                )
+              },
+              {
+                key: "processed",
+                label: `已处理 ${processedDifferences.length}`,
+                children: processedDifferences.length ? (
+                  <Table
+                    rowKey="id"
+                    className="inventory-console-table"
+                    columns={processedDifferenceColumns}
+                    dataSource={processedDifferences}
+                    pagination={false}
+                    scroll={{ x: 1180 }}
+                  />
+                ) : (
+                  <div className="inventory-empty-panel">暂无已处理盘点差异</div>
+                )
+              }
+            ]}
+          />
         </Card>
 
         <Drawer
-          width={460}
-          title="处理盘点差异"
+          width={560}
+          title="盘点差异分析 + 处理"
           open={Boolean(handlingDifference)}
           onClose={closeDifferenceHandler}
           destroyOnClose
           footer={
             <div className="inventory-drawer-footer">
               <Button onClick={closeDifferenceHandler}>取消</Button>
-              <Button type="primary" onClick={submitDifferenceResolution}>
+              <Button type="primary" disabled={!canSubmitDifferenceResolution} onClick={submitDifferenceResolution}>
                 确认处理
               </Button>
             </div>
@@ -3130,29 +3639,118 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                 </Descriptions.Item>
                 <Descriptions.Item label="来源盘点单">{handlingDifference.stocktakeNo}</Descriptions.Item>
               </Descriptions>
-              <div className="inventory-diff-drawer__section-title">请选择差异来源</div>
-              <Radio.Group
-                className="inventory-diff-method-group"
-                value={handleMethod}
-                onChange={(event) => setHandleMethod(event.target.value)}
-              >
-                {inventoryDifferenceMethodMetas
-                  .filter((meta) => meta.direction === handlingDifference.direction)
-                  .map((meta) => (
-                    <Radio key={meta.method} value={meta.method} className="inventory-diff-method">
-                      <span className="inventory-diff-method__label">{meta.label}</span>
-                      <span className="inventory-diff-method__scene">{meta.scene}</span>
-                    </Radio>
+
+              <div className="inventory-diff-analysis">
+                <div className="inventory-diff-analysis__head">
+                  <div>
+                    <div className="inventory-diff-drawer__section-title">库存变动（近30天）</div>
+                    <Text type="secondary">先看最近发生了什么，再判断差异来源。</Text>
+                  </div>
+                  <Button type="link" size="small" onClick={() => openDifferenceMaterialLedger(handlingDifference.materialId)}>
+                    查看更多
+                  </Button>
+                </div>
+                <div className="inventory-diff-analysis__summary">
+                  <span>
+                    当前库存
+                    <strong>
+                      {formatInventoryQty(
+                        handlingDifferenceSummary?.currentStockBase ?? handlingDifference.bookQtyBase,
+                        handlingDifference.baseUnit
+                      )}
+                    </strong>
+                  </span>
+                  <span>
+                    最近一次盘点
+                    <strong>
+                      {latestStocktakeRecord?.actualQty !== undefined
+                        ? `${formatInventoryQty(latestStocktakeRecord.actualQty, handlingDifference.baseUnit)}（${formatInventoryDate(
+                            latestStocktakeRecord.occurredAt
+                          )}）`
+                        : handlingDifferenceMaterial?.lastStocktakeAt
+                          ? `${formatInventoryDate(handlingDifferenceMaterial.lastStocktakeAt)}`
+                          : "暂无记录"}
+                    </strong>
+                  </span>
+                </div>
+                <div className="inventory-diff-ledger-list">
+                  {recentDifferenceLedgers.slice(0, 5).map((ledger) => (
+                    <div className="inventory-diff-ledger-row" key={ledger.id}>
+                      <span className="inventory-diff-ledger-row__date">{formatInventoryShortDate(ledger.occurredAt)}</span>
+                      <Tag className="inventory-diff-ledger-row__type">{ledger.type}</Tag>
+                      <span className="inventory-diff-ledger-row__source">{ledger.source}</span>
+                      <strong className={parseLedgerQuantity(ledger.quantityText) >= 0 ? "is-up" : "is-down"}>
+                        {ledger.quantityText}
+                      </strong>
+                    </div>
                   ))}
-              </Radio.Group>
-              {handlingMethodMeta?.needsRelatedLot ? (
+                  {!recentDifferenceLedgers.length ? (
+                    <div className="inventory-diff-ledger-empty">近30天暂无该物料库存流水</div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="inventory-diff-drawer__section-title">选择处理方式</div>
+              <div className="inventory-diff-method-group">
+                {inventoryDifferenceHandlingOptions
+                  .filter((option) => option.direction === handlingDifference.direction)
+                  .map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      className={`inventory-diff-method${handleOptionKey === option.key ? " is-selected" : ""}`}
+                      onClick={() => selectDifferenceHandlingOption(option.key)}
+                    >
+                      <span className="inventory-diff-method__label">{option.uiLabel}</span>
+                      <span className="inventory-diff-method__scene">
+                        <strong>适用于：</strong>{option.appliesToText}
+                      </span>
+                      <span className="inventory-diff-method__scene">
+                        <strong>库存处理：</strong>{option.inventoryText}
+                      </span>
+                      <span className="inventory-diff-method__scene">
+                        <strong>账务处理：</strong>{option.accountingText}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+              {handlingOption ? (
                 <div className="inventory-diff-drawer__field">
-                  <Text type="secondary">关联批次</Text>
+                  <Text type="secondary">2. 处理原因</Text>
                   <Select
-                    placeholder="选择关联批次"
-                    value={handleRelatedLotNo}
-                    onChange={(value) => setHandleRelatedLotNo(value)}
-                    options={handlingLotOptions}
+                    placeholder="请选择处理原因"
+                    value={handleReason}
+                    onChange={(value) => {
+                      setHandleReason(value);
+                      if (value !== "其他") {
+                        setHandleReasonNote("");
+                      }
+                    }}
+                    options={handlingOption.reasons.map((reason) => ({ label: reason, value: reason }))}
+                  />
+                </div>
+              ) : null}
+              {handlingOption?.requiredSupplements.includes("amount") ? (
+                <div className="inventory-diff-drawer__field">
+                  <Text type="secondary">补录金额（元）</Text>
+                  <InputNumber
+                    min={0.01}
+                    precision={2}
+                    placeholder="请输入补录金额"
+                    value={handleSupplementAmount}
+                    onChange={(value) => setHandleSupplementAmount(value === null ? undefined : Number(value))}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              ) : null}
+              {handlingOption ? (
+                <div className="inventory-diff-drawer__field">
+                  <Text type="secondary">{handleReason === "其他" ? "原因备注（必填）" : "原因备注（选填）"}</Text>
+                  <Input.TextArea
+                    rows={3}
+                    placeholder="补充业务单据、现场说明或供应商信息"
+                    value={handleReasonNote}
+                    onChange={(event) => setHandleReasonNote(event.target.value)}
                   />
                 </div>
               ) : null}
@@ -3173,6 +3771,10 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                     <span>业务消耗</span>
                     <strong>{handlingMethodMeta.consumptionEffect}</strong>
                   </div>
+                  <div className="inventory-diff-impact__row">
+                    <span>财务状态</span>
+                    <strong>{handlingMethodMeta.financeStatus}</strong>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -3190,6 +3792,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           <Text type="secondary">行动中心 · 库存健康 · 风险定位</Text>
         </div>
         <Space>
+          <Button icon={<HistoryOutlined />} onClick={() => setInventoryView("ledgers")}>
+            库存流水
+          </Button>
           <Badge count={pendingDifferences.length} size="small" offset={[-2, 2]}>
             <Button onClick={() => setInventoryView("difference-list")}>盘点差异</Button>
           </Badge>
@@ -3198,6 +3803,15 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           </Button>
           <Button type="primary" icon={<InboxOutlined />} onClick={() => setReceiveOpen(true)}>
             入库
+          </Button>
+          <Button
+            icon={<InboxOutlined />}
+            onClick={() => {
+              setBatchReceiveEntries([createEmptyBatchReceiveEntry()]);
+              setInventoryView("batch-receive");
+            }}
+          >
+            入库2
           </Button>
           <Button onClick={() => setStocktakeStartOpen(true)}>发起盘点</Button>
         </Space>
@@ -3234,7 +3848,15 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             <InventoryDonutChart rows={sortedInventoryValueShareRows} totalValue={inventoryTotalValue} />
             <div className="inventory-analytics-share-list">
               {sortedInventoryValueShareRows.map((row) => (
-                <div key={row.category} className="inventory-analytics-share-row">
+                <button
+                  key={row.category}
+                  type="button"
+                  className={`inventory-analytics-share-row${analyticsCategoryFilter === row.category ? " is-active" : ""}`}
+                  aria-pressed={analyticsCategoryFilter === row.category}
+                  onClick={() =>
+                    setAnalyticsCategoryFilter(analyticsCategoryFilter === row.category ? "全部" : row.category)
+                  }
+                >
                   <span className="inventory-analytics-share-row__label">
                     <i style={{ background: row.color }} />
                     <span>{row.category}</span>
@@ -3243,7 +3865,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                     <strong>{formatCurrency(row.amount)}</strong>
                     <Text type="secondary">{row.amount > 0 ? formatPercent(row.share) : "—"}</Text>
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -3252,19 +3874,19 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--top">
           <div className="inventory-analytics-card__head">
             <div>
-              <strong>消耗金额 Top 物料</strong>
+              <strong>本月消耗金额 Top 物料</strong>
             </div>
           </div>
           <div className="inventory-top-spend-list">
             {windowTopSpendRows.length ? (
               windowTopSpendRows.map((row, index) => (
-                <div key={row.materialId} className="inventory-top-spend-row">
+                <div key={row.id} className="inventory-top-spend-row">
                   <span className="inventory-top-spend-row__rank">{index + 1}</span>
                   <div className="inventory-top-spend-row__content">
                     <div className="inventory-top-spend-row__head">
                       <div>
                         <strong>{row.materialName}</strong>
-                        <Text type="secondary">{row.category}</Text>
+                        <Text type="secondary">{row.isCategorySummary ? "物料类型" : row.category}</Text>
                       </div>
                       <strong>{formatCurrency(row.amount)}</strong>
                     </div>
@@ -3320,11 +3942,17 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                 >
                   <span className="inventory-risk-row__type">{item.type}</span>
                   <div className="inventory-risk-row__main">
-                    <strong>{item.materialName}</strong>
-                    <Text type="secondary">{item.brand} · {item.detailText}</Text>
+                    <div className="inventory-risk-row__title">
+                      <strong>{item.materialName}</strong>
+                      <span>{item.brand}</span>
+                    </div>
+                    <Text type="secondary">{item.adviceText}</Text>
                   </div>
                   <div className="inventory-risk-row__side">
-                    <span className="inventory-risk-row__value">{item.valueText}</span>
+                    <span className="inventory-risk-row__value">
+                      <strong>{item.valueText}</strong>
+                      {item.dateText ? <em>{item.dateText}</em> : null}
+                    </span>
                     {item.actionText || item.auxiliaryActionText ? (
                       <span className="inventory-risk-row__actions">
                         {item.actionText ? (
@@ -3422,8 +4050,8 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
               </strong>
             </span>
             <span>
-              <Text type="secondary">消耗天数</Text>
-              <strong>{consumptionTrendActiveDays} 天</strong>
+              <Text type="secondary">饲料消耗重量</Text>
+              <strong>{formatInventoryQty(Math.abs(feedConsumptionWeight), "kg")}</strong>
             </span>
           </div>
           <InventoryTrendChart
@@ -3605,7 +4233,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                       </span>
                       {activeReceiveNewDraft ? (
                         <Space size={4}>
-                          <Button type="link" size="small" onClick={openQuickCreateMaterial}>
+                          <Button type="link" size="small" onClick={() => openQuickCreateMaterial()}>
                             重新编辑
                           </Button>
                           <Button type="link" size="small" danger onClick={clearReceiveNewMaterialDraft}>
@@ -3644,7 +4272,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                         </Space>
                       </div>
                     ) : null}
-                    <Button type="dashed" block icon={<PlusOutlined />} onClick={openQuickCreateMaterial}>
+                    <Button type="dashed" block icon={<PlusOutlined />} onClick={() => openQuickCreateMaterial()}>
                       新建物料「{receiveMaterialKeyword}」
                     </Button>
                   </div>
@@ -3675,6 +4303,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                 </Form.Item>
                 <Form.Item label="供应商电话" name="supplierPhone">
                   <Input placeholder="选填，请输入供应商电话" />
+                </Form.Item>
+                <Form.Item label="存放位置" name="storageLocation" rules={[{ required: true, message: "请输入存放位置" }]}>
+                  <Input placeholder="例如：药房A柜、冷库2层、饲料仓西侧" />
                 </Form.Item>
                 <Form.Item label="备注" name="note">
                   <Input placeholder="请输入业务补充说明" />

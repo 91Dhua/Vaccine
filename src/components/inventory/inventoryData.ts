@@ -16,7 +16,9 @@ export type InventoryMaterialStatus = "启用中" | "已停用";
 export type InventoryMaterialStatusFilter = "全部" | InventoryMaterialStatus;
 
 export type InventoryFeedStage = {
-  phase: string;
+  pigType?: string;
+  phases?: string[];
+  phase?: string;
   startDay?: number;
   endDay?: number;
 };
@@ -80,16 +82,22 @@ export type InventoryMaterialFieldSpec = {
   required?: boolean;
   /** 在入库快建弹窗中是否必填（未设置则快建时选填） */
   requiredInQuick?: boolean;
+  /** 在批量入库页面中是否必填（未设置则批量入库时选填） */
+  requiredInBatchReceive?: boolean;
   options?: string[];
   placeholder?: string;
 };
 
 export const inventoryProductionPhaseOptions = [
+  "分娩期",
   "妊娠期",
   "泌乳期",
   "空怀期",
   "发情期",
-  "后备期"
+  "后备期",
+  "生长期",
+  "保育期",
+  "育肥期"
 ];
 
 export const inventoryPigTypeOptions = [
@@ -97,7 +105,7 @@ export const inventoryPigTypeOptions = [
   "生产公猪",
   "仔猪",
   "育肥猪",
-  "后备母猪"
+  "后备猪"
 ];
 
 export const inventoryCategoryFieldSpecs: Record<
@@ -109,17 +117,48 @@ export const inventoryCategoryFieldSpecs: Record<
       key: "dosageForm",
       label: "剂型",
       type: "select",
+      requiredInBatchReceive: true,
       options: ["注射液", "粉剂", "预混剂", "口服液", "片剂"]
     },
     {
       key: "usageMethod",
       label: "使用方式",
       type: "select",
+      requiredInBatchReceive: true,
       options: ["注射", "拌料", "饮水", "外用"]
     },
     { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 7天" }
   ],
   疫苗: [
+    {
+      key: "dosageForm",
+      label: "剂型",
+      type: "select",
+      required: true,
+      requiredInBatchReceive: true,
+      options: ["活疫苗（冻干苗）", "油佐剂灭活疫苗", "水佐剂灭活疫苗"]
+    },
+    {
+      key: "usageMethod",
+      label: "使用方式",
+      type: "select",
+      requiredInQuick: true,
+      requiredInBatchReceive: true,
+      options: ["肌肉注射", "皮下注射", "滴鼻", "饮水", "喷雾"]
+    },
+    {
+      key: "standardDosage",
+      label: "单次剂量",
+      type: "text",
+      requiredInBatchReceive: true,
+      placeholder: "如 2 ml/头"
+    },
+    {
+      key: "immuneIntervalDays",
+      label: "免疫间隔期(天)",
+      type: "number",
+      requiredInBatchReceive: true
+    },
     {
       key: "vaccineType",
       label: "疫苗类型",
@@ -127,27 +166,10 @@ export const inventoryCategoryFieldSpecs: Record<
       required: true,
       options: ["病毒性", "细菌性", "寄生虫", "活疫苗", "灭活疫苗"]
     },
-    {
-      key: "administrationRoute",
-      label: "接种方式",
-      type: "select",
-      required: true,
-      requiredInQuick: true,
-      options: ["肌肉注射", "皮下注射", "滴鼻", "饮水", "喷雾"]
-    },
-    {
-      key: "dosageForm",
-      label: "剂型",
-      type: "select",
-      required: true,
-      options: ["活疫苗（冻干苗）", "油佐剂灭活疫苗", "水佐剂灭活疫苗"]
-    },
     { key: "coldChain", label: "是否冷链", type: "select", options: ["是", "否"] },
     { key: "storageTemperature", label: "储存温度", type: "text", placeholder: "如 2-8℃" },
-    { key: "standardDosage", label: "单次剂量", type: "text", placeholder: "如 2 ml/头" },
     { key: "durationOfImmunity", label: "免疫有效期", type: "text", placeholder: "如 6 个月" },
-    { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 0天" },
-    { key: "immuneIntervalDays", label: "免疫间隔期(天)", type: "number" }
+    { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 0天" }
   ],
   饲料: [
     {
@@ -157,24 +179,23 @@ export const inventoryCategoryFieldSpecs: Record<
       options: ["颗粒", "粉料", "浓缩料"]
     },
     {
-      key: "applicablePigTypes",
-      label: "适用猪只",
-      type: "multiSelect",
-      required: true,
-      requiredInQuick: true,
-      options: inventoryPigTypeOptions
-    },
-    {
       key: "applicableStages",
-      label: "适用阶段",
+      label: "适用猪只与阶段",
       type: "feedStages",
       required: true,
-      requiredInQuick: true
+      requiredInQuick: true,
+      requiredInBatchReceive: true
     }
   ],
   消毒用品: [
     { key: "activeIngredient", label: "有效成分", type: "text" },
-    { key: "dilutionRatio", label: "稀释比例", type: "text", placeholder: "如 1:200" },
+    {
+      key: "dilutionRatio",
+      label: "稀释比例",
+      type: "text",
+      requiredInBatchReceive: true,
+      placeholder: "如 1:200"
+    },
     {
       key: "disinfectScenes",
       label: "适用场景",
@@ -188,6 +209,7 @@ export const inventoryCategoryFieldSpecs: Record<
       key: "usageMethod",
       label: "使用方式",
       type: "select",
+      requiredInBatchReceive: true,
       options: ["拌料", "饮水", "注射", "外用"]
     }
   ],
@@ -196,6 +218,10 @@ export const inventoryCategoryFieldSpecs: Record<
 };
 
 export function formatFeedStage(stage: InventoryFeedStage) {
+  if (stage.pigType && stage.phases?.length) {
+    return `${stage.pigType} ${stage.phases.join("、")}`;
+  }
+  const phase = stage.phase || "";
   const range =
     stage.startDay != null && stage.endDay != null
       ? `${stage.startDay}-${stage.endDay}天`
@@ -204,7 +230,7 @@ export function formatFeedStage(stage: InventoryFeedStage) {
         : stage.endDay != null
           ? `至${stage.endDay}天`
           : "";
-  return range ? `${stage.phase} ${range}` : stage.phase;
+  return range ? `${phase} ${range}`.trim() : phase;
 }
 
 export function isMaterialProfileIncomplete(material: InventoryMaterial): boolean {
@@ -217,14 +243,173 @@ export function isMaterialProfileIncomplete(material: InventoryMaterial): boolea
       if (!Array.isArray(raw) || raw.length === 0) return true;
       return !(raw as InventoryFeedStage[]).some(
         (stage) =>
-          Boolean(stage.phase) &&
-          typeof stage.startDay === "number" &&
-          typeof stage.endDay === "number"
+          (Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0) ||
+          (Boolean(stage.phase) && typeof stage.startDay === "number" && typeof stage.endDay === "number")
       );
     }
     if (Array.isArray(raw)) return raw.length === 0;
     return false;
   });
+}
+
+export function isMaterialProfileBatchReceiveIncomplete(material: InventoryMaterial): boolean {
+  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  return specs.some((spec) => {
+    if (!spec.requiredInBatchReceive) return false;
+    const raw = material[spec.key];
+    if (raw == null || raw === "") return true;
+    if (spec.type === "feedStages") {
+      if (!Array.isArray(raw) || raw.length === 0) return true;
+      return !(raw as InventoryFeedStage[]).some(
+        (stage) => Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0
+      );
+    }
+    if (Array.isArray(raw)) return raw.length === 0;
+    return false;
+  });
+}
+
+export function isMaterialProfileQuickIncomplete(material: InventoryMaterial): boolean {
+  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  return specs.some((spec) => {
+    if (!spec.requiredInQuick) return false;
+    const raw = material[spec.key];
+    if (raw == null || raw === "") return true;
+    if (spec.type === "feedStages") {
+      if (!Array.isArray(raw) || raw.length === 0) return true;
+      return !(raw as InventoryFeedStage[]).some(
+        (stage) => Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0
+      );
+    }
+    if (Array.isArray(raw)) return raw.length === 0;
+    return false;
+  });
+}
+
+export function buildMaterialProfileFromForm(category: InventoryCategory, values: Record<string, unknown>) {
+  const specs = inventoryCategoryFieldSpecs[category] || [];
+  const profile: Record<string, unknown> = {};
+  specs.forEach((spec) => {
+    profile[String(spec.key)] = values[String(spec.key)];
+  });
+  return profile;
+}
+
+export type InventoryBatchPackageConversionDraft = {
+  fromUnit?: string;
+  quantity?: number;
+};
+
+export type InventoryBatchNewMaterialForm = {
+  brand?: string;
+  brandEn?: string;
+  materialNameEn?: string;
+  baseUnit?: string;
+  packageConversions?: InventoryBatchPackageConversionDraft[];
+  materialNote?: string;
+  optionalExpanded?: boolean;
+  [key: string]: unknown;
+};
+
+export function createDefaultBatchNewMaterialForm(category: InventoryCategory): InventoryBatchNewMaterialForm {
+  const form: InventoryBatchNewMaterialForm = {
+    baseUnit: inventoryCategoryBaseUnitRecommendations[category]?.[0],
+    packageConversions: [{ fromUnit: undefined, quantity: undefined }],
+    optionalExpanded: false
+  };
+  if (category === "饲料") {
+    form.applicableStages = [{}];
+  }
+  return form;
+}
+
+export function normalizeBatchPackageConversions(
+  baseUnit: string,
+  drafts: InventoryBatchPackageConversionDraft[] = []
+): InventoryPackageConversion[] {
+  return drafts
+    .map((draft, index) => ({
+      fromUnit: draft.fromUnit || "",
+      quantity: Number(draft.quantity || 0),
+      toUnit: index === 0 ? baseUnit : drafts[index - 1]?.fromUnit || ""
+    }))
+    .filter((conversion) => conversion.fromUnit || conversion.quantity);
+}
+
+export function buildBatchInlineNewMaterialDraft(
+  category: InventoryCategory,
+  materialName: string,
+  form: InventoryBatchNewMaterialForm
+): InventoryMaterial | null {
+  const keyword = materialName.trim();
+  const brand = form.brand?.trim();
+  const baseUnit = form.baseUnit?.trim();
+  if (!keyword || !brand || !baseUnit) return null;
+
+  const packageConversions = normalizeBatchPackageConversions(baseUnit, form.packageConversions || []);
+  const profile = buildMaterialProfileFromForm(category, form);
+  const draft: InventoryMaterial = {
+    id: `mat-draft-${keyword}`,
+    materialName: keyword,
+    materialNameEn: form.materialNameEn?.trim() || undefined,
+    category,
+    brand,
+    brandEn: form.brandEn?.trim() || undefined,
+    baseUnit,
+    unitSystem: [`1${baseUnit} = 1${baseUnit}`],
+    packageConversions,
+    status: "启用中",
+    auxiliaryUnit: packageConversions[0]?.fromUnit || baseUnit,
+    note: form.materialNote?.trim() || undefined,
+    ...profile
+  };
+  draft.profileIncomplete = isMaterialProfileIncomplete(draft);
+  return draft;
+}
+
+export function validateBatchInlineNewMaterial(
+  category: InventoryCategory,
+  materialName: string,
+  form: InventoryBatchNewMaterialForm
+): string | null {
+  const keyword = materialName.trim();
+  if (!keyword) return "请填写物料名称。";
+  if (!form.materialNameEn?.trim()) return "请填写物料名称(英文)。";
+  if (!form.brand?.trim()) return "请填写品牌名称(中文)。";
+  if (!form.brandEn?.trim()) return "请填写品牌名称(英文)。";
+  if (!form.baseUnit?.trim()) return "请选择核算单位。";
+  const packageConversions = normalizeBatchPackageConversions(form.baseUnit, form.packageConversions || []);
+  if (packageConversions.length) {
+    const message = validateInventoryPackageConversions(form.baseUnit, packageConversions);
+    if (message) return message;
+  }
+  const draft = buildBatchInlineNewMaterialDraft(category, keyword, form);
+  if (!draft) return "请完善新建物料必填信息。";
+  if (isMaterialProfileBatchReceiveIncomplete(draft)) {
+    return "请补齐当前分类下的物料必填专属字段。";
+  }
+  return null;
+}
+
+export function validateBatchReceivePackageSpec(
+  baseUnit: string,
+  packageConversions: InventoryPackageConversion[]
+): string | null {
+  if (!baseUnit) return "请先选择核算单位。";
+  if (!packageConversions.length) {
+    return "请填写规格与包装。";
+  }
+  return validateInventoryPackageConversions(baseUnit, packageConversions);
+}
+
+export function getBatchReceiveOptionalFieldHint(category: InventoryCategory): string {
+  const optionalLabels = ["包装规格"];
+  const specs = inventoryCategoryFieldSpecs[category] || [];
+  specs.forEach((spec) => {
+    if (!spec.requiredInBatchReceive) optionalLabels.push(spec.label);
+  });
+  optionalLabels.push("供应商电话", "备注");
+  return optionalLabels.join("、");
 }
 
 export function generateInventoryMaterialCode(materials: InventoryMaterial[]): string {
@@ -266,6 +451,7 @@ export type InventoryLot = {
   packageConversions?: InventoryPackageConversion[];
   supplier?: string;
   supplierPhone?: string;
+  storageLocation?: string;
   status: InventoryLotStatus;
   stocktakeAdjustmentType?: "盘盈库存";
 };
@@ -392,7 +578,6 @@ export type InventoryDifferenceMethodMeta = {
   stockEffect: "增加" | "减少";
   consumptionEffect: "冲减" | "增加" | "不影响";
   financeStatus: InventoryDifferenceFinanceStatus;
-  needsRelatedLot: boolean;
 };
 
 export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
@@ -404,8 +589,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "消耗冲销",
     stockEffect: "增加",
     consumptionEffect: "冲减",
-    financeStatus: "无需确认",
-    needsRelatedLot: true
+    financeStatus: "无需确认"
   },
   {
     method: "入库数量更正",
@@ -415,8 +599,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "入库更正",
     stockEffect: "增加",
     consumptionEffect: "不影响",
-    financeStatus: "无需确认",
-    needsRelatedLot: true
+    financeStatus: "无需确认"
   },
   {
     method: "入库少录补金额",
@@ -426,8 +609,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "入库更正",
     stockEffect: "增加",
     consumptionEffect: "不影响",
-    financeStatus: "财务待确认",
-    needsRelatedLot: false
+    financeStatus: "财务待确认"
   },
   {
     method: "供应商多送赠品",
@@ -437,8 +619,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "盘盈",
     stockEffect: "增加",
     consumptionEffect: "不影响",
-    financeStatus: "财务待确认",
-    needsRelatedLot: false
+    financeStatus: "财务待确认"
   },
   {
     method: "原因不明盘盈",
@@ -448,8 +629,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "盘盈",
     stockEffect: "增加",
     consumptionEffect: "不影响",
-    financeStatus: "财务待确认",
-    needsRelatedLot: false
+    financeStatus: "财务待确认"
   },
   {
     method: "漏记任务出库",
@@ -459,8 +639,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "业务消耗",
     stockEffect: "减少",
     consumptionEffect: "增加",
-    financeStatus: "无需确认",
-    needsRelatedLot: false
+    financeStatus: "无需确认"
   },
   {
     method: "入库多录",
@@ -470,8 +649,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "入库更正",
     stockEffect: "减少",
     consumptionEffect: "不影响",
-    financeStatus: "无需确认",
-    needsRelatedLot: true
+    financeStatus: "无需确认"
   },
   {
     method: "破损污染过期报废",
@@ -481,8 +659,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "报废",
     stockEffect: "减少",
     consumptionEffect: "不影响",
-    financeStatus: "无需确认",
-    needsRelatedLot: true
+    financeStatus: "无需确认"
   },
   {
     method: "原因不明盘亏",
@@ -492,8 +669,7 @@ export const inventoryDifferenceMethodMetas: InventoryDifferenceMethodMeta[] = [
     ledgerType: "盘亏",
     stockEffect: "减少",
     consumptionEffect: "不影响",
-    financeStatus: "财务待确认",
-    needsRelatedLot: false
+    financeStatus: "财务待确认"
   }
 ];
 
@@ -514,9 +690,14 @@ export type InventoryDifferenceRecord = {
   financeStatus: InventoryDifferenceFinanceStatus;
   method?: InventoryDifferenceMethod;
   relatedLotNo?: string;
+  handlingOptionLabel?: string;
+  handlingReason?: string;
+  handlingReasonNote?: string;
+  supplementAmount?: number;
   resultLedgerIds?: string[];
   createdAt: string;
   processedAt?: string;
+  processedBy?: string;
   operator: string;
 };
 
@@ -534,6 +715,7 @@ export type InventoryAutoDifferenceResolutionInput = {
   differences: InventoryDifferenceRecord[];
   materials: InventoryMaterial[];
   lots: InventoryLot[];
+  ledgers?: InventoryLedgerRow[];
   operator: string;
   occurredAt: string;
   ledgerIdPrefix: string;
@@ -552,7 +734,9 @@ export type InventoryDifferenceResolutionInput = {
   method: InventoryDifferenceMethod;
   materials: InventoryMaterial[];
   lots: InventoryLot[];
+  ledgers?: InventoryLedgerRow[];
   relatedLotNo?: string;
+  supplementAmount?: number;
   operator: string;
   occurredAt: string;
   ledgerIdPrefix: string;
@@ -589,6 +773,7 @@ export type InventoryRiskItem = {
   materialName: string;
   brand: string;
   lotNo?: string;
+  expiryDate?: string;
   valueText: string;
   actionText?: string;
   targetTab: "summary" | "lots" | "alerts";
@@ -617,6 +802,7 @@ type InventoryReceiveEntryCommonInput = {
   packageConversions: InventoryPackageConversion[];
   supplier?: string;
   supplierPhone?: string;
+  storageLocation?: string;
   receiveDate: string;
   sequence: number;
 };
@@ -770,6 +956,26 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     note: "蓝耳相关免疫任务使用"
   },
   {
+    id: "mat-drug-ceftiofur",
+    materialCode: "MAT-000129",
+    materialName: "头孢",
+    materialNameEn: "Ceftiofur",
+    category: "兽药",
+    brand: "华牧",
+    brandEn: "HuaMu",
+    baseUnit: "ml",
+    unitSystem: ["1ml = 1ml", "1瓶 = 100ml"],
+    packageConversions: [{ fromUnit: "瓶", quantity: 100, toUnit: "ml" }],
+    safetyStockBase: 300,
+    status: "启用中",
+    auxiliaryUnit: "瓶",
+    lastStocktakeAt: "2026-06-12",
+    dosageForm: "注射液",
+    usageMethod: "注射",
+    withdrawalPeriod: "5天",
+    note: "治疗任务常用抗生素"
+  },
+  {
     id: "mat-feed-gestation",
     materialCode: "MAT-000125",
     materialName: "妊娠母猪料",
@@ -785,8 +991,10 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     auxiliaryUnit: "袋",
     lastStocktakeAt: "2026-06-18",
     feedForm: "颗粒",
-    applicablePigTypes: ["生产母猪"],
-    applicableStages: [{ phase: "妊娠期", startDay: 15, endDay: 36 }],
+    applicableStages: [
+      { pigType: "生产母猪", phases: ["分娩期", "妊娠期"] },
+      { pigType: "后备猪", phases: ["生长期"] }
+    ],
     note: "妊娠阶段饲喂使用"
   },
   {
@@ -853,7 +1061,7 @@ export const inventorySeedLots: InventoryLot[] = [
     materialId: "mat-drug-florfenicol",
     lotNo: "FL-202606-A",
     productionDate: "2026-05-01",
-    expiryDate: "2026-08-01",
+    expiryDate: "2026-07-03",
     inboundQty: 2,
     inboundUnit: "盒",
     convertedQtyBase: 2000,
@@ -863,6 +1071,22 @@ export const inventorySeedLots: InventoryLot[] = [
     supplier: "华牧供应",
     supplierPhone: "13800001111",
     status: "临期"
+  },
+  {
+    id: "lot-ceft-001",
+    materialId: "mat-drug-ceftiofur",
+    lotNo: "CF-202606-A",
+    productionDate: "2026-06-01",
+    expiryDate: "2026-11-01",
+    inboundQty: 6,
+    inboundUnit: "瓶",
+    convertedQtyBase: 600,
+    remainingQtyBase: 540,
+    unitPrice: 660,
+    baseUnitCost: 1.1,
+    supplier: "华牧供应",
+    supplierPhone: "13800007777",
+    status: "正常"
   },
   {
     id: "lot-flor-002",
@@ -1136,6 +1360,17 @@ export const inventorySeedLedgers: InventoryLedgerRow[] = [
     lotNo: "XD-202605-01",
     quantityText: "-16L",
     afterStockText: "-12L",
+    operator: "系统"
+  },
+  {
+    id: "ledger-017",
+    occurredAt: "2026-06-26 14:05",
+    type: "业务消耗",
+    source: "治疗任务 MT-20260626-E",
+    materialId: "mat-drug-ceftiofur",
+    lotNo: "CF-202606-A",
+    quantityText: "-60ml",
+    afterStockText: "540ml",
     operator: "系统"
   }
 ];
@@ -1501,6 +1736,7 @@ export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): I
     packageConversions: input.packageConversions,
     supplier: input.supplier,
     supplierPhone: input.supplierPhone,
+    storageLocation: input.storageLocation,
     status: "正常"
   };
 
@@ -1962,6 +2198,135 @@ function deductInventoryQuantity(
   return { nextLots, overflow: remaining, lotNo };
 }
 
+function parseInventoryLedgerBaseQuantity(quantityText: string): number {
+  const normalized = quantityText.trim().replace(/,/g, "");
+  const match = normalized.match(/[+-]?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function resolveRecentConsumptionLotNos(
+  ledgers: InventoryLedgerRow[] = [],
+  materialId: string
+): string[] {
+  const lotNos: string[] = [];
+  ledgers
+    .filter((ledger) => ledger.materialId === materialId && ledger.lotNo && ledger.type === "业务消耗")
+    .slice()
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+    .forEach((ledger) => {
+      if (ledger.lotNo && !lotNos.includes(ledger.lotNo)) {
+        lotNos.push(ledger.lotNo);
+      }
+    });
+  return lotNos;
+}
+
+function restoreInventoryQuantityToLots(
+  lots: InventoryLot[],
+  materialId: string,
+  amount: number,
+  ledgers: InventoryLedgerRow[] = [],
+  preferLotNo?: string,
+  fallbackToExistingLot = false
+): { nextLots: InventoryLot[]; lotNo?: string; restoredQuantity: number } {
+  let remaining = amount;
+  let nextLots = lots.slice();
+  const restoredLotNos: string[] = [];
+  const orderedLotNos = [
+    ...(preferLotNo ? [preferLotNo] : []),
+    ...resolveRecentConsumptionLotNos(ledgers, materialId).filter((lotNo) => lotNo !== preferLotNo)
+  ];
+
+  for (const lotNo of orderedLotNos) {
+    if (remaining <= 0) break;
+    const lot = nextLots.find((item) => item.materialId === materialId && item.lotNo === lotNo);
+    if (!lot) continue;
+    const consumedQuantity = ledgers
+      .filter((ledger) => ledger.materialId === materialId && ledger.lotNo === lotNo && ledger.type === "业务消耗")
+      .reduce((sum, ledger) => sum + Math.abs(parseInventoryLedgerBaseQuantity(ledger.quantityText)), 0);
+    const restoreCapacity = Math.max(lot.convertedQtyBase - lot.remainingQtyBase, consumedQuantity);
+    if (restoreCapacity <= 0) continue;
+    const restored = Math.min(restoreCapacity, remaining);
+    remaining -= restored;
+    restoredLotNos.push(lotNo);
+    nextLots = nextLots.map((item) =>
+      item.id === lot.id
+        ? {
+            ...item,
+            remainingQtyBase: item.remainingQtyBase + restored,
+            status: item.status === "已耗尽" && item.remainingQtyBase + restored > 0 ? "正常" : item.status
+          }
+        : item
+    );
+  }
+
+  if (remaining > 0 && fallbackToExistingLot) {
+    const fallbackLot = getInventoryLotsForMaterial(nextLots, materialId).find(
+      (lot) => lot.status !== "已耗尽"
+    );
+    if (fallbackLot) {
+      nextLots = nextLots.map((lot) => {
+        if (lot.id !== fallbackLot.id) return lot;
+        const nextConverted = lot.convertedQtyBase + remaining;
+        const nextRemaining = lot.remainingQtyBase + remaining;
+        return {
+          ...lot,
+          convertedQtyBase: nextConverted,
+          remainingQtyBase: nextRemaining,
+          baseUnitCost: nextConverted > 0 ? Number((lot.unitPrice / nextConverted).toFixed(4)) : lot.baseUnitCost,
+          status: lot.status === "已耗尽" && nextRemaining > 0 ? "正常" : lot.status
+        };
+      });
+      restoredLotNos.push(fallbackLot.lotNo);
+      remaining = 0;
+    }
+  }
+
+  return {
+    nextLots,
+    lotNo: restoredLotNos.join("、") || undefined,
+    restoredQuantity: amount - remaining
+  };
+}
+
+function addInventoryGainToSystemSelectedLot(
+  lots: InventoryLot[],
+  materialId: string,
+  amount: number,
+  ledgers: InventoryLedgerRow[] = [],
+  supplementAmount = 0
+): { nextLots: InventoryLot[]; lotNo?: string } {
+  const recentLotNos = resolveRecentConsumptionLotNos(ledgers, materialId);
+  const materialLots = getInventoryLotsForMaterial(lots, materialId).filter((lot) => lot.status !== "已耗尽");
+  const orderedLots = [
+    ...recentLotNos
+      .map((lotNo) => materialLots.find((lot) => lot.lotNo === lotNo))
+      .filter((lot): lot is InventoryLot => Boolean(lot)),
+    ...materialLots.filter((lot) => !recentLotNos.includes(lot.lotNo))
+  ];
+  const target = orderedLots[0];
+  if (!target) {
+    throw new Error("未找到可补充的库存批次。");
+  }
+
+  const nextLots = lots.map((lot) => {
+    if (lot.id !== target.id) return lot;
+    const nextConverted = lot.convertedQtyBase + amount;
+    const nextRemaining = lot.remainingQtyBase + amount;
+    const nextUnitPrice = Number((lot.unitPrice + supplementAmount).toFixed(2));
+    return {
+      ...lot,
+      convertedQtyBase: nextConverted,
+      remainingQtyBase: nextRemaining,
+      unitPrice: nextUnitPrice,
+      baseUnitCost: nextConverted > 0 ? Number((nextUnitPrice / nextConverted).toFixed(4)) : lot.baseUnitCost,
+      status: lot.status === "已耗尽" && nextRemaining > 0 ? "正常" : lot.status
+    };
+  });
+
+  return { nextLots, lotNo: target.lotNo };
+}
+
 export function buildInventoryDifferenceResolution(
   input: InventoryDifferenceResolutionInput
 ): InventoryDifferenceResolution {
@@ -1972,9 +2337,6 @@ export function buildInventoryDifferenceResolution(
   const { record } = input;
   if (meta.direction !== record.direction) {
     throw new Error("处理方式与盘点结果不一致。");
-  }
-  if (meta.needsRelatedLot && !input.relatedLotNo) {
-    throw new Error("请选择关联批次。");
   }
 
   let nextMaterials = input.materials.slice();
@@ -2002,79 +2364,39 @@ export function buildInventoryDifferenceResolution(
     }
 
     if (remainingGain > 0) {
-      if (input.method === "供应商多送赠品" || input.method === "原因不明盘盈") {
-        const estimatedBaseUnitCost = estimateInventoryAverageBaseUnitCost(input.lots, record.materialId);
-        const isGain = input.method === "原因不明盘盈";
-        const newLotNo = isGain ? "盘盈调整批次" : "赠品批次";
-        nextLots = [
-          ...nextLots,
-          {
-            id: `${input.ledgerIdPrefix}-lot`,
-            materialId: record.materialId,
-            lotNo: newLotNo,
-            expiryDate: "",
-            inboundQty: remainingGain,
-            inboundUnit: baseUnit,
-            convertedQtyBase: remainingGain,
-            remainingQtyBase: remainingGain,
-            unitPrice: Number((estimatedBaseUnitCost * remainingGain).toFixed(2)),
-            baseUnitCost: estimatedBaseUnitCost,
-            status: "正常",
-            ...(isGain ? { stocktakeAdjustmentType: "盘盈库存" as const } : {})
-          }
-        ];
-        usedLotNo = newLotNo;
-      } else {
-        const target = nextLots.find(
-          (lot) => lot.materialId === record.materialId && lot.lotNo === input.relatedLotNo
+      if (input.method === "任务出库多扣") {
+        const restoreResult = restoreInventoryQuantityToLots(
+          nextLots,
+          record.materialId,
+          remainingGain,
+          input.ledgers,
+          input.relatedLotNo
         );
-        if (target) {
-          nextLots = nextLots.map((lot) => {
-            if (lot.id !== target.id) return lot;
-            const nextConverted = lot.convertedQtyBase + remainingGain;
-            const nextRemaining = lot.remainingQtyBase + remainingGain;
-            const nextBaseUnitCost =
-              input.method === "入库数量更正" && nextConverted > 0
-                ? Number((lot.unitPrice / nextConverted).toFixed(4))
-                : lot.baseUnitCost;
-            return {
-              ...lot,
-              convertedQtyBase: nextConverted,
-              remainingQtyBase: nextRemaining,
-              baseUnitCost: nextBaseUnitCost,
-              status: lot.status === "已耗尽" && nextRemaining > 0 ? "正常" : lot.status
-            };
-          });
-          usedLotNo = target.lotNo;
-        } else if (input.method === "入库少录补金额") {
-          const estimatedBaseUnitCost = estimateInventoryAverageBaseUnitCost(input.lots, record.materialId);
-          const newLotNo = "补录入库批次";
-          nextLots = [
-            ...nextLots,
-            {
-              id: `${input.ledgerIdPrefix}-lot`,
-              materialId: record.materialId,
-              lotNo: newLotNo,
-              expiryDate: "",
-              inboundQty: remainingGain,
-              inboundUnit: baseUnit,
-              convertedQtyBase: remainingGain,
-              remainingQtyBase: remainingGain,
-              unitPrice: Number((estimatedBaseUnitCost * remainingGain).toFixed(2)),
-              baseUnitCost: estimatedBaseUnitCost,
-              status: "正常"
-            }
-          ];
-          usedLotNo = newLotNo;
-        } else {
-          throw new Error("未找到可回补的原批次。");
+        if (restoreResult.restoredQuantity < remainingGain) {
+          throw new Error(
+            input.method === "任务出库多扣"
+              ? "未找到可回补的最近使用批次。"
+              : "未找到可更正的原入库批次。"
+          );
         }
+        nextLots = restoreResult.nextLots;
+        usedLotNo = restoreResult.lotNo;
+      } else if (input.method === "入库数量更正" || input.method === "入库少录补金额") {
+        const gainResult = addInventoryGainToSystemSelectedLot(
+          nextLots,
+          record.materialId,
+          remainingGain,
+          input.ledgers,
+          input.method === "入库少录补金额" ? input.supplementAmount || 0 : 0
+        );
+        nextLots = gainResult.nextLots;
+        usedLotNo = gainResult.lotNo;
       }
     }
   } else {
-    const result = deductInventoryQuantity(nextLots, record.materialId, amount, input.relatedLotNo);
+    const result = deductInventoryQuantity(nextLots, record.materialId, amount);
     nextLots = result.nextLots;
-    usedLotNo = result.lotNo || input.relatedLotNo;
+    usedLotNo = result.lotNo;
     if (result.overflow > 0) {
       nextMaterials = nextMaterials.map((item) =>
         item.id === record.materialId
@@ -2096,7 +2418,7 @@ export function buildInventoryDifferenceResolution(
     quantityText: `${sign}${formatInventoryQty(amount, baseUnit)}`,
     afterStockText: formatInventoryQty(afterStock, baseUnit),
     operator: input.operator,
-    remark: `${meta.label}${input.relatedLotNo ? `；关联批次 ${input.relatedLotNo}` : ""}`
+    remark: `${meta.label}${usedLotNo ? `；系统落批次 ${usedLotNo}` : ""}`
   };
 
   return {
@@ -2122,11 +2444,6 @@ export function resolveInventoryToleranceDifferences(
       return;
     }
 
-    if (difference.direction === "盘盈" && !difference.relatedLotNo) {
-      pendingDifferences.push(difference);
-      return;
-    }
-
     const method: InventoryDifferenceMethod = difference.direction === "盘盈" ? "任务出库多扣" : "原因不明盘亏";
     let resolution: InventoryDifferenceResolution;
     try {
@@ -2135,10 +2452,10 @@ export function resolveInventoryToleranceDifferences(
         method,
         materials: nextMaterials,
         lots: nextLots,
+        ledgers: input.ledgers,
         operator: input.operator,
         occurredAt: input.occurredAt,
-        ledgerIdPrefix: `${input.ledgerIdPrefix}-${index + 1}`,
-        relatedLotNo: difference.direction === "盘盈" ? difference.relatedLotNo : undefined
+        ledgerIdPrefix: `${input.ledgerIdPrefix}-${index + 1}`
       });
     } catch {
       pendingDifferences.push(difference);
@@ -2154,7 +2471,8 @@ export function resolveInventoryToleranceDifferences(
       method,
       financeStatus: resolution.financeStatus,
       resultLedgerIds: resolution.ledgers.map((ledger) => ledger.id),
-      processedAt: input.occurredAt
+      processedAt: input.occurredAt,
+      processedBy: input.operator
     });
   });
 
@@ -2400,6 +2718,7 @@ export function buildInventoryRiskItems(
         materialName: material.materialName,
         brand: material.brand,
         lotNo: lot.lotNo,
+        expiryDate: lot.expiryDate,
         valueText: `${lot.lotNo} · ${formatInventoryQty(lot.remainingQtyBase, material.baseUnit)}`,
         actionText: "报废",
         targetTab: "lots",
@@ -2419,6 +2738,7 @@ export function buildInventoryRiskItems(
         materialName: material.materialName,
         brand: material.brand,
         lotNo: lot.lotNo,
+        expiryDate: lot.expiryDate,
         valueText: `${lot.expiryDate} 到期`,
         actionText: "发起盘点",
         targetTab: "lots",
@@ -2435,8 +2755,7 @@ export function buildInventoryRiskItems(
         materialId: summary.materialId,
         materialName: summary.materialName,
         brand: summary.brand,
-        valueText: `${formatInventoryQty(summary.currentStockBase, summary.baseUnit)} / 安全 ${formatInventoryQty(summary.safetyStockBase, summary.baseUnit)}`,
-        actionText: "入库",
+        valueText: formatInventoryQty(summary.currentStockBase, summary.baseUnit),
         targetTab: "summary",
         priority: 4
       });
