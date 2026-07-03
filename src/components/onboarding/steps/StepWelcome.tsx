@@ -65,9 +65,7 @@ function StepWelcome({ onGoToStep, stepCompleted }: StepWelcomeProps) {
   }
 
   const handleSkip = () => {
-    // 跳过其他步骤，直接进入系统
-    // 这里可以导航到主页面
-    console.log('跳过其他步骤，直接进入 Sentri')
+    onGoToStep('complete')
   }
 
   return (
@@ -93,7 +91,7 @@ function StepWelcome({ onGoToStep, stepCompleted }: StepWelcomeProps) {
           </svg>
           </div>
           <h1 className="welcome-title">欢迎来到SENTRI-您的"云端猪场"</h1>
-          <p className="welcome-subtitle">3分钟，搭建您的智慧养殖中台</p>
+          <p className="welcome-subtitle">3分钟，搭建您的 Sentri 中台</p>
         </div>
         
         {/* 垂直列表布局 */}

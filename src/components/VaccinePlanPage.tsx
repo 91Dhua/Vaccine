@@ -5147,7 +5147,8 @@ export function VaccinePlanPage({
             <MassPlanForm
               readOnly={readonlyMassConfig}
               onSubmit={(values) => {
-                console.log("Mass plan payload", values);
+                setDraft(values);
+                setMode("preview");
               }}
               onPreview={(values) => {
                 setDraft(values);
