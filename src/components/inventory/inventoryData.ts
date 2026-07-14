@@ -1,6 +1,15 @@
-export type InventoryCategory = "饲料" | "兽药" | "保健品" | "疫苗" | "消毒用品" | "工具" | "其他";
+export type InventoryCategory = "饲料" | "药品" | "消耗品" | "工具" | "其他";
+/** 药品类目下的最终分类，仅一级 */
+export type InventoryMedicineClass = "疫苗" | "兽药" | "保健品";
+
+export const inventoryMedicineClassOptions: InventoryMedicineClass[] = ["疫苗", "兽药", "保健品"];
+
+/** @deprecated 仅用于旧数据兼容读取，新建物料请使用 medicineClass */
+export type InventoryMedicineSubtype = "疫苗兽药" | "保健品";
+/** @deprecated 仅用于旧数据兼容读取，新建物料请使用 medicineClass */
+export type InventoryMedicineKind = "疫苗" | "兽药";
 export type InventoryLotStatus = "正常" | "临期" | "过期" | "已耗尽";
-export type InventoryStockRisk = "无风险" | "低库存" | "负库存";
+export type InventoryStockRisk = "无风险" | "负库存";
 export type InventoryLedgerType =
   | "采购入库"
   | "业务消耗"
@@ -11,17 +20,9 @@ export type InventoryLedgerType =
   | "报废"
   | "盘点调整";
 export type InventoryLedgerDirection = "inbound" | "outbound";
-export type InventoryAlertType = "负库存提醒" | "低库存提醒" | "临期提醒" | "过期提醒";
+export type InventoryAlertType = "负库存提醒" | "临期提醒" | "过期提醒";
 export type InventoryMaterialStatus = "启用中" | "已停用";
 export type InventoryMaterialStatusFilter = "全部" | InventoryMaterialStatus;
-
-export type InventoryFeedStage = {
-  pigType?: string;
-  phases?: string[];
-  phase?: string;
-  startDay?: number;
-  endDay?: number;
-};
 
 export type InventoryMaterial = {
   id: string;
@@ -29,12 +30,17 @@ export type InventoryMaterial = {
   materialName: string;
   materialNameEn?: string;
   category: InventoryCategory;
+  /** 药品类目下的最终分类：疫苗 / 兽药 / 保健品 */
+  medicineClass?: InventoryMedicineClass;
+  /** @deprecated 请使用 medicineClass */
+  medicineSubtype?: InventoryMedicineSubtype;
+  /** @deprecated 请使用 medicineClass */
+  medicineKind?: InventoryMedicineKind;
   brand: string;
   brandEn?: string;
   baseUnit: string;
   unitSystem: string[];
   packageConversions?: InventoryPackageConversion[];
-  safetyStockBase?: number;
   negativeStockBase?: number;
   status?: InventoryMaterialStatus;
   auxiliaryUnit?: string;
@@ -55,9 +61,7 @@ export type InventoryMaterial = {
   immuneIntervalDays?: number;
   // 饲料专属
   feedForm?: string;
-  applicablePigTypes?: string[];
-  applicableStages?: InventoryFeedStage[];
-  // 消毒用品专属
+  // 消耗品专属
   activeIngredient?: string;
   dilutionRatio?: string;
   disinfectScenes?: string[];
@@ -71,8 +75,7 @@ export type InventoryMaterialFieldType =
   | "text"
   | "number"
   | "select"
-  | "multiSelect"
-  | "feedStages";
+  | "multiSelect";
 
 export type InventoryMaterialFieldSpec = {
   key: keyof InventoryMaterial;
@@ -82,112 +85,98 @@ export type InventoryMaterialFieldSpec = {
   required?: boolean;
   /** 在入库快建弹窗中是否必填（未设置则快建时选填） */
   requiredInQuick?: boolean;
-  /** 在批量入库页面中是否必填（未设置则批量入库时选填） */
+  /** 在入库页面中是否必填（未设置则入库时选填） */
   requiredInBatchReceive?: boolean;
   options?: string[];
   placeholder?: string;
 };
 
-export const inventoryProductionPhaseOptions = [
-  "分娩期",
-  "妊娠期",
-  "泌乳期",
-  "空怀期",
-  "发情期",
-  "后备期",
-  "生长期",
-  "保育期",
-  "育肥期"
+const inventoryMedicineVetDrugFieldSpecs: InventoryMaterialFieldSpec[] = [
+  {
+    key: "dosageForm",
+    label: "剂型",
+    type: "select",
+    requiredInBatchReceive: true,
+    options: ["注射液", "粉剂", "预混剂", "口服液", "片剂"]
+  },
+  {
+    key: "usageMethod",
+    label: "使用方式",
+    type: "select",
+    requiredInBatchReceive: true,
+    options: ["注射", "拌料", "饮水", "外用"]
+  },
+  { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 7天" }
 ];
 
-export const inventoryPigTypeOptions = [
-  "生产母猪",
-  "生产公猪",
-  "仔猪",
-  "育肥猪",
-  "后备猪"
+const inventoryMedicineVaccineFieldSpecs: InventoryMaterialFieldSpec[] = [
+  {
+    key: "dosageForm",
+    label: "剂型",
+    type: "select",
+    required: true,
+    requiredInBatchReceive: true,
+    options: ["活疫苗（冻干苗）", "油佐剂灭活疫苗", "水佐剂灭活疫苗"]
+  },
+  {
+    key: "usageMethod",
+    label: "使用方式",
+    type: "select",
+    requiredInQuick: true,
+    requiredInBatchReceive: true,
+    options: ["肌肉注射", "皮下注射", "滴鼻", "饮水", "喷雾"]
+  },
+  {
+    key: "standardDosage",
+    label: "单次剂量",
+    type: "text",
+    requiredInBatchReceive: true,
+    placeholder: "如 2 ml/头"
+  },
+  {
+    key: "immuneIntervalDays",
+    label: "免疫间隔期(天)",
+    type: "number",
+    requiredInBatchReceive: true
+  },
+  {
+    key: "vaccineType",
+    label: "疫苗类型",
+    type: "select",
+    required: true,
+    options: ["病毒性", "细菌性", "寄生虫", "活疫苗", "灭活疫苗"]
+  },
+  { key: "coldChain", label: "是否冷链", type: "select", options: ["是", "否"] },
+  { key: "storageTemperature", label: "储存温度", type: "text", placeholder: "如 2-8℃" },
+  { key: "durationOfImmunity", label: "免疫有效期", type: "text", placeholder: "如 6 个月" },
+  { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 0天" }
+];
+
+const inventoryMedicineHealthFieldSpecs: InventoryMaterialFieldSpec[] = [
+  { key: "mainIngredient", label: "主要成分", type: "text" },
+  {
+    key: "usageMethod",
+    label: "使用方式",
+    type: "select",
+    requiredInBatchReceive: true,
+    options: ["拌料", "饮水", "注射", "外用"]
+  }
 ];
 
 export const inventoryCategoryFieldSpecs: Record<
   InventoryCategory,
   InventoryMaterialFieldSpec[]
 > = {
-  兽药: [
-    {
-      key: "dosageForm",
-      label: "剂型",
-      type: "select",
-      requiredInBatchReceive: true,
-      options: ["注射液", "粉剂", "预混剂", "口服液", "片剂"]
-    },
-    {
-      key: "usageMethod",
-      label: "使用方式",
-      type: "select",
-      requiredInBatchReceive: true,
-      options: ["注射", "拌料", "饮水", "外用"]
-    },
-    { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 7天" }
-  ],
-  疫苗: [
-    {
-      key: "dosageForm",
-      label: "剂型",
-      type: "select",
-      required: true,
-      requiredInBatchReceive: true,
-      options: ["活疫苗（冻干苗）", "油佐剂灭活疫苗", "水佐剂灭活疫苗"]
-    },
-    {
-      key: "usageMethod",
-      label: "使用方式",
-      type: "select",
-      requiredInQuick: true,
-      requiredInBatchReceive: true,
-      options: ["肌肉注射", "皮下注射", "滴鼻", "饮水", "喷雾"]
-    },
-    {
-      key: "standardDosage",
-      label: "单次剂量",
-      type: "text",
-      requiredInBatchReceive: true,
-      placeholder: "如 2 ml/头"
-    },
-    {
-      key: "immuneIntervalDays",
-      label: "免疫间隔期(天)",
-      type: "number",
-      requiredInBatchReceive: true
-    },
-    {
-      key: "vaccineType",
-      label: "疫苗类型",
-      type: "select",
-      required: true,
-      options: ["病毒性", "细菌性", "寄生虫", "活疫苗", "灭活疫苗"]
-    },
-    { key: "coldChain", label: "是否冷链", type: "select", options: ["是", "否"] },
-    { key: "storageTemperature", label: "储存温度", type: "text", placeholder: "如 2-8℃" },
-    { key: "durationOfImmunity", label: "免疫有效期", type: "text", placeholder: "如 6 个月" },
-    { key: "withdrawalPeriod", label: "休药期", type: "text", placeholder: "如 0天" }
-  ],
   饲料: [
     {
       key: "feedForm",
       label: "形态",
       type: "select",
       options: ["颗粒", "粉料", "浓缩料"]
-    },
-    {
-      key: "applicableStages",
-      label: "适用猪只与阶段",
-      type: "feedStages",
-      required: true,
-      requiredInQuick: true,
-      requiredInBatchReceive: true
     }
   ],
-  消毒用品: [
+  药品: [],
+  消耗品: [
     { key: "activeIngredient", label: "有效成分", type: "text" },
     {
       key: "dilutionRatio",
@@ -203,91 +192,109 @@ export const inventoryCategoryFieldSpecs: Record<
       options: ["空栏", "带猪", "器械", "车辆", "人员"]
     }
   ],
-  保健品: [
-    { key: "mainIngredient", label: "主要成分", type: "text" },
-    {
-      key: "usageMethod",
-      label: "使用方式",
-      type: "select",
-      requiredInBatchReceive: true,
-      options: ["拌料", "饮水", "注射", "外用"]
-    }
-  ],
   工具: [],
   其他: []
 };
 
-export function formatFeedStage(stage: InventoryFeedStage) {
-  if (stage.pigType && stage.phases?.length) {
-    return `${stage.pigType} ${stage.phases.join("、")}`;
+export type MaterialProfileFieldContext = Pick<
+  InventoryMaterial,
+  "category" | "medicineClass" | "medicineSubtype" | "medicineKind"
+>;
+
+export function resolveMedicineClass(
+  input: Pick<InventoryMaterial, "medicineClass" | "medicineSubtype" | "medicineKind">
+): InventoryMedicineClass | undefined {
+  if (input.medicineClass) return input.medicineClass;
+  if (input.medicineSubtype === "保健品") return "保健品";
+  if (input.medicineKind === "疫苗") return "疫苗";
+  if (input.medicineKind === "兽药") return "兽药";
+  return undefined;
+}
+
+export function getMaterialProfileFieldSpecs(
+  input: InventoryCategory | MaterialProfileFieldContext,
+  medicineClass?: InventoryMedicineClass
+): InventoryMaterialFieldSpec[] {
+  const category = typeof input === "string" ? input : input.category;
+  const resolvedClass =
+    typeof input === "string" ? medicineClass : resolveMedicineClass(input);
+
+  if (category === "药品") {
+    if (resolvedClass === "保健品") return inventoryMedicineHealthFieldSpecs;
+    if (resolvedClass === "疫苗") return inventoryMedicineVaccineFieldSpecs;
+    if (resolvedClass === "兽药") return inventoryMedicineVetDrugFieldSpecs;
+    return [];
   }
-  const phase = stage.phase || "";
-  const range =
-    stage.startDay != null && stage.endDay != null
-      ? `${stage.startDay}-${stage.endDay}天`
-      : stage.startDay != null
-        ? `${stage.startDay}天起`
-        : stage.endDay != null
-          ? `至${stage.endDay}天`
-          : "";
-  return range ? `${phase} ${range}`.trim() : phase;
+
+  return inventoryCategoryFieldSpecs[category] || [];
+}
+
+export function formatMaterialCategoryLabel(
+  material: Pick<InventoryMaterial, "category" | "medicineClass" | "medicineSubtype" | "medicineKind">
+): string {
+  if (material.category === "药品") {
+    const medicineClass = resolveMedicineClass(material);
+    if (medicineClass) return `药品 · ${medicineClass}`;
+  }
+  return material.category;
+}
+
+export function resolveMedicineBaseUnitRecommendations(medicineClass?: InventoryMedicineClass): string[] {
+  if (medicineClass === "保健品") return ["g", "ml"];
+  if (medicineClass === "疫苗") return ["头份", "ml"];
+  return ["ml", "g"];
+}
+
+export function isMedicineStrictToleranceCategory(
+  material: Pick<InventoryMaterial, "category" | "medicineClass" | "medicineSubtype" | "medicineKind">
+): boolean {
+  if (material.category !== "药品") return false;
+  const medicineClass = resolveMedicineClass(material);
+  return medicineClass === "疫苗" || medicineClass === "兽药";
 }
 
 export function isMaterialProfileIncomplete(material: InventoryMaterial): boolean {
-  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  if (material.category === "药品" && !resolveMedicineClass(material)) return true;
+  const specs = getMaterialProfileFieldSpecs(material);
   return specs.some((spec) => {
     if (!spec.required) return false;
     const raw = material[spec.key];
     if (raw == null || raw === "") return true;
-    if (spec.type === "feedStages") {
-      if (!Array.isArray(raw) || raw.length === 0) return true;
-      return !(raw as InventoryFeedStage[]).some(
-        (stage) =>
-          (Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0) ||
-          (Boolean(stage.phase) && typeof stage.startDay === "number" && typeof stage.endDay === "number")
-      );
-    }
     if (Array.isArray(raw)) return raw.length === 0;
     return false;
   });
 }
 
 export function isMaterialProfileBatchReceiveIncomplete(material: InventoryMaterial): boolean {
-  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  if (material.category === "药品" && !resolveMedicineClass(material)) return true;
+  const specs = getMaterialProfileFieldSpecs(material);
   return specs.some((spec) => {
     if (!spec.requiredInBatchReceive) return false;
     const raw = material[spec.key];
     if (raw == null || raw === "") return true;
-    if (spec.type === "feedStages") {
-      if (!Array.isArray(raw) || raw.length === 0) return true;
-      return !(raw as InventoryFeedStage[]).some(
-        (stage) => Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0
-      );
-    }
     if (Array.isArray(raw)) return raw.length === 0;
     return false;
   });
 }
 
 export function isMaterialProfileQuickIncomplete(material: InventoryMaterial): boolean {
-  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  if (material.category === "药品" && !resolveMedicineClass(material)) return true;
+  const specs = getMaterialProfileFieldSpecs(material);
   return specs.some((spec) => {
     if (!spec.requiredInQuick) return false;
     const raw = material[spec.key];
     if (raw == null || raw === "") return true;
-    if (spec.type === "feedStages") {
-      if (!Array.isArray(raw) || raw.length === 0) return true;
-      return !(raw as InventoryFeedStage[]).some(
-        (stage) => Boolean(stage.pigType) && Array.isArray(stage.phases) && stage.phases.length > 0
-      );
-    }
     if (Array.isArray(raw)) return raw.length === 0;
     return false;
   });
 }
 
-export function buildMaterialProfileFromForm(category: InventoryCategory, values: Record<string, unknown>) {
-  const specs = inventoryCategoryFieldSpecs[category] || [];
+export function buildMaterialProfileFromForm(
+  category: InventoryCategory,
+  values: Record<string, unknown>,
+  medicineClass?: InventoryMedicineClass
+) {
+  const specs = getMaterialProfileFieldSpecs(category, medicineClass);
   const profile: Record<string, unknown> = {};
   specs.forEach((spec) => {
     profile[String(spec.key)] = values[String(spec.key)];
@@ -298,6 +305,7 @@ export function buildMaterialProfileFromForm(category: InventoryCategory, values
 export type InventoryBatchPackageConversionDraft = {
   fromUnit?: string;
   quantity?: number;
+  toUnit?: string;
 };
 
 export type InventoryBatchNewMaterialForm = {
@@ -312,15 +320,26 @@ export type InventoryBatchNewMaterialForm = {
 };
 
 export function createDefaultBatchNewMaterialForm(category: InventoryCategory): InventoryBatchNewMaterialForm {
+  const baseUnit = inventoryCategoryBaseUnitRecommendations[category]?.[0];
   const form: InventoryBatchNewMaterialForm = {
-    baseUnit: inventoryCategoryBaseUnitRecommendations[category]?.[0],
-    packageConversions: [{ fromUnit: undefined, quantity: undefined }],
-    optionalExpanded: false
+    baseUnit,
+    packageConversions: createDefaultBatchPackageConversionDrafts(category, baseUnit),
+    optionalExpanded: true
   };
-  if (category === "饲料") {
-    form.applicableStages = [{}];
+  if (category === "药品") {
+    form.medicineClass = "兽药";
   }
   return form;
+}
+
+export function createDefaultBatchPackageConversionDrafts(
+  category: InventoryCategory,
+  baseUnit?: string
+): InventoryBatchPackageConversionDraft[] {
+  if (category === "饲料") {
+    return [{ fromUnit: "吨", quantity: undefined, toUnit: "L" }];
+  }
+  return [{ fromUnit: undefined, quantity: undefined, toUnit: baseUnit }];
 }
 
 export function normalizeBatchPackageConversions(
@@ -329,11 +348,45 @@ export function normalizeBatchPackageConversions(
 ): InventoryPackageConversion[] {
   return drafts
     .map((draft, index) => ({
-      fromUnit: draft.fromUnit || "",
+      fromUnit: draft.fromUnit?.trim() || "",
       quantity: Number(draft.quantity || 0),
-      toUnit: index === 0 ? baseUnit : drafts[index - 1]?.fromUnit || ""
+      toUnit: draft.toUnit?.trim() || (index === 0 ? baseUnit : drafts[index - 1]?.fromUnit?.trim() || "")
     }))
-    .filter((conversion) => conversion.fromUnit || conversion.quantity);
+    .filter((conversion) => conversion.fromUnit || conversion.quantity || conversion.toUnit);
+}
+
+function filterCompletePackageConversions(conversions: InventoryPackageConversion[]) {
+  return conversions.filter((conversion) => conversion.fromUnit && conversion.toUnit && conversion.quantity > 0);
+}
+
+export function validateBatchUnitConversions(
+  category: InventoryCategory,
+  baseUnit: string,
+  conversions: InventoryPackageConversion[]
+): string | null {
+  if (!baseUnit || conversions.length === 0) return "请至少填写一条单位换算规则。";
+
+  const feedTonToLiter = conversions.find((conversion) => conversion.fromUnit === "吨" && conversion.toUnit === "L");
+  if (category === "饲料" && (!feedTonToLiter || feedTonToLiter.quantity <= 0)) {
+    return "饲料必须填写 1吨 = xxL 的单位换算。";
+  }
+
+  const seenUnits = new Set<string>();
+  for (const conversion of conversions) {
+    if (!conversion.fromUnit || !conversion.toUnit || !conversion.quantity) return "请完善单位换算规则。";
+    if (conversion.quantity <= 0) return "单位换算数量必须大于 0。";
+    if (conversion.fromUnit === conversion.toUnit) return "换算前后单位不能相同。";
+    if (seenUnits.has(conversion.fromUnit)) return "换算起始单位不能重复。";
+    seenUnits.add(conversion.fromUnit);
+  }
+
+  for (const conversion of conversions) {
+    if (resolveInventoryUnitFactor(conversion.fromUnit, baseUnit, conversions) === null) {
+      return "多级单位换算必须能最终换算到物料单位。";
+    }
+  }
+
+  return null;
 }
 
 export function buildBatchInlineNewMaterialDraft(
@@ -347,19 +400,24 @@ export function buildBatchInlineNewMaterialDraft(
   if (!keyword || !brand || !baseUnit) return null;
 
   const packageConversions = normalizeBatchPackageConversions(baseUnit, form.packageConversions || []);
-  const profile = buildMaterialProfileFromForm(category, form);
+  const completePackageConversions = filterCompletePackageConversions(packageConversions);
+  const medicineClass = category === "药品" ? (form.medicineClass as InventoryMedicineClass | undefined) : undefined;
+  const profile = buildMaterialProfileFromForm(category, form, medicineClass);
   const draft: InventoryMaterial = {
     id: `mat-draft-${keyword}`,
     materialName: keyword,
     materialNameEn: form.materialNameEn?.trim() || undefined,
     category,
+    medicineClass,
     brand,
     brandEn: form.brandEn?.trim() || undefined,
     baseUnit,
-    unitSystem: [`1${baseUnit} = 1${baseUnit}`],
-    packageConversions,
+    unitSystem: completePackageConversions.length
+      ? buildInventoryUnitSystem(baseUnit, completePackageConversions)
+      : [`1${baseUnit} = 1${baseUnit}`],
+    packageConversions: completePackageConversions,
     status: "启用中",
-    auxiliaryUnit: packageConversions[0]?.fromUnit || baseUnit,
+    auxiliaryUnit: completePackageConversions.find((conversion) => conversion.fromUnit !== baseUnit)?.fromUnit || baseUnit,
     note: form.materialNote?.trim() || undefined,
     ...profile
   };
@@ -374,15 +432,11 @@ export function validateBatchInlineNewMaterial(
 ): string | null {
   const keyword = materialName.trim();
   if (!keyword) return "请填写物料名称。";
-  if (!form.materialNameEn?.trim()) return "请填写物料名称(英文)。";
   if (!form.brand?.trim()) return "请填写品牌名称(中文)。";
-  if (!form.brandEn?.trim()) return "请填写品牌名称(英文)。";
-  if (!form.baseUnit?.trim()) return "请选择核算单位。";
+  if (!form.baseUnit?.trim()) return "当前分类缺少默认单位，请先确认物料分类。";
   const packageConversions = normalizeBatchPackageConversions(form.baseUnit, form.packageConversions || []);
-  if (packageConversions.length) {
-    const message = validateInventoryPackageConversions(form.baseUnit, packageConversions);
-    if (message) return message;
-  }
+  const conversionMessage = validateBatchUnitConversions(category, form.baseUnit, packageConversions);
+  if (conversionMessage) return conversionMessage;
   const draft = buildBatchInlineNewMaterialDraft(category, keyword, form);
   if (!draft) return "请完善新建物料必填信息。";
   if (isMaterialProfileBatchReceiveIncomplete(draft)) {
@@ -391,20 +445,12 @@ export function validateBatchInlineNewMaterial(
   return null;
 }
 
-export function validateBatchReceivePackageSpec(
-  baseUnit: string,
-  packageConversions: InventoryPackageConversion[]
-): string | null {
-  if (!baseUnit) return "请先选择核算单位。";
-  if (!packageConversions.length) {
-    return "请填写规格与包装。";
-  }
-  return validateInventoryPackageConversions(baseUnit, packageConversions);
-}
-
-export function getBatchReceiveOptionalFieldHint(category: InventoryCategory): string {
-  const optionalLabels = ["包装规格"];
-  const specs = inventoryCategoryFieldSpecs[category] || [];
+export function getBatchReceiveOptionalFieldHint(
+  category: InventoryCategory,
+  medicineClass?: InventoryMedicineClass
+): string {
+  const optionalLabels = ["英文名称", "英文品牌"];
+  const specs = getMaterialProfileFieldSpecs(category, medicineClass);
   specs.forEach((spec) => {
     if (!spec.requiredInBatchReceive) optionalLabels.push(spec.label);
   });
@@ -427,9 +473,6 @@ export function formatInventoryMaterialFieldValue(
 ): string {
   const raw = material[spec.key];
   if (raw == null || raw === "") return "";
-  if (spec.type === "feedStages" && Array.isArray(raw)) {
-    return (raw as InventoryFeedStage[]).map(formatFeedStage).join("；");
-  }
   if (Array.isArray(raw)) {
     return (raw as string[]).join("、");
   }
@@ -441,7 +484,7 @@ export type InventoryLot = {
   materialId: string;
   lotNo: string;
   productionDate?: string;
-  expiryDate: string;
+  expiryDate?: string;
   inboundQty: number;
   inboundUnit: string;
   convertedQtyBase: number;
@@ -451,7 +494,9 @@ export type InventoryLot = {
   packageConversions?: InventoryPackageConversion[];
   supplier?: string;
   supplierPhone?: string;
+  supplierBatchNo?: string;
   storageLocation?: string;
+  note?: string;
   status: InventoryLotStatus;
   stocktakeAdjustmentType?: "盘盈库存";
 };
@@ -469,6 +514,31 @@ export type InventoryLedgerRow = {
   remark?: string;
 };
 
+export type InventoryInboundOrderType = "采购入库" | "盘盈入库";
+
+export type InventoryInboundMaterial = {
+  id: string;
+  materialName: string;
+  category: string;
+  brand: string;
+  quantity: number;
+  unit: string;
+  totalAmount: number;
+  expiryDate: string;
+  supplier: string;
+  supplierPhone?: string;
+};
+
+export type InventoryInboundOrder = {
+  id: string;
+  orderNo: string;
+  type: InventoryInboundOrderType;
+  operator: string;
+  inboundTime: string;
+  remark?: string;
+  details: InventoryInboundMaterial[];
+};
+
 export type InventoryAlert = {
   id: string;
   type: InventoryAlertType;
@@ -482,19 +552,22 @@ export type InventorySummary = {
   materialId: string;
   materialName: string;
   category: InventoryCategory;
+  medicineClass?: InventoryMedicineClass;
   brand: string;
   currentStockBase: number;
   baseUnit: string;
-  safetyStockBase?: number;
+  monthlyUsageBase: number;
+  usageTrend: number[];
+  stockTrend: number[];
   stockRisk: InventoryStockRisk;
   nearestExpiryDate: string;
   lotCount: number;
   materialStatus: InventoryMaterialStatus;
 };
 
-export type InventoryRiskType = "负库存" | "过期" | "临期" | "低库存";
-export type InventoryStocktakeMode = "异常盘点" | "指定物料盘点" | "分类盘点" | "全部盘点";
-export type InventoryStocktakeReason = "负库存" | "低库存" | "临期" | "已过期" | "手动添加" | "分类盘点" | "全部盘点";
+export type InventoryRiskType = "负库存" | "过期" | "临期";
+export type InventoryStocktakeMode = "异常盘点" | "指定物料盘点" | "分类盘点";
+export type InventoryStocktakeReason = "负库存" | "临期" | "已过期" | "手动添加" | "分类盘点";
 export type InventoryStocktakeRowStatus = "异常" | "可盘点";
 export type InventoryStocktakeTaskStatus = "待盘点" | "盘点中" | "待确认" | "已完成" | "已取消";
 export type InventoryStocktakeAdjustmentReason =
@@ -515,6 +588,7 @@ export type InventoryStocktakeScopeRow = {
   materialName: string;
   brand: string;
   category: InventoryCategory;
+  medicineClass?: InventoryMedicineClass;
   lotNo?: string;
   bookQtyBase: number;
   baseUnit: string;
@@ -553,6 +627,32 @@ export type InventoryStocktakeTransaction = {
     lossCount: number;
     adjustmentCount: number;
   };
+};
+
+export type InventoryCheckResult = "adjusted" | "unchanged" | "pending";
+
+export type InventoryCheckDetail = {
+  id: string;
+  materialName: string;
+  category: string;
+  batchNo: string;
+  systemStock: number;
+  actualStock: number;
+  unit: string;
+  difference: number;
+  result: InventoryCheckResult;
+};
+
+export type InventoryCheckRecord = {
+  id: string;
+  checkNo: string;
+  checkTime: string;
+  checker: string;
+  totalItems: number;
+  diffItems: number;
+  adjustedItems: number;
+  remark?: string;
+  details: InventoryCheckDetail[];
 };
 
 export type InventoryDifferenceDirection = "盘盈" | "盘亏";
@@ -680,6 +780,7 @@ export type InventoryDifferenceRecord = {
   materialName: string;
   brand: string;
   category: InventoryCategory;
+  medicineClass?: InventoryMedicineClass;
   baseUnit: string;
   snapshotQtyBase: number;
   bookQtyBase: number;
@@ -756,6 +857,7 @@ export type InventoryScrapTransactionInput = {
   scrapQuantity: number;
   reason: string;
   handlingMethod: string;
+  photoNote?: string;
   operator: string;
   occurredAt: string;
   ledgerId: string;
@@ -792,9 +894,19 @@ export type InventoryLedgerQuery = {
   ledgerTypes?: InventoryLedgerType[];
 };
 
+export type InventoryLastPurchaseInfo = {
+  occurredAt?: string;
+  quantityBase: number;
+  quantityText: string;
+  lotNo?: string;
+  supplier?: string;
+  source: "ledger" | "lot" | "none";
+};
+
 type InventoryReceiveEntryCommonInput = {
   lotId: string;
-  expiryDate: string;
+  productionDate?: string;
+  expiryDate?: string;
   unitPrice: number;
   inboundQuantity: number;
   inboundUnit: string;
@@ -802,7 +914,9 @@ type InventoryReceiveEntryCommonInput = {
   packageConversions: InventoryPackageConversion[];
   supplier?: string;
   supplierPhone?: string;
+  externalBatchNo?: string;
   storageLocation?: string;
+  note?: string;
   receiveDate: string;
   sequence: number;
 };
@@ -819,7 +933,6 @@ export type InventoryReceiveEntryInput =
       category: InventoryCategory;
       brand: string;
       baseUnit: string;
-      safetyStockBase?: number;
       note?: string;
     });
 
@@ -830,7 +943,6 @@ export type InventoryReceiveSearchInput = InventoryReceiveEntryCommonInput & {
   category?: InventoryCategory;
   brand?: string;
   baseUnit?: string;
-  safetyStockBase?: number;
   note?: string;
   newMaterialId: string;
 };
@@ -877,7 +989,6 @@ export type InventoryMaterialEditInput = {
   brand: string;
   category: InventoryCategory;
   baseUnit: string;
-  safetyStockBase?: number;
   note?: string;
   canEditBaseUnit: boolean;
 };
@@ -908,7 +1019,8 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     materialCode: "MAT-000123",
     materialName: "氟苯尼考",
     materialNameEn: "Florfenicol",
-    category: "兽药",
+    category: "药品",
+    medicineClass: "兽药",
     brand: "A品牌",
     brandEn: "Brand A",
     baseUnit: "ml",
@@ -917,7 +1029,6 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
       { fromUnit: "瓶", quantity: 100, toUnit: "ml" },
       { fromUnit: "盒", quantity: 10, toUnit: "瓶" }
     ],
-    safetyStockBase: 2000,
     status: "启用中",
     auxiliaryUnit: "瓶",
     lastStocktakeAt: "2026-06-10",
@@ -931,7 +1042,8 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     materialCode: "MAT-000124",
     materialName: "蓝耳二联疫苗",
     materialNameEn: "PRRS Bivalent Vaccine",
-    category: "疫苗",
+    category: "药品",
+    medicineClass: "疫苗",
     brand: "百利",
     brandEn: "Boli",
     baseUnit: "头份",
@@ -940,7 +1052,6 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
       { fromUnit: "瓶", quantity: 20, toUnit: "头份" },
       { fromUnit: "盒", quantity: 10, toUnit: "瓶" }
     ],
-    safetyStockBase: 300,
     status: "启用中",
     auxiliaryUnit: "瓶",
     lastStocktakeAt: "2026-05-01",
@@ -960,13 +1071,13 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     materialCode: "MAT-000129",
     materialName: "头孢",
     materialNameEn: "Ceftiofur",
-    category: "兽药",
+    category: "药品",
+    medicineClass: "兽药",
     brand: "华牧",
     brandEn: "HuaMu",
     baseUnit: "ml",
     unitSystem: ["1ml = 1ml", "1瓶 = 100ml"],
     packageConversions: [{ fromUnit: "瓶", quantity: 100, toUnit: "ml" }],
-    safetyStockBase: 300,
     status: "启用中",
     auxiliaryUnit: "瓶",
     lastStocktakeAt: "2026-06-12",
@@ -986,29 +1097,91 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     baseUnit: "kg",
     unitSystem: ["1kg = 1kg", "1袋 = 40kg"],
     packageConversions: [{ fromUnit: "袋", quantity: 40, toUnit: "kg" }],
-    safetyStockBase: 600,
     status: "启用中",
     auxiliaryUnit: "袋",
     lastStocktakeAt: "2026-06-18",
     feedForm: "颗粒",
-    applicableStages: [
-      { pigType: "生产母猪", phases: ["分娩期", "妊娠期"] },
-      { pigType: "后备猪", phases: ["生长期"] }
-    ],
     note: "妊娠阶段饲喂使用"
+  },
+  {
+    id: "mat-feed-lactation",
+    materialCode: "MAT-000129",
+    materialName: "哺乳母猪料",
+    materialNameEn: "Lactation Sow Feed",
+    category: "饲料",
+    brand: "牧丰",
+    brandEn: "MuFeng",
+    baseUnit: "kg",
+    unitSystem: ["1kg = 1kg", "1袋 = 40kg"],
+    packageConversions: [{ fromUnit: "袋", quantity: 40, toUnit: "kg" }],
+    status: "启用中",
+    auxiliaryUnit: "袋",
+    lastStocktakeAt: "2026-07-01",
+    feedForm: "颗粒",
+    note: "哺乳期高营养配方"
+  },
+  {
+    id: "mat-feed-nursery",
+    materialCode: "MAT-000130",
+    materialName: "保育猪料",
+    materialNameEn: "Nursery Pig Feed",
+    category: "饲料",
+    brand: "牧丰",
+    brandEn: "MuFeng",
+    baseUnit: "kg",
+    unitSystem: ["1kg = 1kg", "1袋 = 40kg"],
+    packageConversions: [{ fromUnit: "袋", quantity: 40, toUnit: "kg" }],
+    status: "启用中",
+    auxiliaryUnit: "袋",
+    lastStocktakeAt: "2026-07-02",
+    feedForm: "颗粒",
+    note: "保育阶段专用"
+  },
+  {
+    id: "mat-feed-finisher",
+    materialCode: "MAT-000131",
+    materialName: "育肥猪料",
+    materialNameEn: "Finisher Pig Feed",
+    category: "饲料",
+    brand: "牧丰",
+    brandEn: "MuFeng",
+    baseUnit: "kg",
+    unitSystem: ["1kg = 1kg", "1袋 = 40kg"],
+    packageConversions: [{ fromUnit: "袋", quantity: 40, toUnit: "kg" }],
+    status: "启用中",
+    auxiliaryUnit: "袋",
+    lastStocktakeAt: "2026-07-03",
+    feedForm: "颗粒",
+    note: "育肥后期增重配方"
+  },
+  {
+    id: "mat-feed-starter",
+    materialCode: "MAT-000132",
+    materialName: "教槽料",
+    materialNameEn: "Starter Feed",
+    category: "饲料",
+    brand: "牧丰",
+    brandEn: "MuFeng",
+    baseUnit: "kg",
+    unitSystem: ["1kg = 1kg", "1袋 = 20kg"],
+    packageConversions: [{ fromUnit: "袋", quantity: 20, toUnit: "kg" }],
+    status: "启用中",
+    auxiliaryUnit: "袋",
+    lastStocktakeAt: "2026-06-28",
+    feedForm: "粉料",
+    note: "新开教槽，近7天暂无饲喂记录"
   },
   {
     id: "mat-disinfectant-glutaraldehyde",
     materialCode: "MAT-000126",
     materialName: "戊二醛消毒液",
     materialNameEn: "Glutaraldehyde Disinfectant",
-    category: "消毒用品",
+    category: "消耗品",
     brand: "康洁",
     brandEn: "KangJie",
     baseUnit: "L",
     unitSystem: ["1L = 1L", "1桶 = 20L"],
     packageConversions: [{ fromUnit: "桶", quantity: 20, toUnit: "L" }],
-    safetyStockBase: 80,
     negativeStockBase: 12,
     status: "启用中",
     auxiliaryUnit: "桶",
@@ -1028,7 +1201,6 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     brandEn: "MuAn",
     baseUnit: "个",
     unitSystem: ["1个 = 1个"],
-    safetyStockBase: 8,
     status: "启用中",
     auxiliaryUnit: "个",
     lastStocktakeAt: "2026-06-18",
@@ -1039,13 +1211,13 @@ export const inventorySeedMaterials: InventoryMaterial[] = [
     materialCode: "MAT-000128",
     materialName: "电解多维",
     materialNameEn: "Electrolyte Multivitamin",
-    category: "保健品",
+    category: "药品",
+    medicineClass: "保健品",
     brand: "禾丰",
     brandEn: "HeFeng",
     baseUnit: "g",
     unitSystem: ["1g = 1g", "1袋 = 500g"],
     packageConversions: [{ fromUnit: "袋", quantity: 500, toUnit: "g" }],
-    safetyStockBase: 1000,
     status: "启用中",
     auxiliaryUnit: "袋",
     lastStocktakeAt: "2026-06-12",
@@ -1070,6 +1242,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 0.42,
     supplier: "华牧供应",
     supplierPhone: "13800001111",
+    storageLocation: "药房A柜",
     status: "临期"
   },
   {
@@ -1086,6 +1259,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 1.1,
     supplier: "华牧供应",
     supplierPhone: "13800007777",
+    storageLocation: "药房A柜",
     status: "正常"
   },
   {
@@ -1102,6 +1276,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 0.48,
     supplier: "华牧供应",
     supplierPhone: "13800001111",
+    storageLocation: "药房B柜",
     status: "正常"
   },
   {
@@ -1113,12 +1288,30 @@ export const inventorySeedLots: InventoryLot[] = [
     inboundQty: 2,
     inboundUnit: "盒",
     convertedQtyBase: 400,
-    remainingQtyBase: 180,
+    remainingQtyBase: 120,
     unitPrice: 1920,
     baseUnitCost: 4.8,
     supplier: "百利生物",
     supplierPhone: "13800002222",
+    storageLocation: "疫苗冷库2层",
     status: "过期"
+  },
+  {
+    id: "lot-prrs-002",
+    materialId: "mat-vaccine-prrs",
+    lotNo: "PRRS-202606-Y",
+    productionDate: "2025-11-15",
+    expiryDate: "2026-12-15",
+    inboundQty: 60,
+    inboundUnit: "头份",
+    convertedQtyBase: 60,
+    remainingQtyBase: 60,
+    unitPrice: 300,
+    baseUnitCost: 5,
+    supplier: "百利生物",
+    supplierPhone: "13800002222",
+    storageLocation: "疫苗冷库2层",
+    status: "正常"
   },
   {
     id: "lot-feed-001",
@@ -1129,11 +1322,76 @@ export const inventorySeedLots: InventoryLot[] = [
     inboundQty: 40,
     inboundUnit: "袋",
     convertedQtyBase: 1600,
-    remainingQtyBase: 1320,
+    remainingQtyBase: 28000,
     unitPrice: 5120,
     baseUnitCost: 3.2,
     supplier: "牧丰饲料",
     supplierPhone: "13800003333",
+    storageLocation: "饲料仓西侧",
+    status: "正常"
+  },
+  {
+    id: "lot-feed-002",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    productionDate: "2026-06-20",
+    expiryDate: "2026-12-20",
+    inboundQty: 350,
+    inboundUnit: "袋",
+    convertedQtyBase: 14000,
+    remainingQtyBase: 14000,
+    unitPrice: 4480,
+    baseUnitCost: 3.2,
+    supplier: "牧丰饲料",
+    storageLocation: "饲料仓A区",
+    status: "正常"
+  },
+  {
+    id: "lot-feed-003",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    productionDate: "2026-06-18",
+    expiryDate: "2026-12-18",
+    inboundQty: 1300,
+    inboundUnit: "袋",
+    convertedQtyBase: 52000,
+    remainingQtyBase: 52000,
+    unitPrice: 16640,
+    baseUnitCost: 3.2,
+    supplier: "牧丰饲料",
+    storageLocation: "饲料仓B区",
+    status: "正常"
+  },
+  {
+    id: "lot-feed-004",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    productionDate: "2026-06-15",
+    expiryDate: "2026-12-15",
+    inboundQty: 750,
+    inboundUnit: "袋",
+    convertedQtyBase: 30000,
+    remainingQtyBase: 30000,
+    unitPrice: 9600,
+    baseUnitCost: 3.2,
+    supplier: "牧丰饲料",
+    storageLocation: "饲料仓C区",
+    status: "正常"
+  },
+  {
+    id: "lot-feed-005",
+    materialId: "mat-feed-starter",
+    lotNo: "FD-STA-202607",
+    productionDate: "2026-06-25",
+    expiryDate: "2026-12-25",
+    inboundQty: 400,
+    inboundUnit: "袋",
+    convertedQtyBase: 8000,
+    remainingQtyBase: 8000,
+    unitPrice: 2560,
+    baseUnitCost: 3.2,
+    supplier: "牧丰饲料",
+    storageLocation: "饲料仓D区",
     status: "正常"
   },
   {
@@ -1150,6 +1408,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 86,
     supplier: "牧安器械",
     supplierPhone: "13800004444",
+    storageLocation: "工具间1号架",
     status: "正常"
   },
   {
@@ -1166,6 +1425,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 2.6,
     supplier: "康洁供应",
     supplierPhone: "13800005555",
+    storageLocation: "消毒间东侧",
     status: "已耗尽"
   },
   {
@@ -1182,6 +1442,7 @@ export const inventorySeedLots: InventoryLot[] = [
     baseUnitCost: 0.08,
     supplier: "禾丰生物",
     supplierPhone: "13800006666",
+    storageLocation: "保健品柜",
     status: "正常"
   }
 ];
@@ -1372,6 +1633,734 @@ export const inventorySeedLedgers: InventoryLedgerRow[] = [
     quantityText: "-60ml",
     afterStockText: "540ml",
     operator: "系统"
+  },
+  {
+    id: "ledger-018",
+    occurredAt: "2026-06-28 08:30",
+    type: "采购入库",
+    source: "入库单 IN-20260628-01",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "+1200kg",
+    afterStockText: "2280kg",
+    operator: "李静"
+  },
+  {
+    id: "ledger-feed-lac-01",
+    occurredAt: "2026-06-30 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260630-01",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "21000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-02",
+    occurredAt: "2026-07-01 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260701-02",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "14000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-03",
+    occurredAt: "2026-07-02 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260702-01",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "7000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-04",
+    occurredAt: "2026-07-03 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260703-01",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "0kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-05",
+    occurredAt: "2026-07-04 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260704-01",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "0kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-06",
+    occurredAt: "2026-07-05 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260705-02",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "0kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-lac-07",
+    occurredAt: "2026-07-06 08:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260706-01",
+    materialId: "mat-feed-lactation",
+    lotNo: "FD-LAC-202607",
+    quantityText: "-7000kg",
+    afterStockText: "14000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-01",
+    occurredAt: "2026-06-30 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260630-02",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "48000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-02",
+    occurredAt: "2026-07-01 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260701-03",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "44000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-03",
+    occurredAt: "2026-07-02 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260702-02",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "40000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-04",
+    occurredAt: "2026-07-03 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260703-02",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "36000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-05",
+    occurredAt: "2026-07-04 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260704-02",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "32000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-06",
+    occurredAt: "2026-07-05 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260705-03",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "28000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-nur-07",
+    occurredAt: "2026-07-06 09:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260706-02",
+    materialId: "mat-feed-nursery",
+    lotNo: "FD-NUR-202607",
+    quantityText: "-4000kg",
+    afterStockText: "52000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-01",
+    occurredAt: "2026-06-30 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260630-03",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "24000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-02",
+    occurredAt: "2026-07-01 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260701-04",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "18000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-03",
+    occurredAt: "2026-07-02 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260702-03",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "12000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-04",
+    occurredAt: "2026-07-03 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260703-03",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "6000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-05",
+    occurredAt: "2026-07-04 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260704-03",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "0kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-06",
+    occurredAt: "2026-07-05 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260705-04",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "0kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-fin-07",
+    occurredAt: "2026-07-06 10:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260706-03",
+    materialId: "mat-feed-finisher",
+    lotNo: "FD-FIN-202607",
+    quantityText: "-6000kg",
+    afterStockText: "30000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-01",
+    occurredAt: "2026-06-30 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260630-04",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "27000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-02",
+    occurredAt: "2026-07-01 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260701-05",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "26000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-03",
+    occurredAt: "2026-07-02 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260702-04",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "25000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-04",
+    occurredAt: "2026-07-03 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260703-04",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "24000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-05",
+    occurredAt: "2026-07-04 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260704-04",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "23000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-06",
+    occurredAt: "2026-07-05 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260705-05",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "22000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-feed-ges-07",
+    occurredAt: "2026-07-06 11:00",
+    type: "业务消耗",
+    source: "饲喂任务 FE-20260706-04",
+    materialId: "mat-feed-gestation",
+    lotNo: "FD-202606-01",
+    quantityText: "-1000kg",
+    afterStockText: "28000kg",
+    operator: "系统"
+  },
+  {
+    id: "ledger-drug-flor-20260626",
+    occurredAt: "2026-06-26 14:30",
+    type: "业务消耗",
+    source: "治疗任务 MT-20260626-A",
+    materialId: "mat-drug-florfenicol",
+    lotNo: "FL-202606-B",
+    quantityText: "-350ml",
+    afterStockText: "1850ml",
+    operator: "系统"
+  },
+  {
+    id: "ledger-drug-flor-20260625",
+    occurredAt: "2026-06-25 14:30",
+    type: "业务消耗",
+    source: "治疗任务 MT-20260625-A",
+    materialId: "mat-drug-florfenicol",
+    lotNo: "FL-202606-B",
+    quantityText: "-350ml",
+    afterStockText: "1850ml",
+    operator: "系统"
+  },
+  {
+    id: "ledger-drug-flor-20260628-adjust",
+    occurredAt: "2026-06-28 09:20",
+    type: "盘点调整",
+    source: "盘点单 PD20260628001",
+    materialId: "mat-drug-florfenicol",
+    lotNo: "FL-202606-B",
+    quantityText: "-20ml",
+    afterStockText: "1830ml",
+    operator: "王敏"
+  },
+  {
+    id: "ledger-drug-flor-20260703-inbound",
+    occurredAt: "2026-07-03 10:00",
+    type: "采购入库",
+    source: "入库单 IN-20260703-01",
+    materialId: "mat-drug-florfenicol",
+    lotNo: "FL-202606-B",
+    quantityText: "+500ml",
+    afterStockText: "2330ml",
+    operator: "李静"
+  },
+  {
+    id: "ledger-drug-flor-20260706",
+    occurredAt: "2026-07-06 08:10",
+    type: "业务消耗",
+    source: "治疗任务 MT-20260706-B",
+    materialId: "mat-drug-florfenicol",
+    lotNo: "FL-202606-B",
+    quantityText: "-350ml",
+    afterStockText: "1850ml",
+    operator: "系统"
+  },
+  {
+    id: "ledger-drug-ceft-20260704",
+    occurredAt: "2026-07-04 16:00",
+    type: "业务消耗",
+    source: "治疗任务 MT-20260704-C",
+    materialId: "mat-drug-ceftiofur",
+    lotNo: "CF-202606-A",
+    quantityText: "-420ml",
+    afterStockText: "540ml",
+    operator: "系统"
+  }
+];
+
+type InventoryInboundMaterialSeed = {
+  materialName: string;
+  category: string;
+  brand: string;
+  code: string;
+  unit: string;
+  quantityBase: number;
+  quantityStep: number;
+};
+
+const inventoryInboundMaterialPools: Array<{ materials: InventoryInboundMaterialSeed[] }> = [
+  {
+    materials: [
+      { materialName: "妊娠母猪料", category: "饲料", brand: "牧丰", code: "FDGST", unit: "kg", quantityBase: 640, quantityStep: 40 },
+      { materialName: "哺乳母猪料", category: "饲料", brand: "牧丰", code: "FDLAC", unit: "kg", quantityBase: 720, quantityStep: 40 },
+      { materialName: "保育猪料", category: "饲料", brand: "牧丰", code: "FDNUR", unit: "kg", quantityBase: 800, quantityStep: 40 },
+      { materialName: "育肥猪料", category: "饲料", brand: "牧丰", code: "FDFIN", unit: "kg", quantityBase: 960, quantityStep: 80 },
+      { materialName: "教槽料", category: "饲料", brand: "牧丰", code: "FDSTA", unit: "kg", quantityBase: 360, quantityStep: 20 },
+      { materialName: "后备母猪料", category: "饲料", brand: "牧丰", code: "FDGIL", unit: "kg", quantityBase: 520, quantityStep: 40 },
+      { materialName: "哺乳浓缩料", category: "饲料", brand: "禾丰", code: "FDLCC", unit: "kg", quantityBase: 280, quantityStep: 20 },
+      { materialName: "玉米粉", category: "饲料", brand: "本地粮商", code: "FDCOR", unit: "kg", quantityBase: 1200, quantityStep: 100 }
+    ]
+  },
+  {
+    materials: [
+      { materialName: "氟苯尼考", category: "药品 · 兽药", brand: "A品牌", code: "FL", unit: "ml", quantityBase: 500, quantityStep: 50 },
+      { materialName: "头孢", category: "药品 · 兽药", brand: "华牧", code: "CF", unit: "ml", quantityBase: 300, quantityStep: 30 },
+      { materialName: "替米考星", category: "药品 · 兽药", brand: "牧康", code: "TM", unit: "ml", quantityBase: 450, quantityStep: 50 },
+      { materialName: "伊维菌素", category: "药品 · 兽药", brand: "安牧", code: "YW", unit: "ml", quantityBase: 260, quantityStep: 20 },
+      { materialName: "聚维酮碘", category: "消耗品", brand: "康洁", code: "JD", unit: "ml", quantityBase: 600, quantityStep: 60 },
+      { materialName: "戊二醛消毒液", category: "消耗品", brand: "康洁", code: "XD", unit: "ml", quantityBase: 1000, quantityStep: 100 },
+      { materialName: "阿莫西林口服液", category: "药品 · 兽药", brand: "华牧", code: "AM", unit: "ml", quantityBase: 360, quantityStep: 40 },
+      { materialName: "硫酸新霉素", category: "药品 · 兽药", brand: "牧康", code: "NM", unit: "ml", quantityBase: 420, quantityStep: 40 }
+    ]
+  },
+  {
+    materials: [
+      { materialName: "蓝耳二联疫苗", category: "药品 · 疫苗", brand: "百利", code: "PRRS", unit: "头份", quantityBase: 200, quantityStep: 20 },
+      { materialName: "猪瘟疫苗", category: "药品 · 疫苗", brand: "百利", code: "CSF", unit: "头份", quantityBase: 180, quantityStep: 20 },
+      { materialName: "伪狂犬疫苗", category: "药品 · 疫苗", brand: "安牧", code: "PRV", unit: "头份", quantityBase: 240, quantityStep: 20 },
+      { materialName: "口蹄疫疫苗", category: "药品 · 疫苗", brand: "中牧", code: "FMD", unit: "头份", quantityBase: 300, quantityStep: 30 },
+      { materialName: "圆环疫苗", category: "药品 · 疫苗", brand: "百利", code: "PCV", unit: "头份", quantityBase: 220, quantityStep: 20 },
+      { materialName: "细小病毒疫苗", category: "药品 · 疫苗", brand: "华牧", code: "PPV", unit: "头份", quantityBase: 160, quantityStep: 20 },
+      { materialName: "乙脑疫苗", category: "药品 · 疫苗", brand: "中牧", code: "JEV", unit: "头份", quantityBase: 180, quantityStep: 20 },
+      { materialName: "支原体疫苗", category: "药品 · 疫苗", brand: "安牧", code: "MHP", unit: "头份", quantityBase: 260, quantityStep: 20 }
+    ]
+  },
+  {
+    materials: [
+      { materialName: "连续注射器", category: "工具", brand: "牧安", code: "TLJQ", unit: "个", quantityBase: 12, quantityStep: 2 },
+      { materialName: "采样管", category: "消耗品", brand: "牧安", code: "TLCY", unit: "个", quantityBase: 200, quantityStep: 20 },
+      { materialName: "一次性针头", category: "消耗品", brand: "牧安", code: "TLZT", unit: "个", quantityBase: 500, quantityStep: 50 },
+      { materialName: "耳标钳", category: "工具", brand: "牧安", code: "TLEQ", unit: "个", quantityBase: 8, quantityStep: 1 },
+      { materialName: "耳标", category: "消耗品", brand: "牧安", code: "TLEB", unit: "个", quantityBase: 300, quantityStep: 30 },
+      { materialName: "转猪板", category: "工具", brand: "牧安", code: "TLZB", unit: "个", quantityBase: 20, quantityStep: 2 },
+      { materialName: "温湿度计", category: "工具", brand: "牧安", code: "TLWS", unit: "个", quantityBase: 10, quantityStep: 1 },
+      { materialName: "料铲", category: "工具", brand: "牧安", code: "TLLC", unit: "个", quantityBase: 15, quantityStep: 2 }
+    ]
+  },
+  {
+    materials: [
+      { materialName: "电解多维", category: "药品 · 保健品", brand: "禾丰", code: "BJDJ", unit: "g", quantityBase: 1200, quantityStep: 100 },
+      { materialName: "葡萄糖粉", category: "药品 · 保健品", brand: "禾丰", code: "BJPT", unit: "g", quantityBase: 2000, quantityStep: 200 },
+      { materialName: "维生素C", category: "药品 · 保健品", brand: "牧康", code: "BJVC", unit: "g", quantityBase: 900, quantityStep: 100 },
+      { materialName: "酸化剂", category: "药品 · 保健品", brand: "康牧", code: "BJSH", unit: "g", quantityBase: 1500, quantityStep: 100 },
+      { materialName: "益生菌", category: "药品 · 保健品", brand: "禾丰", code: "BJYS", unit: "g", quantityBase: 800, quantityStep: 80 },
+      { materialName: "脱霉剂", category: "药品 · 保健品", brand: "康牧", code: "BJTM", unit: "g", quantityBase: 1800, quantityStep: 120 },
+      { materialName: "复合酶", category: "药品 · 保健品", brand: "牧康", code: "BJFM", unit: "g", quantityBase: 760, quantityStep: 80 },
+      { materialName: "乳清粉", category: "药品 · 保健品", brand: "禾丰", code: "BJRQ", unit: "g", quantityBase: 2400, quantityStep: 200 }
+    ]
+  }
+];
+
+const inventoryInboundMaterialSeeds = inventoryInboundMaterialPools.flatMap((pool) => pool.materials);
+
+const inventoryInboundTypes: InventoryInboundOrderType[] = ["采购入库", "盘盈入库"];
+const inventoryInboundOperators = ["张三", "李静", "王敏", "陈雨", "赵磊", "刘洋"];
+const inventoryInboundSuppliers = ["华牧供应", "牧丰饲料", "百利生物", "康洁供应", "牧安器械", "禾丰生物"];
+const inventoryInboundRemarks = ["7月份采购", "补足安全库存", "盘点后补录", "供应商多送 / 赠品"];
+
+function formatInventoryInboundDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatInventoryInboundDateTimeValue(date: Date) {
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${formatInventoryInboundDateValue(date)} ${hour}:${minute}`;
+}
+
+function buildInventoryInboundDate(dayOffset: number) {
+  const date = new Date("2026-07-10T00:00:00");
+  date.setDate(date.getDate() - dayOffset);
+  return date;
+}
+
+function buildInventoryInboundDateTime(dayOffset: number, minutesFromStart: number) {
+  const date = buildInventoryInboundDate(dayOffset);
+  date.setMinutes(minutesFromStart);
+  return formatInventoryInboundDateTimeValue(date);
+}
+
+function buildInventoryInboundOrder(index: number): InventoryInboundOrder {
+  const orderDayOffset = index;
+  const inboundMinutes = 8 * 60 + ((index * 73) % 520);
+  const inboundTime = buildInventoryInboundDateTime(orderDayOffset, inboundMinutes);
+  const itemCount = (index % 8) + 1;
+  const orderDate = inboundTime.slice(0, 10).replace(/-/g, "");
+  const orderNo = `RK${orderDate}${String(index + 1).padStart(4, "0")}`;
+  const details = Array.from({ length: itemCount }, (_, detailIndex) => {
+    const material = inventoryInboundMaterialSeeds[(index * 3 + detailIndex * 5) % inventoryInboundMaterialSeeds.length];
+    const quantity = material.quantityBase + ((index + detailIndex) % 5) * material.quantityStep;
+    const totalAmount = Number((quantity * (2.8 + ((index + detailIndex) % 7) * 0.65)).toFixed(2));
+    const supplier = inventoryInboundSuppliers[(index + detailIndex + 1) % inventoryInboundSuppliers.length];
+    const supplierPhone = (index + detailIndex) % 3 === 0 ? `1380000${String(7000 + index * 8 + detailIndex).slice(-4)}` : undefined;
+    return {
+      id: `${orderNo}-${detailIndex + 1}`,
+      materialName: material.materialName,
+      category: material.category,
+      brand: material.brand,
+      quantity,
+      unit: material.unit,
+      totalAmount,
+      expiryDate: formatInventoryInboundDateValue(buildInventoryInboundDate(-120 - ((index + detailIndex) % 8) * 30)),
+      supplier,
+      supplierPhone
+    };
+  });
+  const type = inventoryInboundTypes[index % inventoryInboundTypes.length];
+  const operator = inventoryInboundOperators[index % inventoryInboundOperators.length];
+
+  return {
+    id: `inbound-${orderNo}`,
+    orderNo,
+    type,
+    operator,
+    inboundTime,
+    remark: inventoryInboundRemarks[index % inventoryInboundRemarks.length],
+    details
+  };
+}
+
+export const inventorySeedInboundOrders: InventoryInboundOrder[] = Array.from({ length: 30 }, (_, index) =>
+  buildInventoryInboundOrder(index)
+);
+
+export const inventorySeedCheckRecords: InventoryCheckRecord[] = [
+  {
+    id: "check-20260706001",
+    checkNo: "PD20260706001",
+    checkTime: "2026-07-06 14:30",
+    checker: "张三",
+    totalItems: 4,
+    diffItems: 3,
+    adjustedItems: 3,
+    remark: "月度盘点",
+    details: [
+      {
+        id: "check-20260706001-florfenicol",
+        materialName: "氟苯尼考 A品牌",
+        category: "药品 · 兽药",
+        batchNo: "FL-202606-B",
+        systemStock: 1852,
+        actualStock: 1800,
+        unit: "ml",
+        difference: -52,
+        result: "adjusted"
+      },
+      {
+        id: "check-20260706001-prrs",
+        materialName: "蓝耳二联疫苗 百利",
+        category: "药品 · 疫苗",
+        batchNo: "PRRS-202512-X",
+        systemStock: 180,
+        actualStock: 180,
+        unit: "头份",
+        difference: 0,
+        result: "unchanged"
+      },
+      {
+        id: "check-20260706001-finisher",
+        materialName: "育肥猪料 牧丰",
+        category: "饲料",
+        batchNo: "FD-FIN-202607",
+        systemStock: 3000,
+        actualStock: 3010,
+        unit: "kg",
+        difference: 10,
+        result: "adjusted"
+      },
+      {
+        id: "check-20260706001-gestation",
+        materialName: "妊娠母猪料 牧丰",
+        category: "饲料",
+        batchNo: "FD-202606-01",
+        systemStock: 28000,
+        actualStock: 27980,
+        unit: "kg",
+        difference: -20,
+        result: "adjusted"
+      }
+    ]
+  },
+  {
+    id: "check-20260703001",
+    checkNo: "PD20260703001",
+    checkTime: "2026-07-03 16:10",
+    checker: "李静",
+    totalItems: 3,
+    diffItems: 0,
+    adjustedItems: 0,
+    remark: "药品抽查",
+    details: [
+      {
+        id: "check-20260703001-florfenicol",
+        materialName: "氟苯尼考 A品牌",
+        category: "药品 · 兽药",
+        batchNo: "FL-202606-B",
+        systemStock: 1850,
+        actualStock: 1850,
+        unit: "ml",
+        difference: 0,
+        result: "unchanged"
+      },
+      {
+        id: "check-20260703001-ceftiofur",
+        materialName: "头孢 华牧",
+        category: "药品 · 兽药",
+        batchNo: "CF-202606-A",
+        systemStock: 960,
+        actualStock: 960,
+        unit: "ml",
+        difference: 0,
+        result: "unchanged"
+      },
+      {
+        id: "check-20260703001-prrs",
+        materialName: "蓝耳二联疫苗 百利",
+        category: "药品 · 疫苗",
+        batchNo: "PRRS-202512-X",
+        systemStock: 110,
+        actualStock: 110,
+        unit: "头份",
+        difference: 0,
+        result: "unchanged"
+      }
+    ]
+  },
+  {
+    id: "check-20260626001",
+    checkNo: "PD20260626001",
+    checkTime: "2026-06-26 10:46",
+    checker: "王敏",
+    totalItems: 4,
+    diffItems: 3,
+    adjustedItems: 2,
+    remark: "异常复核",
+    details: [
+      {
+        id: "check-20260626001-disinfectant",
+        materialName: "戊二醛消毒液 康洁",
+        category: "消耗品",
+        batchNo: "XD-202605-01",
+        systemStock: 4,
+        actualStock: 0,
+        unit: "L",
+        difference: -4,
+        result: "pending"
+      },
+      {
+        id: "check-20260626001-florfenicol",
+        materialName: "氟苯尼考 A品牌",
+        category: "药品 · 兽药",
+        batchNo: "FL-202606-B",
+        systemStock: 1850,
+        actualStock: 1852,
+        unit: "ml",
+        difference: 2,
+        result: "adjusted"
+      },
+      {
+        id: "check-20260626001-gestation",
+        materialName: "妊娠母猪料 牧丰",
+        category: "饲料",
+        batchNo: "FD-202606-01",
+        systemStock: 28000,
+        actualStock: 27960,
+        unit: "kg",
+        difference: -40,
+        result: "adjusted"
+      },
+      {
+        id: "check-20260626001-tool",
+        materialName: "连续注射器 牧安",
+        category: "工具",
+        batchNo: "TL-202606-01",
+        systemStock: 12,
+        actualStock: 12,
+        unit: "个",
+        difference: 0,
+        result: "unchanged"
+      }
+    ]
+  },
+  {
+    id: "check-20260618001",
+    checkNo: "PD20260618001",
+    checkTime: "2026-06-18 09:40",
+    checker: "陈雨",
+    totalItems: 2,
+    diffItems: 1,
+    adjustedItems: 1,
+    remark: "工具交接盘点",
+    details: [
+      {
+        id: "check-20260618001-tool",
+        materialName: "连续注射器 牧安",
+        category: "工具",
+        batchNo: "TL-202606-01",
+        systemStock: 10,
+        actualStock: 12,
+        unit: "个",
+        difference: 2,
+        result: "adjusted"
+      },
+      {
+        id: "check-20260618001-prrs",
+        materialName: "蓝耳二联疫苗 百利",
+        category: "药品 · 疫苗",
+        batchNo: "PRRS-202512-X",
+        systemStock: 180,
+        actualStock: 180,
+        unit: "头份",
+        difference: 0,
+        result: "unchanged"
+      }
+    ]
   }
 ];
 
@@ -1382,13 +2371,6 @@ export const inventorySeedAlerts: InventoryAlert[] = [
     materialId: "mat-disinfectant-glutaraldehyde",
     priority: "高",
     message: "当前库存为 -12L，请补录入库或修正库存流水。"
-  },
-  {
-    id: "alert-002",
-    type: "低库存提醒",
-    materialId: "mat-drug-florfenicol",
-    priority: "中",
-    message: "当前库存 1850ml，低于安全库存 2000ml。"
   },
   {
     id: "alert-003",
@@ -1407,7 +2389,8 @@ export const inventorySeedDifferences: InventoryDifferenceRecord[] = [
     materialId: "mat-drug-florfenicol",
     materialName: "氟苯尼考",
     brand: "A品牌",
-    category: "兽药",
+    category: "药品",
+    medicineClass: "兽药",
     baseUnit: "ml",
     snapshotQtyBase: 1850,
     bookQtyBase: 1850,
@@ -1426,7 +2409,8 @@ export const inventorySeedDifferences: InventoryDifferenceRecord[] = [
     materialId: "mat-drug-florfenicol",
     materialName: "氟苯尼考",
     brand: "A品牌",
-    category: "兽药",
+    category: "药品",
+    medicineClass: "兽药",
     baseUnit: "ml",
     snapshotQtyBase: 1850,
     bookQtyBase: 1850,
@@ -1477,9 +2461,227 @@ export const inventorySeedDifferences: InventoryDifferenceRecord[] = [
   }
 ];
 
+export const INVENTORY_DEMO_REFERENCE_AT = new Date("2026-07-06T23:59:59").getTime();
+
+export type FeedEstimatedAvailableDaysStatus = "紧急" | "偏低" | "关注" | "正常" | "none" | "zero";
+
+export type FeedEstimatedAvailableDaysResult = {
+  displayText: string;
+  sortValue: number | null;
+  status: FeedEstimatedAvailableDaysStatus;
+  tooltip: string;
+  days: number | null;
+};
+
+export function parseInventoryLedgerQuantity(quantityText: string): number {
+  const matched = quantityText.match(/[-+]?\d+(\.\d+)?/);
+  return matched ? Number(matched[0]) : 0;
+}
+
+export function buildFeedAverageDailyConsumption(
+  materialId: string,
+  ledgers: InventoryLedgerRow[],
+  options?: { windowDays?: number; referenceAt?: number }
+): number {
+  const windowDays = options?.windowDays ?? 7;
+  const referenceAt = options?.referenceAt ?? INVENTORY_DEMO_REFERENCE_AT;
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const startAt = referenceAt - windowMs;
+
+  const totalConsumption = ledgers.reduce((sum, ledger) => {
+    if (ledger.materialId !== materialId || ledger.type !== "业务消耗") return sum;
+    const occurredAt = new Date(ledger.occurredAt).getTime();
+    if (occurredAt < startAt || occurredAt > referenceAt) return sum;
+    return sum + Math.abs(parseInventoryLedgerQuantity(ledger.quantityText));
+  }, 0);
+
+  return totalConsumption / windowDays;
+}
+
+export function resolveFeedEstimatedAvailableDaysStatus(days: number): FeedEstimatedAvailableDaysStatus {
+  if (days <= 3) return "紧急";
+  if (days <= 7) return "偏低";
+  if (days <= 15) return "关注";
+  return "正常";
+}
+
+export function buildFeedEstimatedAvailableDays(
+  currentStockBase: number,
+  materialId: string,
+  ledgers: InventoryLedgerRow[],
+  options?: { windowDays?: number; referenceAt?: number }
+): FeedEstimatedAvailableDaysResult {
+  const tooltipBase = "预计可用天数根据当前库存及近7天平均日消耗自动计算，仅供采购决策参考";
+
+  if (currentStockBase < 0) {
+    return {
+      displayText: "—",
+      sortValue: null,
+      status: "none",
+      tooltip: "库存异常，无法计算预计可用天数。",
+      days: null
+    };
+  }
+
+  if (currentStockBase === 0) {
+    return {
+      displayText: "0天",
+      sortValue: 0,
+      status: "zero",
+      tooltip: tooltipBase,
+      days: 0
+    };
+  }
+
+  const dailyAverage = buildFeedAverageDailyConsumption(materialId, ledgers, options);
+  if (dailyAverage <= 0) {
+    return {
+      displayText: "—",
+      sortValue: null,
+      status: "none",
+      tooltip: "近7天暂无消耗数据，无法计算预计可用天数。",
+      days: null
+    };
+  }
+
+  const days = Math.floor(currentStockBase / dailyAverage);
+  return {
+    displayText: `${days}天`,
+    sortValue: days,
+    status: resolveFeedEstimatedAvailableDaysStatus(days),
+    tooltip: tooltipBase,
+    days
+  };
+}
+
+function formatInventoryUsageDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildInventoryUsageWindow(referenceAt: number, windowDays: number) {
+  const end = new Date(referenceAt);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(end.getDate() - Math.max(windowDays - 1, 0));
+
+  const dates: string[] = [];
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    dates.push(formatInventoryUsageDate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}
+
+export function buildInventoryMonthlyUsage(
+  materialId: string,
+  ledgers?: InventoryLedgerRow[],
+  options?: { windowDays?: number; referenceAt?: number }
+) {
+  if (!ledgers) {
+    return {
+      monthlyUsageBase: 0,
+      usageTrend: []
+    };
+  }
+
+  const windowDays = options?.windowDays ?? 30;
+  const referenceAt = options?.referenceAt ?? INVENTORY_DEMO_REFERENCE_AT;
+  const dates = buildInventoryUsageWindow(referenceAt, windowDays);
+  const dailyUsage = new Map(dates.map((date) => [date, 0]));
+  const start = dates[0];
+  const end = dates[dates.length - 1];
+
+  ledgers.forEach((ledger) => {
+    if (ledger.materialId !== materialId || ledger.type !== "业务消耗") return;
+    const occurredDate = ledger.occurredAt.slice(0, 10);
+    if (occurredDate < start || occurredDate > end) return;
+    dailyUsage.set(
+      occurredDate,
+      (dailyUsage.get(occurredDate) || 0) + Math.abs(parseInventoryLedgerQuantity(ledger.quantityText))
+    );
+  });
+
+  const usageTrend = dates.map((date) => dailyUsage.get(date) || 0);
+  return {
+    monthlyUsageBase: usageTrend.reduce((sum, value) => sum + value, 0),
+    usageTrend
+  };
+}
+
+function resolveInventoryLedgerStockDelta(ledger: InventoryLedgerRow) {
+  const quantity = parseInventoryLedgerQuantity(ledger.quantityText);
+  if (/[-+]/.test(ledger.quantityText)) return quantity;
+  if (["采购入库", "消耗冲销", "入库更正", "盘盈"].includes(ledger.type)) return Math.abs(quantity);
+  if (["业务消耗", "盘亏", "报废"].includes(ledger.type)) return -Math.abs(quantity);
+  return quantity;
+}
+
+export function buildInventoryStockTrend(
+  materialId: string,
+  currentStockBase: number,
+  ledgers?: InventoryLedgerRow[],
+  options?: { windowDays?: number; referenceAt?: number }
+) {
+  const windowDays = options?.windowDays ?? 30;
+  const referenceAt = options?.referenceAt ?? INVENTORY_DEMO_REFERENCE_AT;
+  const dates = buildInventoryUsageWindow(referenceAt, windowDays);
+
+  if (!ledgers) {
+    return dates.map(() => currentStockBase);
+  }
+
+  const dailyStockDelta = new Map(dates.map((date) => [date, 0]));
+  const start = dates[0];
+  const end = dates[dates.length - 1];
+
+  ledgers.forEach((ledger) => {
+    if (ledger.materialId !== materialId) return;
+    const occurredDate = ledger.occurredAt.slice(0, 10);
+    if (occurredDate < start || occurredDate > end) return;
+    dailyStockDelta.set(
+      occurredDate,
+      (dailyStockDelta.get(occurredDate) || 0) + resolveInventoryLedgerStockDelta(ledger)
+    );
+  });
+
+  const endOfDayStock = new Map<string, number>();
+  let stockCursor = currentStockBase;
+  for (let index = dates.length - 1; index >= 0; index -= 1) {
+    const date = dates[index];
+    endOfDayStock.set(date, stockCursor);
+    stockCursor -= dailyStockDelta.get(date) || 0;
+  }
+
+  return dates.map((date) => endOfDayStock.get(date) || 0);
+}
+
 export function formatInventoryQty(value: number, unit: string): string {
   if (!unit || unit === "—") return value === 0 ? "—" : String(value);
   return `${Number.isInteger(value) ? value : value.toFixed(1)}${unit}`;
+}
+
+function formatInventoryConvertedQty(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+export function formatInventoryQtyWithPackage(
+  quantity: number,
+  material?: Pick<InventoryMaterial, "baseUnit" | "auxiliaryUnit" | "packageConversions"> | null,
+  preferredUnit?: string
+): string {
+  const baseUnit = material?.baseUnit || "";
+  const baseText = formatInventoryQty(quantity, baseUnit);
+  if (!material) return baseText;
+  const conversions = material.packageConversions || [];
+  const packageUnit = [preferredUnit, material.auxiliaryUnit, conversions[0]?.fromUnit].find((unit) => {
+    if (!unit || unit === baseUnit) return false;
+    return Boolean(calculateInventoryBaseQuantity(1, unit, baseUnit, conversions));
+  });
+  if (!packageUnit) return baseText;
+  const factor = calculateInventoryBaseQuantity(1, packageUnit, baseUnit, conversions);
+  if (!factor) return baseText;
+  return `${formatInventoryConvertedQty(quantity / factor)}${packageUnit}（${baseText}）`;
 }
 
 export function formatNearestExpiryDate(summary: InventorySummary): string {
@@ -1491,16 +2693,14 @@ export function generateInventoryLotNo(receiveDate: string, sequence: number): s
   return `RK-${dateText}-${String(sequence).padStart(3, "0")}`;
 }
 
-export const inventoryUnitOptions = ["ml", "g", "kg", "吨", "头份", "份", "瓶", "袋", "盒", "箱", "桶", "支", "个"];
+export const inventoryUnitOptions = ["ml", "g", "kg", "吨", "L", "头份", "份", "瓶", "袋", "盒", "箱", "桶", "支", "个"];
 
-export const receiveMaterialCategoryOptions: InventoryCategory[] = ["饲料", "兽药", "保健品", "疫苗", "消毒用品", "其他"];
+export const receiveMaterialCategoryOptions: InventoryCategory[] = ["饲料", "药品", "消耗品", "工具", "其他"];
 
 export const inventoryCategoryBaseUnitRecommendations: Record<InventoryCategory, string[]> = {
-  饲料: ["kg"],
-  兽药: ["ml", "g"],
-  保健品: ["g", "ml"],
-  疫苗: ["头份", "ml"],
-  消毒用品: ["ml", "g", "kg"],
+  饲料: ["吨", "kg", "L"],
+  药品: ["ml", "g", "头份"],
+  消耗品: ["ml", "g", "kg", "L"],
   工具: ["个"],
   其他: ["个"]
 };
@@ -1517,7 +2717,7 @@ export function getInventoryReceiveMaterialOptions(materials: InventoryMaterial[
   return materials
     .filter(isInventoryMaterialEnabled)
     .map((item) => ({
-      label: `${item.materialName}${item.brand !== "—" ? ` ${item.brand}` : ""} · ${item.category}`,
+      label: `${item.materialName}${item.brand !== "—" ? ` ${item.brand}` : ""} · ${formatMaterialCategoryLabel(item)}`,
       value: item.materialName,
       materialId: item.id
     }));
@@ -1576,7 +2776,6 @@ export function validateInventoryMaterialEdit(input: InventoryMaterialEditInput)
   if (!inventoryCategoryOrder.includes(input.category)) return "物料分类必须来自固定枚举。";
   if (!input.baseUnit) return "核算单位必填。";
   if (!inventoryUnitOptions.includes(input.baseUnit)) return "核算单位必须来自单位字典。";
-  if (input.safetyStockBase !== undefined && input.safetyStockBase < 0) return "安全库存必须大于等于 0。";
   if (note.length > 200) return "备注不能超过 200 字。";
 
   const currentMaterial = input.materials.find((material) => material.id === input.materialId);
@@ -1609,7 +2808,6 @@ export function updateInventoryMaterial(
           brand: input.brand.trim(),
           category: input.category,
           baseUnit: input.baseUnit,
-          safetyStockBase: input.safetyStockBase,
           note: input.note?.trim()
         }
       : material
@@ -1637,7 +2835,18 @@ export function resolveInventoryUnitFactor(
   if (!unit || !baseUnit) return null;
   if (unit === baseUnit) return 1;
 
-  const conversionMap = new Map(conversions.map((conversion) => [conversion.fromUnit, conversion]));
+  const conversionGraph = new Map<string, Array<{ unit: string; factor: number }>>();
+  const addEdge = (fromUnit: string, toUnit: string, factor: number) => {
+    const edges = conversionGraph.get(fromUnit) || [];
+    edges.push({ unit: toUnit, factor });
+    conversionGraph.set(fromUnit, edges);
+  };
+
+  conversions.forEach((conversion) => {
+    if (!conversion.fromUnit || !conversion.toUnit || conversion.quantity <= 0 || conversion.fromUnit === conversion.toUnit) return;
+    addEdge(conversion.fromUnit, conversion.toUnit, conversion.quantity);
+    addEdge(conversion.toUnit, conversion.fromUnit, 1 / conversion.quantity);
+  });
   const visited = new Set<string>();
 
   const walk = (currentUnit: string): number | null => {
@@ -1645,14 +2854,26 @@ export function resolveInventoryUnitFactor(
     if (visited.has(currentUnit)) return null;
     visited.add(currentUnit);
 
-    const conversion = conversionMap.get(currentUnit);
-    if (!conversion || conversion.quantity <= 0 || conversion.fromUnit === conversion.toUnit) return null;
-
-    const nextFactor = walk(conversion.toUnit);
-    return nextFactor === null ? null : conversion.quantity * nextFactor;
+    const edges = conversionGraph.get(currentUnit) || [];
+    for (const edge of edges) {
+      const nextFactor = walk(edge.unit);
+      if (nextFactor !== null) return edge.factor * nextFactor;
+    }
+    return null;
   };
 
   return walk(unit);
+}
+
+export function resolveInventoryReceivableUnits(
+  baseUnit: string,
+  conversions: InventoryPackageConversion[] = []
+): string[] {
+  const orderedUnits = [baseUnit, ...conversions.flatMap((conversion) => [conversion.fromUnit, conversion.toUnit])]
+    .map((unit) => unit?.trim())
+    .filter((unit): unit is string => Boolean(unit));
+  const uniqueUnits = Array.from(new Set(orderedUnits));
+  return uniqueUnits.filter((unit) => unit === baseUnit || resolveInventoryUnitFactor(unit, baseUnit, conversions) !== null);
 }
 
 export function validateInventoryPackageConversions(
@@ -1692,6 +2913,7 @@ export function calculateInventoryBaseQuantity(
 
 export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): InventoryReceiveEntry {
   const baseUnit = input.mode === "existing" ? input.material.baseUnit : input.baseUnit;
+  const supplier = input.supplier?.trim();
   const packageValidationMessage =
     input.packageConversions.length === 0 && input.inboundUnit === baseUnit
       ? null
@@ -1701,6 +2923,9 @@ export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): I
   }
   if (input.inboundQuantity <= 0 || input.baseQuantity <= 0) {
     throw new Error("入库数量必须大于 0");
+  }
+  if (!supplier) {
+    throw new Error("供应商必填。");
   }
 
   const material: InventoryMaterial =
@@ -1716,7 +2941,6 @@ export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): I
             ? buildInventoryUnitSystem(input.baseUnit, input.packageConversions)
             : [`1${input.baseUnit} = 1${input.baseUnit}`],
           packageConversions: input.packageConversions,
-          safetyStockBase: input.safetyStockBase,
           status: "启用中",
           auxiliaryUnit: input.packageConversions[0]?.fromUnit,
           note: input.note
@@ -1726,6 +2950,7 @@ export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): I
     id: input.lotId,
     materialId: material.id,
     lotNo: generateInventoryLotNo(input.receiveDate, input.sequence),
+    productionDate: input.productionDate,
     expiryDate: input.expiryDate,
     inboundQty: input.inboundQuantity,
     inboundUnit: input.inboundUnit,
@@ -1734,9 +2959,10 @@ export function buildInventoryReceiveEntry(input: InventoryReceiveEntryInput): I
     unitPrice: input.unitPrice,
     baseUnitCost: input.baseQuantity > 0 ? input.unitPrice / input.baseQuantity : input.unitPrice,
     packageConversions: input.packageConversions,
-    supplier: input.supplier,
+    supplier,
     supplierPhone: input.supplierPhone,
-    storageLocation: input.storageLocation,
+    supplierBatchNo: input.externalBatchNo,
+    note: input.note,
     status: "正常"
   };
 
@@ -1780,7 +3006,6 @@ export function buildInventoryReceiveEntryFromSearch(input: InventoryReceiveSear
     category: input.category,
     brand: input.brand,
     baseUnit: input.baseUnit,
-    safetyStockBase: input.safetyStockBase,
     note: input.note,
     lotId: input.lotId,
     expiryDate: input.expiryDate,
@@ -1889,7 +3114,8 @@ export function buildInventoryOutboundTransaction(
 function buildInventoryStocktakeMaterialRow(
   material: InventoryMaterial,
   summary: InventorySummary,
-  reason: InventoryStocktakeReason
+  reason: InventoryStocktakeReason,
+  lots: InventoryLot[]
 ): InventoryStocktakeScopeRow {
   return {
     id: `stocktake-material-${material.id}`,
@@ -1897,6 +3123,7 @@ function buildInventoryStocktakeMaterialRow(
     materialName: material.materialName,
     brand: material.brand,
     category: material.category,
+    medicineClass: resolveMedicineClass(material),
     bookQtyBase: summary.currentStockBase,
     baseUnit: material.baseUnit,
     reason,
@@ -1925,7 +3152,7 @@ export function buildInventoryStocktakeScope(input: InventoryStocktakeScopeInput
     const material = materialMap.get(materialId);
     const summary = summaryMap.get(materialId);
     if (!material || !summary) return;
-    rows.push(buildInventoryStocktakeMaterialRow(material, summary, reason));
+    rows.push(buildInventoryStocktakeMaterialRow(material, summary, reason, input.lots));
   };
 
   if (input.mode === "指定物料盘点") {
@@ -1943,9 +3170,7 @@ export function buildInventoryStocktakeScope(input: InventoryStocktakeScopeInput
       const material = materialMap.get(summary.materialId);
       if (!material) continue;
       if (summary.currentStockBase < 0) {
-        rows.push(buildInventoryStocktakeMaterialRow(material, summary, "负库存"));
-      } else if (summary.stockRisk === "低库存") {
-        rows.push(buildInventoryStocktakeMaterialRow(material, summary, "低库存"));
+        rows.push(buildInventoryStocktakeMaterialRow(material, summary, "负库存", input.lots));
       }
     }
 
@@ -1954,8 +3179,8 @@ export function buildInventoryStocktakeScope(input: InventoryStocktakeScopeInput
       if (!material || lot.remainingQtyBase <= 0) continue;
       const summary = summaryMap.get(lot.materialId);
       if (!summary) continue;
-      if (lot.status === "过期") rows.push(buildInventoryStocktakeMaterialRow(material, summary, "已过期"));
-      if (lot.status === "临期") rows.push(buildInventoryStocktakeMaterialRow(material, summary, "临期"));
+      if (lot.status === "过期") rows.push(buildInventoryStocktakeMaterialRow(material, summary, "已过期", input.lots));
+      if (lot.status === "临期") rows.push(buildInventoryStocktakeMaterialRow(material, summary, "临期", input.lots));
     }
 
     return uniqueInventoryStocktakeRows(rows);
@@ -1964,13 +3189,6 @@ export function buildInventoryStocktakeScope(input: InventoryStocktakeScopeInput
   if (input.mode === "分类盘点" && input.category) {
     for (const material of input.materials.filter((item) => item.category === input.category)) {
       pushMaterialRows(material.id, "分类盘点");
-    }
-    return uniqueInventoryStocktakeRows(rows);
-  }
-
-  if (input.mode === "全部盘点") {
-    for (const material of input.materials) {
-      pushMaterialRows(material.id, "全部盘点");
     }
     return uniqueInventoryStocktakeRows(rows);
   }
@@ -2119,6 +3337,7 @@ export function buildInventoryStocktakeDifferences(
       materialName: row.materialName,
       brand: row.brand,
       category: row.category,
+      medicineClass: row.medicineClass,
       baseUnit: row.baseUnit,
       snapshotQtyBase: input.snapshotQuantities?.[row.id] ?? row.bookQtyBase,
       bookQtyBase: row.bookQtyBase,
@@ -2134,8 +3353,10 @@ export function buildInventoryStocktakeDifferences(
   return records;
 }
 
-function resolveInventoryToleranceLimit(row: Pick<InventoryDifferenceRecord, "category" | "bookQtyBase">): number {
-  if (row.category === "兽药" || row.category === "疫苗") {
+function resolveInventoryToleranceLimit(
+  row: Pick<InventoryDifferenceRecord, "category" | "medicineClass" | "bookQtyBase">
+): number {
+  if (row.category === "药品" && (row.medicineClass === "疫苗" || row.medicineClass === "兽药")) {
     return Math.max(Math.abs(row.bookQtyBase) * 0.02, 1);
   }
   if (row.category === "工具" || row.category === "其他") {
@@ -2145,7 +3366,7 @@ function resolveInventoryToleranceLimit(row: Pick<InventoryDifferenceRecord, "ca
 }
 
 export function isInventoryDifferenceWithinTolerance(
-  difference: Pick<InventoryDifferenceRecord, "category" | "bookQtyBase" | "diffBase">
+  difference: Pick<InventoryDifferenceRecord, "category" | "medicineClass" | "bookQtyBase" | "diffBase">
 ): boolean {
   return Math.abs(difference.diffBase) <= resolveInventoryToleranceLimit(difference);
 }
@@ -2496,10 +3717,6 @@ export function buildInventoryScrapTransaction(input: InventoryScrapTransactionI
     throw new Error("未找到该批次对应的物料。");
   }
 
-  if (lot.status !== "过期") {
-    throw new Error("仅已过期批次可报废。");
-  }
-
   if (input.scrapQuantity <= 0) {
     throw new Error("报废数量必须大于 0。");
   }
@@ -2540,39 +3757,53 @@ export function buildInventoryScrapTransaction(input: InventoryScrapTransactionI
       quantityText: `-${formatInventoryQty(input.scrapQuantity, material.baseUnit)}`,
       afterStockText: formatInventoryQty(afterQty, material.baseUnit),
       operator: input.operator,
-      remark: `报废原因：${reason}；处理方式：${handlingMethod}`
+      remark: [
+        `报废原因：${reason}`,
+        `处理方式：${handlingMethod}`,
+        input.photoNote?.trim() ? `照片留档：${input.photoNote.trim()}` : ""
+      ]
+        .filter(Boolean)
+        .join("；")
     }
   };
 }
 
 export function buildInventorySummaries(
   materials: InventoryMaterial[],
-  lots: InventoryLot[]
+  lots: InventoryLot[],
+  ledgers?: InventoryLedgerRow[],
+  options?: { usageWindowDays?: number; referenceAt?: number }
 ): InventorySummary[] {
   return materials.map((material) => {
     const materialLots = lots.filter((lot) => lot.materialId === material.id);
     const lotStock = materialLots.reduce((sum, lot) => sum + lot.remainingQtyBase, 0);
     const currentStockBase = lotStock - (material.negativeStockBase || 0);
     const datedLots = materialLots
-      .filter((lot) => lot.remainingQtyBase > 0 && lot.status !== "已耗尽")
-      .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+      .filter((lot) => lot.expiryDate && lot.remainingQtyBase > 0 && lot.status !== "已耗尽")
+      .sort((a, b) => new Date(a.expiryDate || "9999-12-31").getTime() - new Date(b.expiryDate || "9999-12-31").getTime());
     const nearestExpiryDate = material.category === "工具" ? "—" : datedLots[0]?.expiryDate || "—";
 
-    const stockRisk: InventoryStockRisk =
-      currentStockBase < 0
-        ? "负库存"
-        : material.safetyStockBase !== undefined && currentStockBase <= material.safetyStockBase
-          ? "低库存"
-          : "无风险";
+    const stockRisk: InventoryStockRisk = currentStockBase < 0 ? "负库存" : "无风险";
+    const monthlyUsage = buildInventoryMonthlyUsage(material.id, ledgers, {
+      windowDays: options?.usageWindowDays ?? 30,
+      referenceAt: options?.referenceAt ?? INVENTORY_DEMO_REFERENCE_AT
+    });
+    const stockTrend = buildInventoryStockTrend(material.id, currentStockBase, ledgers, {
+      windowDays: options?.usageWindowDays ?? 30,
+      referenceAt: options?.referenceAt ?? INVENTORY_DEMO_REFERENCE_AT
+    });
 
     return {
       materialId: material.id,
       materialName: material.materialName,
       category: material.category,
+      medicineClass: material.category === "药品" ? resolveMedicineClass(material) : undefined,
       brand: material.brand,
       currentStockBase,
       baseUnit: material.baseUnit,
-      safetyStockBase: material.safetyStockBase,
+      monthlyUsageBase: monthlyUsage.monthlyUsageBase,
+      usageTrend: monthlyUsage.usageTrend,
+      stockTrend,
       stockRisk,
       nearestExpiryDate,
       lotCount: materialLots.length,
@@ -2581,7 +3812,7 @@ export function buildInventorySummaries(
   });
 }
 
-export const inventoryCategoryOrder: InventoryCategory[] = ["饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具", "其他"];
+export const inventoryCategoryOrder: InventoryCategory[] = ["饲料", "药品", "消耗品", "工具", "其他"];
 
 export function filterInventorySummariesByMaterialStatus(
   summaries: InventorySummary[],
@@ -2622,13 +3853,65 @@ export function getInventoryLotsForMaterial(lots: InventoryLot[], materialId: st
     .sort(
       (a, b) =>
         resolveLotSortRank(a) - resolveLotSortRank(b) ||
-        new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+        new Date(a.expiryDate || "9999-12-31").getTime() - new Date(b.expiryDate || "9999-12-31").getTime()
     );
 }
 
 export function getInventoryMaterialLabel(materials: InventoryMaterial[], materialId: string): string {
   const material = materials.find((item) => item.id === materialId);
   return material ? `${material.materialName} ${material.brand}` : "—";
+}
+
+export function resolveInventoryLastPurchaseInfo(
+  material: InventoryMaterial,
+  lots: InventoryLot[],
+  ledgers: InventoryLedgerRow[]
+): InventoryLastPurchaseInfo {
+  const latestPurchaseLedger = ledgers
+    .filter((ledger) => ledger.materialId === material.id && ledger.type === "采购入库")
+    .slice()
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
+
+  if (latestPurchaseLedger) {
+    const ledgerLot = latestPurchaseLedger.lotNo
+      ? lots.find((lot) => lot.materialId === material.id && lot.lotNo === latestPurchaseLedger.lotNo)
+      : undefined;
+    const quantityBase = Math.abs(parseInventoryLedgerQuantity(latestPurchaseLedger.quantityText) || ledgerLot?.convertedQtyBase || 0);
+    return {
+      occurredAt: latestPurchaseLedger.occurredAt,
+      quantityBase,
+      quantityText: quantityBase > 0 ? formatInventoryQty(quantityBase, material.baseUnit) : latestPurchaseLedger.quantityText,
+      lotNo: latestPurchaseLedger.lotNo,
+      supplier: ledgerLot?.supplier,
+      source: "ledger"
+    };
+  }
+
+  const latestLot = lots
+    .filter((lot) => lot.materialId === material.id)
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.productionDate || b.expiryDate || "1970-01-01").getTime() -
+          new Date(a.productionDate || a.expiryDate || "1970-01-01").getTime() ||
+        b.lotNo.localeCompare(a.lotNo)
+    )[0];
+
+  if (latestLot) {
+    return {
+      quantityBase: latestLot.convertedQtyBase,
+      quantityText: formatInventoryQty(latestLot.convertedQtyBase, material.baseUnit),
+      lotNo: latestLot.lotNo,
+      supplier: latestLot.supplier,
+      source: "lot"
+    };
+  }
+
+  return {
+    quantityBase: 0,
+    quantityText: "—",
+    source: "none"
+  };
 }
 
 export function getInventoryLedgerDirection(type: InventoryLedgerType): InventoryLedgerDirection {
@@ -2683,12 +3966,30 @@ export function filterInventoryLedgers(query: InventoryLedgerQuery): InventoryLe
     .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
+function formatInventoryRiskSharePercent(riskQuantity: number, totalQuantity: number): number | null {
+  if (totalQuantity <= 0) return null;
+  return Math.round((Math.max(riskQuantity, 0) / totalQuantity) * 100);
+}
+
+export function formatInventoryRiskQuantityDisplay(
+  quantity: number,
+  unit: string,
+  totalQuantity?: number
+): string {
+  const quantityText = formatInventoryQty(quantity, unit);
+  if (totalQuantity === undefined) return quantityText;
+  const share = formatInventoryRiskSharePercent(quantity, totalQuantity);
+  if (share === null) return quantityText;
+  return `${quantityText}（${share}%）`;
+}
+
 export function buildInventoryRiskItems(
   materials: InventoryMaterial[],
   lots: InventoryLot[],
   summaries: InventorySummary[]
 ): InventoryRiskItem[] {
   const materialMap = new Map(materials.map((material) => [material.id, material]));
+  const summaryMap = new Map(summaries.map((summary) => [summary.materialId, summary]));
   const items: InventoryRiskItem[] = [];
 
   for (const summary of summaries) {
@@ -2711,6 +4012,7 @@ export function buildInventoryRiskItems(
     const material = materialMap.get(lot.materialId);
     if (!material) continue;
     if (lot.status === "过期") {
+      const summary = summaryMap.get(lot.materialId);
       items.push({
         id: `risk-expired-${lot.id}`,
         type: "过期",
@@ -2719,7 +4021,9 @@ export function buildInventoryRiskItems(
         brand: material.brand,
         lotNo: lot.lotNo,
         expiryDate: lot.expiryDate,
-        valueText: `${lot.lotNo} · ${formatInventoryQty(lot.remainingQtyBase, material.baseUnit)}`,
+        valueText: summary
+          ? formatInventoryRiskQuantityDisplay(lot.remainingQtyBase, material.baseUnit, summary.currentStockBase)
+          : formatInventoryQty(lot.remainingQtyBase, material.baseUnit),
         actionText: "报废",
         targetTab: "lots",
         priority: 2
@@ -2731,6 +4035,7 @@ export function buildInventoryRiskItems(
     const material = materialMap.get(lot.materialId);
     if (!material) continue;
     if (lot.status === "临期") {
+      const summary = summaryMap.get(lot.materialId);
       items.push({
         id: `risk-expiring-${lot.id}`,
         type: "临期",
@@ -2739,25 +4044,12 @@ export function buildInventoryRiskItems(
         brand: material.brand,
         lotNo: lot.lotNo,
         expiryDate: lot.expiryDate,
-        valueText: `${lot.expiryDate} 到期`,
+        valueText: summary
+          ? formatInventoryRiskQuantityDisplay(lot.remainingQtyBase, material.baseUnit, summary.currentStockBase)
+          : formatInventoryQty(lot.remainingQtyBase, material.baseUnit),
         actionText: "发起盘点",
         targetTab: "lots",
         priority: 3
-      });
-    }
-  }
-
-  for (const summary of summaries) {
-    if (summary.stockRisk === "低库存" && summary.safetyStockBase !== undefined) {
-      items.push({
-        id: `risk-low-${summary.materialId}`,
-        type: "低库存",
-        materialId: summary.materialId,
-        materialName: summary.materialName,
-        brand: summary.brand,
-        valueText: formatInventoryQty(summary.currentStockBase, summary.baseUnit),
-        targetTab: "summary",
-        priority: 4
       });
     }
   }

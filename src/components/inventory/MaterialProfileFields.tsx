@@ -1,11 +1,10 @@
-import { Button, Form, Input, InputNumber, Select, Space } from "antd";
-import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import { Form, Input, InputNumber, Select } from "antd";
 import {
-  inventoryCategoryFieldSpecs,
-  inventoryPigTypeOptions,
-  inventoryProductionPhaseOptions,
+  getMaterialProfileFieldSpecs,
+  inventoryMedicineClassOptions,
   type InventoryCategory,
-  type InventoryMaterialFieldSpec
+  type InventoryMaterialFieldSpec,
+  type InventoryMedicineClass
 } from "./inventoryData";
 
 function renderFieldControl(spec: InventoryMaterialFieldSpec, compact?: boolean) {
@@ -36,78 +35,25 @@ function renderFieldControl(spec: InventoryMaterialFieldSpec, compact?: boolean)
   return <Input size={compact ? "small" : undefined} placeholder={spec.placeholder} />;
 }
 
-function FeedStagesField({
-  name,
-  label,
-  required,
-  compact = false
+export function MedicineProfileSelectors({
+  compact = false,
+  required = true
 }: {
-  name: string;
-  label: string;
-  required: boolean;
   compact?: boolean;
+  required?: boolean;
 }) {
   return (
     <Form.Item
-      label={label}
-      className={`material-feed-stage-field${compact ? " material-feed-stage-field--compact" : ""}`}
-      required={required}
+      name="medicineClass"
+      label="药品分类"
+      className="inventory-batch-field-grid-item"
+      rules={required ? [{ required: true, message: "请选择药品分类" }] : undefined}
     >
-      <Form.List
-        name={name}
-        initialValue={[{}]}
-        rules={
-          required
-            ? [
-                {
-                  validator: async (_, value) => {
-                    if (!value || value.length === 0) {
-                      throw new Error(`请填写${label}`);
-                    }
-                  }
-                }
-              ]
-            : undefined
-        }
-      >
-        {(fields, { add, remove }, { errors }) => (
-          <div className="material-feed-stage-list">
-            {fields.map((field) => (
-              <Space key={field.key} align="baseline" className="material-feed-stage-row" wrap>
-                <Form.Item
-                  name={[field.name, "pigType"]}
-                  rules={[{ required: true, message: "请选择适用猪只" }]}
-                  noStyle
-                >
-                  <Select
-                    placeholder="适用猪只"
-                    style={{ width: compact ? 120 : 140 }}
-                    options={inventoryPigTypeOptions.map((pigType) => ({ label: pigType, value: pigType }))}
-                  />
-                </Form.Item>
-                <Form.Item
-                  name={[field.name, "phases"]}
-                  rules={[{ required: true, message: "请选择适用阶段" }]}
-                  noStyle
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="适用阶段"
-                    style={{ minWidth: compact ? 180 : 220 }}
-                    options={inventoryProductionPhaseOptions.map((phase) => ({ label: phase, value: phase }))}
-                  />
-                </Form.Item>
-                <MinusCircleOutlined onClick={() => remove(field.name)} />
-              </Space>
-            ))}
-            <Button type="dashed" onClick={() => add({})} icon={<PlusOutlined />} block={!compact} size={compact ? "small" : "middle"}>
-              添加适用对象
-            </Button>
-            <Form.ErrorList errors={errors} />
-          </div>
-        )}
-      </Form.List>
+      <Select
+        size={compact ? "small" : undefined}
+        placeholder="疫苗 / 兽药 / 保健品"
+        options={inventoryMedicineClassOptions.map((option) => ({ label: option, value: option }))}
+      />
     </Form.Item>
   );
 }
@@ -116,22 +62,26 @@ function FeedStagesField({
  * 分类专属字段渲染器：物料管理新增/编辑与入库快建复用同一套字段定义。
  * - requiredMode = "catalog"：按物料管理完整档案口径，spec.required 字段必填。
  * - requiredMode = "quick"：入库快建口径，默认专属字段选填；标记 requiredInQuick 的字段仍必填。
- * - requiredMode = "batch"：批量入库口径，标记 requiredInBatchReceive 的字段必填。
+ * - requiredMode = "batch"：入库口径，标记 requiredInBatchReceive 的字段必填。
  */
 export function MaterialProfileFields({
   category,
+  medicineClass,
   requiredMode = "catalog",
   fieldScope = "all",
   layout = "stack",
   compact = false
 }: {
   category: InventoryCategory;
+  medicineClass?: InventoryMedicineClass;
   requiredMode?: "catalog" | "quick" | "batch";
   fieldScope?: "all" | "required" | "optional";
   layout?: "stack" | "grid" | "gridInline";
   compact?: boolean;
 }) {
-  const specs = (inventoryCategoryFieldSpecs[category] || []).filter((spec) => {
+  const watchedMedicineClass = Form.useWatch("medicineClass") as InventoryMedicineClass | undefined;
+  const resolvedClass = category === "药品" ? medicineClass || watchedMedicineClass : undefined;
+  const specs = getMaterialProfileFieldSpecs(category, resolvedClass).filter((spec) => {
     const isRequired =
       (requiredMode === "catalog" && spec.required) ||
       (requiredMode === "quick" && spec.requiredInQuick) ||
@@ -149,27 +99,17 @@ export function MaterialProfileFields({
 
   const content = specs.map((spec) => {
     const required = resolveRequired(spec);
-        if (spec.type === "feedStages") {
-          return (
-            <div
-              key={String(spec.key)}
-              className={`inventory-batch-field-grid-item material-profile-fields-grid__full${layout === "grid" || layout === "gridInline" ? "" : ""}`}
-            >
-              <FeedStagesField name={String(spec.key)} label={spec.label} required={Boolean(required)} compact={compact || layout === "gridInline"} />
-            </div>
-          );
-        }
-        return (
-          <Form.Item
-            key={String(spec.key)}
-            name={String(spec.key)}
-            className="inventory-batch-field-grid-item"
-            label={spec.label}
-            rules={required ? [{ required: true, message: `请填写${spec.label}` }] : undefined}
-          >
-            {renderFieldControl(spec, compact)}
-          </Form.Item>
-        );
+    return (
+      <Form.Item
+        key={String(spec.key)}
+        name={String(spec.key)}
+        className="inventory-batch-field-grid-item"
+        label={spec.label}
+        rules={required ? [{ required: true, message: `请填写${spec.label}` }] : undefined}
+      >
+        {renderFieldControl(spec, compact)}
+      </Form.Item>
+    );
   });
 
   if (layout === "gridInline") {

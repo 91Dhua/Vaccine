@@ -4,7 +4,6 @@ import {
   Card,
   Form,
   Input,
-  InputNumber,
   message,
   Modal,
   Select,
@@ -26,18 +25,22 @@ import {
   UploadOutlined
 } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
-import { MaterialProfileFields } from "./inventory/MaterialProfileFields";
+import { MaterialProfileFields, MedicineProfileSelectors } from "./inventory/MaterialProfileFields";
 import {
   formatInventoryMaterialFieldValue,
+  formatMaterialCategoryLabel,
   generateInventoryMaterialCode,
+  getMaterialProfileFieldSpecs,
   inventoryCategoryBaseUnitRecommendations,
-  inventoryCategoryFieldSpecs,
   inventoryCategoryOrder,
   inventorySeedMaterials,
   inventoryUnitOptions,
   isMaterialProfileIncomplete,
+  resolveMedicineBaseUnitRecommendations,
+  resolveMedicineClass,
   type InventoryCategory,
-  type InventoryMaterial
+  type InventoryMaterial,
+  type InventoryMedicineClass
 } from "./inventory/inventoryData";
 
 const { Title, Text } = Typography;
@@ -54,19 +57,11 @@ const materialNamePlaceholders: Record<InventoryCategory, { cn: string; en: stri
     cn: "如：妊娠母猪料、哺乳母猪料、保育料",
     en: "如：Gestation Sow Feed、Lactation Sow Feed、Nursery Feed"
   },
-  疫苗: {
-    cn: "如：非瘟灭活疫苗、蓝耳二联疫苗、圆环病毒疫苗",
-    en: "如：ASF Inactivated Vaccine、PRRS Vaccine、PCV2 Vaccine"
+  药品: {
+    cn: "如：非瘟灭活疫苗、蓝耳二联疫苗、氟苯尼考、电解多维",
+    en: "如：ASF Vaccine、PRRS Vaccine、Florfenicol、Electrolyte Multivitamin"
   },
-  兽药: {
-    cn: "如：头孢、阿莫西林、替米考星",
-    en: "如：Ceftiofur、Amoxicillin、Tilmicosin"
-  },
-  保健品: {
-    cn: "如：复合维生素、电解多维、益生菌",
-    en: "如：Multivitamin、Electrolyte Multivitamin、Probiotics"
-  },
-  消毒用品: {
+  消耗品: {
     cn: "如：戊二醛消毒液、过硫酸氢钾、聚维酮碘",
     en: "如：Glutaraldehyde Disinfectant、Potassium Peroxymonosulfate、Povidone Iodine"
   },
@@ -82,10 +77,8 @@ const materialNamePlaceholders: Record<InventoryCategory, { cn: string; en: stri
 
 const materialCategoryTagColors: Record<InventoryCategory, string> = {
   饲料: "green",
-  兽药: "cyan",
-  疫苗: "blue",
-  消毒用品: "orange",
-  保健品: "lime",
+  药品: "blue",
+  消耗品: "orange",
   工具: "default",
   其他: "default"
 };
@@ -96,8 +89,7 @@ const batchTemplateHeaders = [
   "物料名称(英文)",
   "品牌名称(中文)",
   "品牌名称(英文)",
-  "核算单位",
-  "安全库存"
+  "核算单位"
 ];
 
 const batchTemplateRows: Record<string, string>[] = [
@@ -107,17 +99,15 @@ const batchTemplateRows: Record<string, string>[] = [
     "物料名称(英文)": "Gestation Sow Feed",
     "品牌名称(中文)": "牧丰",
     "品牌名称(英文)": "MuFeng",
-    "核算单位": "kg",
-    "安全库存": "600"
+    "核算单位": "kg"
   },
   {
-    "物料类型": "兽药",
+    "物料类型": "药品",
     "物料名称(中文)": "头孢",
     "物料名称(英文)": "Ceftiofur",
     "品牌名称(中文)": "华牧",
     "品牌名称(英文)": "HuaMu",
-    "核算单位": "ml",
-    "安全库存": "500"
+    "核算单位": "ml"
   }
 ];
 
@@ -129,13 +119,18 @@ function getMaterialDetailFields(material: InventoryMaterial): [string, string][
   const baseFields: [string, string][] = [
     ["物料名称(中文)", material.materialName],
     ["物料名称(英文)", material.materialNameEn || "—"],
-    ["物料类型", material.category],
+    ["物料类型", formatMaterialCategoryLabel(material)],
     ["品牌名称(中文)", material.brand],
     ["品牌名称(英文)", material.brandEn || "—"],
-    ["核算单位", material.baseUnit],
-    ["安全库存", material.safetyStockBase != null ? `${material.safetyStockBase} ${material.baseUnit}` : "—"]
+    ["核算单位", material.baseUnit]
   ];
-  const specs = inventoryCategoryFieldSpecs[material.category] || [];
+  if (material.category === "药品") {
+    const medicineClass = resolveMedicineClass(material);
+    if (medicineClass) {
+      baseFields.splice(4, 0, ["药品分类", medicineClass]);
+    }
+  }
+  const specs = getMaterialProfileFieldSpecs(material);
   const extraFields: [string, string][] = specs.map((spec) => [
     spec.label,
     formatInventoryMaterialFieldValue(material, spec) || "—"
@@ -156,12 +151,6 @@ function escapeXml(value: unknown) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function getCellNumber(value: unknown) {
-  if (value === undefined || value === null || value === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeMaterialCategory(value: unknown) {
@@ -231,7 +220,10 @@ async function readBatchTemplateRows(file: File) {
   });
 }
 
-function recommendedBaseUnit(category: InventoryCategory) {
+function recommendedBaseUnit(category: InventoryCategory, medicineClass?: InventoryMedicineClass) {
+  if (category === "药品") {
+    return resolveMedicineBaseUnitRecommendations(medicineClass)[0] || inventoryUnitOptions[0];
+  }
   return inventoryCategoryBaseUnitRecommendations[category]?.[0] || inventoryUnitOptions[0];
 }
 
@@ -247,11 +239,16 @@ export function VaccineCatalogPage() {
   const [editForm] = Form.useForm();
   const createCategory = (Form.useWatch("category", createForm) || "饲料") as InventoryCategory;
   const editCategory = (Form.useWatch("category", editForm) || "饲料") as InventoryCategory;
+  const createMedicineClass = Form.useWatch("medicineClass", createForm) as InventoryMedicineClass | undefined;
+  const editMedicineClass = Form.useWatch("medicineClass", editForm) as InventoryMedicineClass | undefined;
   const createNamePlaceholder = materialNamePlaceholders[createCategory] || materialNamePlaceholders.饲料;
 
   useEffect(() => {
     if (!editingRow) return;
-    editForm.setFieldsValue(editingRow);
+    editForm.setFieldsValue({
+      ...editingRow,
+      medicineClass: resolveMedicineClass(editingRow)
+    });
   }, [editForm, editingRow]);
 
   const categoryFilters = useMemo(
@@ -290,8 +287,12 @@ export function VaccineCatalogPage() {
     createForm.resetFields();
   };
 
-  const buildProfileValues = (category: InventoryCategory, values: Record<string, unknown>) => {
-    const specs = inventoryCategoryFieldSpecs[category] || [];
+  const buildProfileValues = (
+    category: InventoryCategory,
+    values: Record<string, unknown>,
+    medicineClass?: InventoryMedicineClass
+  ) => {
+    const specs = getMaterialProfileFieldSpecs(category, medicineClass);
     const profile: Record<string, unknown> = {};
     specs.forEach((spec) => {
       profile[String(spec.key)] = values[String(spec.key)];
@@ -299,25 +300,35 @@ export function VaccineCatalogPage() {
     return profile;
   };
 
+  const resolveMedicineFields = (category: InventoryCategory, values: Record<string, unknown>) => {
+    if (category !== "药品") {
+      return { medicineClass: undefined };
+    }
+    return {
+      medicineClass: values.medicineClass as InventoryMedicineClass | undefined
+    };
+  };
+
   const createMaterial = async () => {
     const values = await createForm.validateFields();
     const category = (values.category || "饲料") as InventoryCategory;
-    const baseUnit = String(values.baseUnit || recommendedBaseUnit(category));
+    const medicineFields = resolveMedicineFields(category, values);
+    const baseUnit = String(values.baseUnit || recommendedBaseUnit(category, medicineFields.medicineClass));
     const next: InventoryMaterial = {
       id: `mat-${Date.now()}`,
       materialCode: generateInventoryMaterialCode(rows),
       materialName: String(values.materialName).trim(),
       materialNameEn: values.materialNameEn ? String(values.materialNameEn).trim() : undefined,
       category,
+      ...medicineFields,
       brand: String(values.brand).trim(),
       brandEn: values.brandEn ? String(values.brandEn).trim() : undefined,
       baseUnit,
       unitSystem: [`1${baseUnit} = 1${baseUnit}`],
-      safetyStockBase: values.safetyStockBase != null ? Number(values.safetyStockBase) : undefined,
       status: "启用中",
       auxiliaryUnit: baseUnit,
       note: values.note ? String(values.note).trim() : undefined,
-      ...buildProfileValues(category, values)
+      ...buildProfileValues(category, values, medicineFields.medicineClass)
     };
     next.profileIncomplete = isMaterialProfileIncomplete(next);
     setRows((prev) => [next, ...prev]);
@@ -334,6 +345,7 @@ export function VaccineCatalogPage() {
     if (!editingRow) return;
     const values = await editForm.validateFields();
     const category = (values.category || editingRow.category) as InventoryCategory;
+    const medicineFields = resolveMedicineFields(category, values);
     const baseUnit = String(values.baseUnit || editingRow.baseUnit);
     setRows((prev) =>
       prev.map((item) => {
@@ -343,12 +355,12 @@ export function VaccineCatalogPage() {
           materialName: String(values.materialName).trim(),
           materialNameEn: values.materialNameEn ? String(values.materialNameEn).trim() : undefined,
           category,
+          ...medicineFields,
           brand: String(values.brand).trim(),
           brandEn: values.brandEn ? String(values.brandEn).trim() : undefined,
           baseUnit,
-          safetyStockBase: values.safetyStockBase != null ? Number(values.safetyStockBase) : undefined,
           note: values.note ? String(values.note).trim() : undefined,
-          ...buildProfileValues(category, values)
+          ...buildProfileValues(category, values, medicineFields.medicineClass)
         };
         updated.profileIncomplete = isMaterialProfileIncomplete(updated);
         return updated;
@@ -398,7 +410,6 @@ export function VaccineCatalogPage() {
         brandEn: brandEn || undefined,
         baseUnit,
         unitSystem: [`1${baseUnit} = 1${baseUnit}`],
-        safetyStockBase: getCellNumber(row["安全库存"]),
         status: "启用中",
         auxiliaryUnit: baseUnit
       };
@@ -429,7 +440,8 @@ export function VaccineCatalogPage() {
 
   const renderGenericFields = (
     placeholder: { cn: string; en: string },
-    category: InventoryCategory
+    category: InventoryCategory,
+    medicineClass?: InventoryMedicineClass
   ) => (
     <>
       <Form.Item name="materialName" label="物料名称(中文)" rules={[{ required: true, message: "请输入物料中文名称" }]}>
@@ -441,6 +453,7 @@ export function VaccineCatalogPage() {
       <Form.Item name="category" label="物料类型" rules={[{ required: true, message: "请选择物料类型" }]}>
         <Select options={productCategoryOptions} />
       </Form.Item>
+      {category === "药品" ? <MedicineProfileSelectors /> : null}
       <Form.Item name="brand" label="品牌名称(中文)" rules={[{ required: true, message: "请输入中文品牌名" }]}>
         <Input />
       </Form.Item>
@@ -454,10 +467,11 @@ export function VaccineCatalogPage() {
           options={inventoryUnitOptions.map((unit) => ({ label: unit, value: unit }))}
         />
       </Form.Item>
-      <Form.Item name="safetyStockBase" label="安全库存（核算单位）">
-        <InputNumber min={0} style={{ width: "100%" }} placeholder="低于该值进入库存风险" />
-      </Form.Item>
-      <MaterialProfileFields category={category} requiredMode="catalog" />
+      <MaterialProfileFields
+        category={category}
+        medicineClass={medicineClass}
+        requiredMode="catalog"
+      />
       <Form.Item name="note" label="备注">
         <Input.TextArea rows={2} placeholder="选填" />
       </Form.Item>
@@ -471,7 +485,7 @@ export function VaccineCatalogPage() {
           <Title level={4} style={{ margin: 0 }}>
             物料管理
           </Title>
-          <Text type="secondary">统一维护饲料、兽药、疫苗、消毒用品、保健品、工具及其他物料档案</Text>
+          <Text type="secondary">统一维护饲料、药品、消耗品、工具及其他物料档案</Text>
         </div>
         <Space size={8}>
           <Button icon={<UploadOutlined />} onClick={() => setBatchOpen(true)}>
@@ -538,7 +552,9 @@ export function VaccineCatalogPage() {
               width: 130,
               filters: categoryFilters,
               onFilter: (value, record) => record.category === value,
-              render: (value: InventoryCategory) => <Tag color={materialCategoryTagColors[value]}>{value}</Tag>
+              render: (_, record) => (
+                <Tag color={materialCategoryTagColors[record.category]}>{formatMaterialCategoryLabel(record)}</Tag>
+              )
             },
             {
               title: "品牌名称",
@@ -604,7 +620,7 @@ export function VaccineCatalogPage() {
         onCancel={() => setBatchOpen(false)}
         footer={null}
         width={620}
-        destroyOnClose
+        destroyOnHidden
         className="compact-modal"
       >
         <Alert
@@ -633,7 +649,7 @@ export function VaccineCatalogPage() {
             <CloudUploadOutlined />
           </p>
           <p className="ant-upload-text">拖拽或点击上传已填写的 Excel 文件</p>
-          <p className="ant-upload-hint">请上传下载的 .xls 模版文件；支持饲料、兽药、疫苗、消毒用品、保健品、工具、其他。</p>
+          <p className="ant-upload-hint">请上传下载的 .xls 模版文件；支持饲料、药品、消耗品、工具、其他。</p>
         </Upload.Dragger>
       </Modal>
 
@@ -643,7 +659,7 @@ export function VaccineCatalogPage() {
         onCancel={() => setViewingRow(null)}
         footer={<Button onClick={() => setViewingRow(null)}>关闭</Button>}
         width={560}
-        destroyOnClose
+        destroyOnHidden
       >
         {viewingRow ? (
           <div className="task-detail-info-grid">
@@ -670,11 +686,11 @@ export function VaccineCatalogPage() {
           </div>
         }
         width={560}
-        destroyOnClose
+        destroyOnHidden
         className="compact-modal"
       >
         <Form form={createForm} layout="vertical" initialValues={{ category: "饲料", baseUnit: recommendedBaseUnit("饲料") }}>
-          {renderGenericFields(createNamePlaceholder, createCategory)}
+          {renderGenericFields(createNamePlaceholder, createCategory, createMedicineClass)}
         </Form>
       </Modal>
 
@@ -701,11 +717,11 @@ export function VaccineCatalogPage() {
           </div>
         }
         width={560}
-        destroyOnClose
+        destroyOnHidden
         className="compact-modal"
       >
         <Form form={editForm} layout="vertical">
-          {renderGenericFields(materialNamePlaceholders[editCategory] || materialNamePlaceholders.饲料, editCategory)}
+          {renderGenericFields(materialNamePlaceholders[editCategory] || materialNamePlaceholders.饲料, editCategory, editMedicineClass)}
         </Form>
       </Modal>
     </div>

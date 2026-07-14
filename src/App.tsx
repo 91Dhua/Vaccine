@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { Layout, Menu, Modal, Radio, Typography, message } from "antd";
+import { CheckCircleOutlined, SwapOutlined } from "@ant-design/icons";
 import { VaccinePlanPage } from "./components/VaccinePlanPage";
 import { VaccineCatalogPage } from "./components/VaccineCatalogPage";
 import { VaccineTaskListPage, TaskRow } from "./components/VaccineTaskListPage";
@@ -40,6 +41,11 @@ import {
   type MobilePigTask
 } from "./mobileVaccinationUtils";
 import type { PlanEffectTrackingStored } from "./planEffectTracking";
+import {
+  CURRENT_FARM_STORAGE_KEY,
+  FARM_ACCESS_CHANGE_EVENT,
+  getCurrentUserFarms
+} from "./consoleFarmAccess";
 
 const { Content, Sider } = Layout;
 const { Title } = Typography;
@@ -445,8 +451,16 @@ export default function App() {
   const [isEmployeeRegisterRoute, setIsEmployeeRegisterRoute] = useState(
     () => window.location.hash.startsWith("#/employee-register")
   );
+  const [currentUserFarms, setCurrentUserFarms] = useState(() => getCurrentUserFarms());
+  const [currentFarmName, setCurrentFarmName] = useState(() => {
+    const userFarms = getCurrentUserFarms();
+    const storedFarmName = window.localStorage.getItem(CURRENT_FARM_STORAGE_KEY);
+    return storedFarmName && userFarms.includes(storedFarmName) ? storedFarmName : userFarms[0];
+  });
+  const [farmSwitcherOpen, setFarmSwitcherOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("console");
   const [consoleActiveKey, setConsoleActiveKey] = useState("plan");
+  const [financeBootstrapView, setFinanceBootstrapView] = useState<"finance" | "difference-list" | null>(null);
   const [taskStep, setTaskStep] = useState<"tasks" | "select" | "form" | "preview" | "detail">(
     "tasks"
   );
@@ -467,6 +481,37 @@ export default function App() {
   );
   const [mobileLogs, setMobileLogs] = useState<MobileExecutionLog[]>([]);
   const activeKey = workspaceMode === "console" ? consoleActiveKey : "mobile-vacc";
+  const canSwitchFarm = currentUserFarms.length > 1;
+
+  const handleFarmSwitch = (nextFarmName: string) => {
+    if (nextFarmName === currentFarmName) {
+      setFarmSwitcherOpen(false);
+      return;
+    }
+    setCurrentFarmName(nextFarmName);
+    window.localStorage.setItem(CURRENT_FARM_STORAGE_KEY, nextFarmName);
+    setFarmSwitcherOpen(false);
+    message.success(`已切换至 ${nextFarmName}`);
+  };
+
+  useEffect(() => {
+    const syncFarmAccess = () => {
+      const nextUserFarms = getCurrentUserFarms();
+      setCurrentUserFarms(nextUserFarms);
+      const storedFarmName = window.localStorage.getItem(CURRENT_FARM_STORAGE_KEY);
+      setCurrentFarmName(
+        storedFarmName && nextUserFarms.includes(storedFarmName)
+          ? storedFarmName
+          : nextUserFarms[0]
+      );
+    };
+    window.addEventListener(FARM_ACCESS_CHANGE_EVENT, syncFarmAccess);
+    window.addEventListener("storage", syncFarmAccess);
+    return () => {
+      window.removeEventListener(FARM_ACCESS_CHANGE_EVENT, syncFarmAccess);
+      window.removeEventListener("storage", syncFarmAccess);
+    };
+  }, []);
 
   useEffect(() => {
     setTasks((prev) => {
@@ -640,6 +685,11 @@ export default function App() {
       children: [{ key: "inventory-management", label: "库存管理" }]
     },
     {
+      key: "finance",
+      label: "财务",
+      children: [{ key: "finance-analysis", label: "财务分析" }]
+    },
+    {
       key: "settings",
       label: "设置",
       children: [
@@ -655,9 +705,25 @@ export default function App() {
       <Sider width={220} className="app-sider">
         <div className="sider-logo">
           <Title level={5} style={{ margin: 0 }}>
-            智慧养殖
+            Sentri
           </Title>
-          <span className="sider-sub">{workspaceMode === "console" ? "Console" : "Mobile"}</span>
+          {canSwitchFarm ? (
+            <button
+              type="button"
+              className="sider-farm-trigger"
+              onClick={() => setFarmSwitcherOpen(true)}
+              aria-label={`切换厂区，当前厂区 ${currentFarmName}`}
+            >
+              <span>{currentFarmName}</span>
+              <i className="sider-farm-trigger__icon" aria-hidden="true">
+                <SwapOutlined />
+              </i>
+            </button>
+          ) : (
+            <div className="sider-farm-static" aria-label={`当前厂区 ${currentFarmName}`}>
+              {currentFarmName}
+            </div>
+          )}
           <Radio.Group
             className="workspace-mode-switch"
             optionType="button"
@@ -673,12 +739,42 @@ export default function App() {
           <Menu
             mode="inline"
             selectedKeys={[activeKey]}
-            defaultOpenKeys={["personnel", "immunity", "treatment", "pig-culling", "inventory", "settings"]}
+            defaultOpenKeys={["personnel", "immunity", "treatment", "pig-culling", "inventory", "finance", "settings"]}
             onClick={(info) => setConsoleActiveKey(info.key)}
             items={consoleMenuItems}
           />
         ) : null}
       </Sider>
+      <Modal
+        className="farm-switch-modal"
+        title="切换厂区"
+        open={farmSwitcherOpen}
+        footer={null}
+        onCancel={() => setFarmSwitcherOpen(false)}
+        width={420}
+      >
+        <p className="farm-switch-modal__desc">选择想要切换的厂区。</p>
+        <div className="farm-switch-list">
+          {currentUserFarms.map((farmName, index) => {
+            const isActive = farmName === currentFarmName;
+            return (
+              <button
+                key={farmName}
+                type="button"
+                className={`farm-switch-item${isActive ? " is-active" : ""}`}
+                disabled={isActive}
+                onClick={() => handleFarmSwitch(farmName)}
+              >
+                <span>
+                  <strong>{farmName}</strong>
+                  <em>{index === 0 ? "上次登录" : "可进入"}</em>
+                </span>
+                {isActive ? <CheckCircleOutlined /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
       <Layout>
         <Content className="app-content">
           {activeKey === "plan" ? (
@@ -716,8 +812,16 @@ export default function App() {
             />
           ) : activeKey === "culling-detail" ? (
             <CullingTaskDetailPage onBack={() => setConsoleActiveKey("culling-plan")} />
-          ) : activeKey === "inventory-management" ? (
-            <ConsoleInventoryPage initialView="home" />
+          ) : activeKey === "inventory-management" || activeKey === "finance-analysis" ? (
+            <ConsoleInventoryPage
+              activeModule={activeKey === "finance-analysis" ? "finance" : "inventory"}
+              financeBootstrapView={activeKey === "finance-analysis" ? financeBootstrapView : null}
+              onFinanceBootstrapHandled={() => setFinanceBootstrapView(null)}
+              onRequestFinance={(view = "finance") => {
+                setFinanceBootstrapView(view);
+                setConsoleActiveKey("finance-analysis");
+              }}
+            />
           ) : activeKey === "mobile-vacc" ? (
             <MobileSimulationShell>
               <MobileVaccinationPage
@@ -836,7 +940,7 @@ export default function App() {
           ) : activeKey === "initialization" ? (
             <OnboardingFlow onComplete={() => setConsoleActiveKey("plan")} />
           ) : activeKey === "new-login-flow" ? (
-            <NewLoginFlowPage onOpenEntryApplication={() => setConsoleActiveKey("new-entry-application-flow")} />
+            <NewLoginFlowPage />
           ) : activeKey === "new-entry-application-flow" ? (
             <NewEntryApplicationFlowPage />
           ) : activeKey === "task" ? (

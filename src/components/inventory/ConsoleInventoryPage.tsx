@@ -1,5 +1,5 @@
 import type { ColumnsType } from "antd/es/table";
-import type { TableRowSelection } from "antd/es/table/interface";
+import dayjs from "dayjs";
 import {
   Alert,
   AutoComplete,
@@ -27,18 +27,19 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   CheckCircleOutlined,
-  DeleteOutlined,
+  DownOutlined,
   EditOutlined,
   ExportOutlined,
   EyeOutlined,
+  FileAddOutlined,
   HistoryOutlined,
   InfoCircleOutlined,
   InboxOutlined,
   PlayCircleOutlined,
-  PlusOutlined,
-  StopOutlined
+  StopOutlined,
+  UpOutlined
 } from "@ant-design/icons";
-import { useEffect, useMemo, useRef, useState, type Key, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import {
   buildInventoryCategoryTabs,
   buildInventoryLedgerQuantityDisplay,
@@ -50,38 +51,48 @@ import {
   buildInventorySummaries,
   buildInventoryStocktakeScope,
   buildBatchInlineNewMaterialDraft,
-  buildMaterialProfileFromForm,
+  buildFeedEstimatedAvailableDays,
   buildInventoryStocktakeTransaction,
-  buildInventoryStocktakeDifferences,
   buildInventoryDifferenceResolution,
   resolveInventoryToleranceDifferences,
   inventoryDifferenceMethodMetas,
+  inventorySeedInboundOrders,
+  inventorySeedCheckRecords,
   inventorySeedDifferences,
   calculateInventoryBaseQuantity,
   filterInventorySummariesByMaterialStatus,
   filterInventoryLedgers,
   formatInventoryQty,
+  formatInventoryQtyWithPackage,
   formatNearestExpiryDate,
   generateInventoryLotNo,
   getInventoryLotsForMaterial,
   getInventoryMaterialLabel,
   getInventoryMaterialStatus,
-  getInventoryReceiveMaterialOptions,
   hasInventoryMaterialBusinessRecords,
-  inventoryCategoryBaseUnitRecommendations,
-  inventoryCategoryFieldSpecs,
-  inventoryCategoryOrder,
   formatInventoryMaterialFieldValue,
+  formatMaterialCategoryLabel,
+  getMaterialProfileFieldSpecs,
   isMaterialProfileIncomplete,
+  inventoryCategoryOrder,
+  inventoryMedicineClassOptions,
   inventorySeedLedgers,
   inventorySeedLots,
   inventorySeedMaterials,
   inventoryUnitOptions,
-  receiveMaterialCategoryOptions,
+  INVENTORY_DEMO_REFERENCE_AT,
+  parseInventoryLedgerQuantity,
+  resolveInventoryLastPurchaseInfo,
+  type FeedEstimatedAvailableDaysResult,
+  type InventoryCheckDetail,
+  type InventoryCheckRecord,
+  type InventoryInboundMaterial,
+  type InventoryInboundOrder,
+  type InventoryInboundOrderType,
   toggleInventoryMaterialStatus,
   updateInventoryMaterial,
   validateInventoryMaterialEdit,
-  validateInventoryPackageConversions,
+  resolveMedicineClass,
   type InventoryCategory,
   type InventoryCategoryTab,
   type InventoryLedgerRow,
@@ -104,18 +115,37 @@ import { MaterialProfileFields } from "./MaterialProfileFields";
 import {
   BatchReceivePanel,
   buildBatchReceiveEntryEffectiveDraft,
-  createEmptyBatchReceiveEntry,
+  createDefaultBatchReceiveHeader,
   isBatchReceiveEntryReady,
   isBatchReceiveEntrySubmitting,
   resolveBatchReceiveEntryMaterial,
+  type InventoryBatchReceiveHeader,
   type InventoryBatchReceiveEntry
 } from "./BatchReceivePanel";
+import { Sparkline } from "./Sparkline";
 
 const { Text, Title } = Typography;
 const STOCKTAKE_RISK_DAYS = 30;
+const inventoryUsageTrendColors = {
+  stable: "#52C41A",
+  rising: "#1677FF",
+  spike: "#FA8C16",
+  idle: "#BFBFBF",
+  falling: "#52C41A"
+} as const;
+const inventoryStockTrendColors = {
+  stable: "#52C41A",
+  rising: "#1677FF",
+  spike: "#FA8C16",
+  idle: "#BFBFBF",
+  falling: "#FA8C16"
+} as const;
 
-type InventoryHomeRiskKind = "负库存" | "已过期" | "临期" | "低库存";
-type InventoryListStockStatus = "正常" | "临期" | "低库存" | "负库存";
+type InventoryUsageTrendKind = keyof typeof inventoryUsageTrendColors;
+type InventoryStockTrendKind = keyof typeof inventoryStockTrendColors;
+
+type InventoryHomeRiskKind = "负库存" | "已过期" | "临期";
+type InventoryListStockStatus = "正常" | "临期" | "负库存";
 type InventoryAnalyticsCategoryFilter = "全部" | InventoryCategory;
 type InventoryAnalyticsTimeRange = "近7天" | "近30天" | "本月" | "上月" | "自定义";
 type InventoryDifferenceTab = "pending" | "processed";
@@ -133,6 +163,33 @@ type InventoryTrendPoint = {
   amount: number;
 };
 
+type FeedStockTrendPoint = {
+  date: string;
+  quantity: number;
+  inboundQuantity: number;
+  outboundQuantity: number;
+  adjustmentQuantity: number;
+  changeQuantity: number;
+  anomaly?: "drop" | "increase";
+};
+
+type MaterialTrendRange = "7天" | "30天" | "90天";
+
+type MaterialStockTrendPoint = {
+  date: string;
+  quantity: number;
+  inboundQuantity: number;
+  outboundQuantity: number;
+  adjustmentQuantity: number;
+  scrapQuantity: number;
+  hasInbound: boolean;
+  hasOutbound: boolean;
+  hasAdjustment: boolean;
+  hasScrap: boolean;
+};
+
+type MaterialStockStatusTone = "success" | "warning" | "danger";
+
 type InventoryTopSpendRow = {
   id: string;
   materialName: string;
@@ -144,14 +201,12 @@ type InventoryTopSpendRow = {
 };
 
 const inventoryAnalyticsTimeRangeOptions: InventoryAnalyticsTimeRange[] = ["近7天", "近30天", "本月", "上月", "自定义"];
-const inventoryAmountChartCategories: InventoryCategory[] = ["饲料", "兽药", "疫苗", "消毒用品", "保健品", "工具", "其他"];
+const inventoryAmountChartCategories: InventoryCategory[] = inventoryCategoryOrder;
 const inventoryAnalyticsCategoryFilterOptions: InventoryAnalyticsCategoryFilter[] = ["全部", ...inventoryAmountChartCategories];
 const inventoryCategoryChartColors: Record<InventoryCategory, string> = {
   饲料: "#4F8CFF",
-  兽药: "#35B8A6",
-  疫苗: "#7B6DFF",
-  消毒用品: "#FF9B62",
-  保健品: "#78C56D",
+  药品: "#7B6DFF",
+  消耗品: "#FF9B62",
   工具: "#8898B3",
   其他: "#C3CBD8"
 };
@@ -185,7 +240,7 @@ const inventoryDifferenceHandlingOptions: InventoryDifferenceHandlingOption[] = 
     method: "入库少录补金额",
     direction: "盘盈",
     appliesToText: "有一批货未登记，需要补录入库。",
-    inventoryText: "新增对应批次库存。",
+    inventoryText: "补到系统自动选中的既有批次，不让用户手选批次。",
     accountingText: "补记本次采购金额，形成完整入库记录。",
     reasons: ["到货未入库", "其他"],
     requiredSupplements: ["amount"]
@@ -241,7 +296,6 @@ type InventoryMaterialEditFormValues = {
   brand: string;
   category: InventoryCategory;
   baseUnit: string;
-  safetyStockBase?: number;
   note?: string;
 };
 
@@ -253,10 +307,46 @@ type InventoryOutboundFormValues = {
   remark?: string;
 };
 
+type InventoryOutboundScopeRow = {
+  id: string;
+  materialId: string;
+  materialName: string;
+  brand: string;
+  category: InventoryCategory;
+  baseUnit: string;
+  currentStockBase: number;
+  nearestExpiryDate: string;
+  stockRisk: InventorySummary["stockRisk"];
+  materialStatus: InventoryMaterialStatus;
+};
+
+type InventoryOutboundOrderLine = InventoryOutboundScopeRow & {
+  outboundQuantity: number;
+  afterStockBase: number;
+  ledgerCount: number;
+};
+
+type InventoryOutboundOrderRecord = {
+  no: string;
+  createdAt: string;
+  purpose: string;
+  remark?: string;
+  operator: string;
+  lines: InventoryOutboundOrderLine[];
+  ledgers: InventoryLedgerRow[];
+};
+
 type InventoryScrapFormValues = {
   scrapQuantity: number;
   reason: string;
   handlingMethod: string;
+  photoNote?: string;
+};
+
+type InventoryLotEditFormValues = {
+  expiryDate?: string;
+  supplierBatchNo?: string;
+  note?: string;
 };
 
 type InventoryHomeRiskRow = {
@@ -305,10 +395,36 @@ type InventoryStocktakeRecord = {
   transaction?: InventoryStocktakeTransaction;
 };
 
-type ConsoleInventoryInitialView = "home" | "ledgers";
+type InventoryPurchaseOrderLine = {
+  materialId: string;
+  materialName: string;
+  brand: string;
+  category: InventoryCategory;
+  baseUnit: string;
+  currentStockText: string;
+  estimatedAvailableDays?: FeedEstimatedAvailableDaysResult;
+  lastPurchaseAt?: string;
+  lastPurchaseQtyText: string;
+  lastPurchaseLotNo?: string;
+  lastPurchaseSupplier?: string;
+  lastPurchaseSource: "ledger" | "lot" | "none";
+  quantityBase?: number;
+};
+
+type InventoryPurchaseOrderRecord = {
+  no: string;
+  createdAt: string;
+  lines: Array<InventoryPurchaseOrderLine & { quantityBase: number }>;
+};
+
+export type ConsoleInventoryModule = "inventory" | "finance";
+export type ConsoleFinanceBootstrapView = "finance" | "difference-list";
 
 type ConsoleInventoryPageProps = {
-  initialView?: ConsoleInventoryInitialView;
+  activeModule?: ConsoleInventoryModule;
+  financeBootstrapView?: ConsoleFinanceBootstrapView | null;
+  onFinanceBootstrapHandled?: () => void;
+  onRequestFinance?: (view?: ConsoleFinanceBootstrapView) => void;
 };
 
 type InventoryStocktakeTaskFormValues = {
@@ -320,23 +436,45 @@ type InventoryStocktakeTaskFormValues = {
   remark?: string;
 };
 
+type StocktakeRiskStatus = "负库存" | "临期" | "已过期";
+
 type MaterialDetailTabKey = "detail" | "ledger";
+type InventoryLedgerPageTabKey = "ledger" | "checks" | "inbound";
+type InventoryCheckDiffFilter = "全部" | "有差异" | "无差异";
+type InventoryInboundTypeFilter = "全部" | InventoryInboundOrderType;
+type StocktakeRiskLine = {
+  status: StocktakeRiskStatus;
+  tone: "negative" | "expired" | "expiring";
+  quantityBase: number;
+  text: string;
+};
 
 const materialStatusFilterOptions: InventoryMaterialStatusFilter[] = ["全部", "启用中", "已停用"];
-const materialEditCategoryOptions: InventoryCategory[] = ["饲料", "兽药", "保健品", "疫苗", "消毒用品", "工具", "其他"];
+const materialEditCategoryOptions: InventoryCategory[] = inventoryCategoryOrder;
 const stocktakeReasonOptions = ["异常复核", "月度盘点", "临时抽查", "交接盘点", "库存修正", "其他"];
-const inventoryScrapReasonOptions = ["超过有效期", "污染/破损", "保存异常", "盘点确认不可用", "其他"];
+const inventoryScrapReasonOptions = ["过期/变质", "受潮/发霉", "外包装破损/漏包", "日常损耗/误差修正"];
 const inventoryScrapHandlingMethodOptions = ["无害化处理", "退回供应商", "集中销毁", "交由第三方处理", "其他"];
+const inventoryCheckDiffFilterOptions: InventoryCheckDiffFilter[] = ["全部", "有差异", "无差异"];
+const inventoryInboundTypeOptions: InventoryInboundOrderType[] = ["采购入库", "盘盈入库"];
+const inventoryInboundDefaultDateRange: [string, string] = [
+  dayjs("2026-07-10").subtract(29, "day").format("YYYY-MM-DD"),
+  dayjs("2026-07-10").format("YYYY-MM-DD")
+];
+const purchaseOrderExcelMimeType = "application/vnd.ms-excel;charset=utf-8";
+const estimatedAvailableDaysCategories: InventoryCategory[] = ["饲料"];
+
+function shouldShowEstimatedAvailableDays(category: InventoryCategory) {
+  return estimatedAvailableDaysCategories.includes(category);
+}
 
 function statusColor(status: string) {
   if (status.includes("负库存") || status.includes("过期")) return "error";
-  if (status.includes("低库存") || status.includes("临期")) return "warning";
+  if (status.includes("临期")) return "warning";
   return "success";
 }
 
 function resolveListStockStatus(summary: InventorySummary, lots: InventoryLot[]): InventoryListStockStatus {
   if (summary.currentStockBase < 0) return "负库存";
-  if (summary.stockRisk === "低库存") return "低库存";
   if (lots.some((lot) => lot.materialId === summary.materialId && lot.status === "临期" && lot.remainingQtyBase > 0)) {
     return "临期";
   }
@@ -351,6 +489,84 @@ function formatInventoryDate(value?: string) {
   return value ? value.slice(0, 10) : "—";
 }
 
+function escapeSpreadsheetXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function resolvePurchaseOrderLastInboundText(row: InventoryPurchaseOrderLine) {
+  if (row.lastPurchaseSource === "none") return "暂无入库记录";
+  return [
+    row.lastPurchaseAt ? formatInventoryDateTime(row.lastPurchaseAt) : "无入库时间",
+    `上次入库 ${row.lastPurchaseQtyText}`,
+    row.lastPurchaseSupplier,
+    row.lastPurchaseLotNo
+  ]
+    .filter(Boolean)
+    .join("｜");
+}
+
+function buildPurchaseOrderExcelXml(order: InventoryPurchaseOrderRecord) {
+  const headers = [
+    "序号",
+    "物料",
+    "品牌",
+    "分类",
+    "当前库存余量",
+    "预计可用天数",
+    "上次入库参考",
+    "本次采购数量"
+  ];
+  const documentRows = [
+    ["采购单号", order.no],
+    ["生成时间", order.createdAt],
+    ["物料种数", `${order.lines.length}种`],
+    []
+  ];
+  const materialRows = order.lines.map((line, index) => [
+    String(index + 1),
+    line.materialName,
+    line.brand || "—",
+    line.category,
+    line.currentStockText,
+    line.estimatedAvailableDays?.displayText || "—",
+    resolvePurchaseOrderLastInboundText(line),
+    formatInventoryQty(line.quantityBase, line.baseUnit)
+  ]);
+  const buildRow = (cells: string[]) =>
+    `<Row>${cells.map((cell) => `<Cell><Data ss:Type="String">${escapeSpreadsheetXml(cell)}</Data></Cell>`).join("")}</Row>`;
+
+  return [
+    "<?xml version=\"1.0\"?>",
+    "<?mso-application progid=\"Excel.Sheet\"?>",
+    "<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"",
+    " xmlns:o=\"urn:schemas-microsoft-com:office:office\"",
+    " xmlns:x=\"urn:schemas-microsoft-com:office:excel\"",
+    " xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">",
+    "<Worksheet ss:Name=\"采购单\">",
+    "<Table>",
+    ...documentRows.map(buildRow),
+    buildRow(headers),
+    ...materialRows.map(buildRow),
+    "</Table>",
+    "</Worksheet>",
+    "</Workbook>"
+  ].join("");
+}
+
+function downloadPurchaseOrderExcel(order: InventoryPurchaseOrderRecord) {
+  const blob = new Blob([buildPurchaseOrderExcelXml(order)], { type: purchaseOrderExcelMimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${order.no}-采购单.xls`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function formatInventoryShortDate(value?: string) {
   return value ? formatMonthDay(value.slice(0, 10)) : "—";
 }
@@ -360,6 +576,7 @@ function resolveBusinessType(source: string) {
   if (source.includes("免疫")) return "免疫任务";
   if (source.includes("消毒")) return "消毒任务";
   if (source.includes("饲喂")) return "饲喂任务";
+  if (source.includes("出库") || source.includes("领用")) return "手工出库";
   if (source.includes("盘点")) return "库存盘点";
   if (source.includes("入库")) return "采购入库";
   return "其他业务";
@@ -370,11 +587,21 @@ function resolveMaterialCode(material: InventoryMaterial) {
 }
 
 function buildMaterialExtensionItems(material: InventoryMaterial) {
-  const specs = inventoryCategoryFieldSpecs[material.category] || [];
-  return specs.map((spec) => ({
+  const specs = getMaterialProfileFieldSpecs(material);
+  const items = specs.map((spec) => ({
     label: spec.label,
     value: formatInventoryMaterialFieldValue(material, spec)
   }));
+  if (material.category === "药品") {
+    const medicineClass = resolveMedicineClass(material);
+    if (medicineClass) {
+      items.unshift({
+        label: "药品分类",
+        value: medicineClass
+      });
+    }
+  }
+  return items;
 }
 
 function isLongUnstocked(lastStocktakeAt?: string) {
@@ -392,20 +619,589 @@ function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-function formatMonthDay(value: string) {
-  return value.slice(5).replace("-", "/");
+function formatFeedTrendQty(value: number) {
+  const absValue = Math.abs(value);
+  if (absValue >= 1000) {
+    const tons = value / 1000;
+    return `${Number.isInteger(tons) ? tons : tons.toFixed(1)}t`;
+  }
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}kg`;
 }
 
-function formatRelativeExpiryDate(expiryDate?: string) {
-  if (!expiryDate) return "";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(`${expiryDate}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return "";
-  const diffDays = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
-  if (diffDays < 0) return `已过期 ${Math.abs(diffDays)} 天`;
-  if (diffDays === 0) return "今天到期";
-  return `${diffDays}天后到期`;
+function formatSignedFeedTrendQty(value: number) {
+  if (value === 0) return formatFeedTrendQty(0);
+  return `${value > 0 ? "+" : "-"}${formatFeedTrendQty(Math.abs(value))}`;
+}
+
+function formatSignedInventoryQty(value: number, unit: string) {
+  if (value === 0) return formatInventoryQty(0, unit);
+  return `${value > 0 ? "+" : "-"}${formatInventoryQty(Math.abs(value), unit)}`;
+}
+
+function includesInventorySearchKeyword(source: string, keyword: string) {
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  if (!normalizedKeyword) return true;
+  return source.toLowerCase().includes(normalizedKeyword);
+}
+
+function isInventoryCheckDetailKeywordMatch(detail: InventoryCheckDetail, keyword: string) {
+  if (!keyword.trim()) return false;
+  return includesInventorySearchKeyword(detail.materialName, keyword);
+}
+
+function InventoryDifferenceTag({ diffItems }: { diffItems: number }) {
+  return diffItems > 0 ? (
+    <Tag color="orange" className="inventory-check-diff-tag">
+      {diffItems} 项差异
+    </Tag>
+  ) : (
+    <Tag color="success" className="inventory-check-diff-tag">
+      无差异
+    </Tag>
+  );
+}
+
+function InventoryCheckDifferenceValue({ difference, unit }: { difference: number; unit: string }) {
+  const tone = difference > 0 ? "gain" : difference < 0 ? "loss" : "none";
+  return (
+    <span className={`inventory-check-difference inventory-check-difference--${tone}`}>
+      {formatSignedInventoryQty(difference, unit)}
+      {difference > 0 ? <ArrowUpOutlined /> : null}
+      {difference < 0 ? <ArrowDownOutlined /> : null}
+    </span>
+  );
+}
+
+function InventoryCheckHeader({
+  record,
+  expanded,
+  onToggle
+}: {
+  record: InventoryCheckRecord;
+  expanded: boolean;
+  onToggle: (record: InventoryCheckRecord, event?: ReactMouseEvent<HTMLElement>) => void;
+}) {
+  return (
+    <div className="inventory-check-header-row">
+      <div className={`inventory-check-status inventory-check-status--${record.diffItems > 0 ? "warning" : "success"}`}>
+        <span />
+      </div>
+      <div className="inventory-check-metrics">
+        <span className="inventory-check-metric inventory-check-metric--primary">
+          <Text type="secondary">盘点物料</Text>
+          <strong>{record.totalItems} 项</strong>
+        </span>
+        <span className={`inventory-check-metric inventory-check-metric--${record.diffItems > 0 ? "warning" : "success"}`}>
+          <Text type="secondary">存在差异</Text>
+          <strong>{record.diffItems} 项</strong>
+        </span>
+        <span className="inventory-check-metric">
+          <Text type="secondary">库存调整</Text>
+          <strong>{record.adjustedItems} 项</strong>
+        </span>
+        <span className="inventory-check-metric">
+          <Text type="secondary">盘点人/时间</Text>
+          <strong>{record.checker}｜{formatInventoryDateTime(record.checkTime)}</strong>
+        </span>
+      </div>
+      <div className="inventory-check-row-actions">
+        <InventoryDifferenceTag diffItems={record.diffItems} />
+        <Tooltip title={expanded ? "收起明细" : "展开明细"}>
+          <Button
+            type="text"
+            size="small"
+            icon={expanded ? <UpOutlined /> : <DownOutlined />}
+            onClick={(event) => onToggle(record, event)}
+          />
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+function InventoryCheckDetailTable({
+  record,
+  keyword,
+  onViewLedger
+}: {
+  record: InventoryCheckRecord;
+  keyword: string;
+  onViewLedger: (record: InventoryCheckRecord, detail: InventoryCheckDetail) => void;
+}) {
+  const detailColumns: ColumnsType<InventoryCheckDetail> = [
+    {
+      title: "物料",
+      dataIndex: "materialName",
+      sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
+      render: (value) => <span className="inventory-cell-strong">{value}</span>
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      filters: inventoryCategoryOrder.map((category) => ({ text: category, value: category })),
+      onFilter: (value, row) => row.category.includes(String(value))
+    },
+    {
+      title: "系统库存",
+      dataIndex: "systemStock",
+      sorter: (a, b) => a.systemStock - b.systemStock,
+      render: (_, row) => formatInventoryQty(row.systemStock, row.unit)
+    },
+    {
+      title: "实际库存",
+      dataIndex: "actualStock",
+      sorter: (a, b) => a.actualStock - b.actualStock,
+      render: (_, row) => formatInventoryQty(row.actualStock, row.unit)
+    },
+    {
+      title: "差异",
+      dataIndex: "difference",
+      sorter: (a, b) => a.difference - b.difference,
+      render: (_, row) => (
+        <span className="inventory-check-difference-cell">
+          <InventoryCheckDifferenceValue difference={row.difference} unit={row.unit} />
+          {row.difference !== 0 ? (
+            <Tooltip title="查看库存流水">
+              <Button
+                type="text"
+                size="small"
+                icon={<HistoryOutlined />}
+                aria-label="查看库存流水"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onViewLedger(record, row);
+                }}
+              />
+            </Tooltip>
+          ) : null}
+        </span>
+      )
+    }
+  ];
+
+  return (
+    <div className="inventory-check-detail-panel">
+      <div className="inventory-check-detail-summary">
+        <span>
+          共盘点 <strong>{record.totalItems}</strong> 项物料
+        </span>
+        <span>
+          差异 <strong>{record.diffItems}</strong> 项
+        </span>
+        <span>
+          已调整 <strong>{record.adjustedItems}</strong> 项
+        </span>
+      </div>
+      <Table
+        rowKey="id"
+        size="small"
+        className="inventory-console-table inventory-check-detail-table"
+        columns={detailColumns}
+        dataSource={record.details}
+        pagination={false}
+        rowClassName={(row) =>
+          [
+            row.difference !== 0 ? "inventory-check-detail-row--diff" : "",
+            isInventoryCheckDetailKeywordMatch(row, keyword) ? "inventory-check-detail-row--search-hit" : ""
+          ]
+            .filter(Boolean)
+            .join(" ")
+        }
+      />
+    </div>
+  );
+}
+
+function InventoryLedgerTable({
+  dateRange,
+  keyword,
+  ledgerTypes,
+  columns,
+  dataSource,
+  onDateRangeChange,
+  onKeywordChange,
+  onLedgerTypesChange
+}: {
+  dateRange: [string, string] | null;
+  keyword: string;
+  ledgerTypes: InventoryLedgerType[];
+  columns: ColumnsType<InventoryLedgerRow>;
+  dataSource: InventoryLedgerRow[];
+  onDateRangeChange: (dateRange: [string, string] | null) => void;
+  onKeywordChange: (keyword: string) => void;
+  onLedgerTypesChange: (ledgerTypes: InventoryLedgerType[]) => void;
+}) {
+  return (
+    <>
+      <div className="inventory-ledger-filterbar">
+        <DatePicker.RangePicker
+          value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
+          placeholder={["开始日期", "结束日期"]}
+          onChange={(_, dateStrings) =>
+            onDateRangeChange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+          }
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索物料名称、品牌或批次"
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+        />
+        <Select
+          mode="multiple"
+          allowClear
+          placeholder="筛选类型"
+          value={ledgerTypes}
+          onChange={(value) => onLedgerTypesChange(value)}
+          options={["采购入库", "业务消耗", "消耗冲销", "入库更正", "盘盈", "盘亏", "盘点调整", "报废"].map((value) => ({
+            label: value,
+            value
+          }))}
+        />
+      </div>
+      <Table
+        rowKey="id"
+        className="inventory-console-table"
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+      />
+    </>
+  );
+}
+
+function InventoryCheckTable({
+  dateRange,
+  keyword,
+  checker,
+  diffFilter,
+  checkerOptions,
+  dataSource,
+  expandedRowKeys,
+  focusedRecordId,
+  onDateRangeChange,
+  onKeywordChange,
+  onCheckerChange,
+  onDiffFilterChange,
+  onExpandedRowKeysChange,
+  onToggleRecord,
+  onViewLedger
+}: {
+  dateRange: [string, string] | null;
+  keyword: string;
+  checker?: string;
+  diffFilter: InventoryCheckDiffFilter;
+  checkerOptions: Array<{ label: string; value: string }>;
+  dataSource: InventoryCheckRecord[];
+  expandedRowKeys: string[];
+  focusedRecordId: string | null;
+  onDateRangeChange: (dateRange: [string, string] | null) => void;
+  onKeywordChange: (keyword: string) => void;
+  onCheckerChange: (checker?: string) => void;
+  onDiffFilterChange: (filter: InventoryCheckDiffFilter) => void;
+  onExpandedRowKeysChange: (keys: string[]) => void;
+  onToggleRecord: (record: InventoryCheckRecord, event?: ReactMouseEvent<HTMLElement>) => void;
+  onViewLedger: (record: InventoryCheckRecord, detail: InventoryCheckDetail) => void;
+}) {
+  const columns: ColumnsType<InventoryCheckRecord> = [
+    {
+      key: "checkHeader",
+      render: (_, record) => (
+        <InventoryCheckHeader
+          record={record}
+          expanded={expandedRowKeys.includes(record.id)}
+          onToggle={onToggleRecord}
+        />
+      )
+    }
+  ];
+
+  return (
+    <>
+      <div className="inventory-ledger-filterbar inventory-check-filterbar">
+        <DatePicker.RangePicker
+          value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
+          placeholder={["开始日期", "结束日期"]}
+          onChange={(_, dateStrings) =>
+            onDateRangeChange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+          }
+        />
+        <Input.Search
+          allowClear
+          placeholder="搜索物料名称"
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+        />
+        <Select
+          allowClear
+          placeholder="盘点人"
+          value={checker}
+          options={checkerOptions}
+          onChange={(value) => onCheckerChange(value)}
+        />
+        <Select
+          placeholder="是否存在差异"
+          value={diffFilter}
+          options={inventoryCheckDiffFilterOptions.map((value) => ({ label: value, value }))}
+          onChange={(value) => onDiffFilterChange(value)}
+        />
+      </div>
+      <Table
+        rowKey="id"
+        showHeader={false}
+        className="inventory-console-table inventory-check-table"
+        columns={columns}
+        dataSource={dataSource}
+        pagination={{
+          pageSize: 20,
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 条盘点记录`
+        }}
+        rowClassName={(record) => (record.id === focusedRecordId ? "inventory-check-row--focused" : "")}
+        expandable={{
+          expandedRowKeys,
+          expandedRowRender: (record) =>
+            expandedRowKeys.includes(record.id) ? (
+              <InventoryCheckDetailTable record={record} keyword={keyword} onViewLedger={onViewLedger} />
+            ) : null,
+          expandRowByClick: true,
+          expandIcon: () => null,
+          columnWidth: 0,
+          onExpandedRowsChange: (keys) => onExpandedRowKeysChange(keys.map((key) => String(key)))
+        }}
+      />
+    </>
+  );
+}
+
+function InventoryInboundHeader({
+  record,
+  expanded,
+  onToggle
+}: {
+  record: InventoryInboundOrder;
+  expanded: boolean;
+  onToggle: (record: InventoryInboundOrder, event?: ReactMouseEvent<HTMLElement>) => void;
+}) {
+  const remark = record.remark?.trim();
+  const totalAmount = resolveInventoryInboundTotalAmount(record);
+  const itemCountText = `${record.details.length} 项物料`;
+
+  return (
+    <div className="inventory-inbound-header-row">
+      <Tooltip title={expanded ? "收起明细" : "展开明细"}>
+        <Button
+          type="text"
+          size="small"
+          className="inventory-inbound-expand-button"
+          icon={expanded ? <UpOutlined /> : <DownOutlined />}
+          onClick={(event) => onToggle(record, event)}
+        />
+      </Tooltip>
+      <div className="inventory-inbound-identity">
+        <span>
+          <strong>{record.orderNo}</strong>
+        </span>
+      </div>
+      <div className="inventory-inbound-route">
+        <Tag color="blue">{record.type}</Tag>
+      </div>
+      <div className="inventory-inbound-total">
+        <span>入库总金额</span>
+        <strong>{formatCurrency(totalAmount)}</strong>
+      </div>
+      <div className="inventory-inbound-item-count">{itemCountText}</div>
+      <Tooltip title={remark ? `备注：${remark}` : "无备注"} placement="topLeft">
+        <span className="inventory-inbound-remark" aria-label={`备注：${remark || "—"}`}>
+          <span className="inventory-inbound-remark__label">备注：</span>
+          <span className="inventory-inbound-remark__text">{remark || "—"}</span>
+        </span>
+      </Tooltip>
+      <div className="inventory-inbound-time">
+        <strong>{formatInventoryDate(record.inboundTime)}</strong>
+        <span>{record.inboundTime.slice(11, 16)}</span>
+      </div>
+      <div className="inventory-inbound-operator">{record.operator}</div>
+    </div>
+  );
+}
+
+function resolveInventoryInboundTotalAmount(record: InventoryInboundOrder) {
+  return record.details.reduce((sum, detail) => sum + detail.totalAmount, 0);
+}
+
+function InventoryInboundMaterialName({ value }: { value: string }) {
+  return (
+    <Tooltip title="预留：当前库存、最近一次入库、最近一次出库" placement="topLeft">
+      <span className="inventory-inbound-material-name">{value}</span>
+    </Tooltip>
+  );
+}
+
+function InventoryInboundDetail({ record }: { record: InventoryInboundOrder }) {
+  const materialColumns: ColumnsType<InventoryInboundMaterial> = [
+    {
+      title: "物料名称",
+      dataIndex: "materialName",
+      sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
+      render: (value) => <InventoryInboundMaterialName value={value} />
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      filters: Array.from(new Set(record.details.map((detail) => detail.category))).map((category) => ({
+        text: category,
+        value: category
+      })),
+      onFilter: (value, row) => row.category === value
+    },
+    {
+      title: "品牌",
+      dataIndex: "brand",
+      sorter: (a, b) => a.brand.localeCompare(b.brand, "zh-Hans-CN")
+    },
+    {
+      title: "数量",
+      dataIndex: "quantity",
+      sorter: (a, b) => a.quantity - b.quantity,
+      render: (value) => <span className="inventory-inbound-quantity">{value}</span>
+    },
+    {
+      title: "单位",
+      dataIndex: "unit"
+    },
+    {
+      title: "总金额",
+      dataIndex: "totalAmount",
+      sorter: (a, b) => a.totalAmount - b.totalAmount,
+      render: (value) => formatCurrency(value)
+    },
+    {
+      title: "保质期至",
+      dataIndex: "expiryDate",
+      sorter: (a, b) => a.expiryDate.localeCompare(b.expiryDate)
+    },
+    {
+      title: "供应商",
+      dataIndex: "supplier"
+    },
+    {
+      title: "供应商电话",
+      dataIndex: "supplierPhone",
+      render: (value) => value || "—"
+    }
+  ];
+
+  return (
+    <div className="inventory-inbound-detail-panel">
+      <section className="inventory-inbound-detail-section">
+        <div className="inventory-inbound-detail-section__title">入库物料</div>
+        <Table
+          rowKey="id"
+          size="small"
+          className="inventory-console-table inventory-inbound-material-table"
+          columns={materialColumns}
+          dataSource={record.details}
+          pagination={false}
+        />
+        <div className="inventory-inbound-material-footer">
+          <span className="inventory-inbound-material-count">共 {record.details.length} 项物料</span>
+          <span className="inventory-inbound-material-total">
+            入库总金额 <strong>{formatCurrency(resolveInventoryInboundTotalAmount(record))}</strong>
+          </span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function InventoryInboundOrderTable({
+  dateRange,
+  keyword,
+  typeFilter,
+  dataSource,
+  expandedRowKeys,
+  onDateRangeChange,
+  onKeywordChange,
+  onTypeFilterChange,
+  onToggleRecord
+}: {
+  dateRange: [string, string] | null;
+  keyword: string;
+  typeFilter: InventoryInboundTypeFilter;
+  dataSource: InventoryInboundOrder[];
+  expandedRowKeys: string[];
+  onDateRangeChange: (dateRange: [string, string] | null) => void;
+  onKeywordChange: (keyword: string) => void;
+  onTypeFilterChange: (type: InventoryInboundTypeFilter) => void;
+  onToggleRecord: (record: InventoryInboundOrder, event?: ReactMouseEvent<HTMLElement>) => void;
+}) {
+  const columns: ColumnsType<InventoryInboundOrder> = [
+    {
+      key: "inboundHeader",
+      render: (_, record) => (
+        <InventoryInboundHeader
+          record={record}
+          expanded={expandedRowKeys.includes(record.id)}
+          onToggle={onToggleRecord}
+        />
+      )
+    }
+  ];
+
+  return (
+    <>
+      <div className="inventory-ledger-filterbar inventory-inbound-filterbar">
+        <Input.Search
+          allowClear
+          placeholder="搜索入库单号、物料名称"
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+        />
+        <DatePicker.RangePicker
+          value={dateRange ? [dayjs(dateRange[0]), dayjs(dateRange[1])] : null}
+          placeholder={["开始时间", "结束时间"]}
+          onChange={(_, dateStrings) =>
+            onDateRangeChange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+          }
+        />
+        <Select
+          value={typeFilter}
+          options={[
+            { label: "全部", value: "全部" },
+            ...inventoryInboundTypeOptions.map((value) => ({ label: value, value }))
+          ]}
+          onChange={(value) => onTypeFilterChange(value)}
+        />
+      </div>
+      <Table
+        rowKey="id"
+        showHeader={false}
+        className="inventory-console-table inventory-inbound-table"
+        columns={columns}
+        dataSource={dataSource}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 张入库单`
+        }}
+        onRow={(record) => ({
+          onClick: () => onToggleRecord(record)
+        })}
+        expandable={{
+          expandedRowKeys,
+          expandedRowRender: (record) =>
+            expandedRowKeys.includes(record.id) ? <InventoryInboundDetail record={record} /> : null,
+          expandIcon: () => null,
+          columnWidth: 0
+        }}
+      />
+    </>
+  );
+}
+
+function formatMonthDay(value: string) {
+  return value.slice(5).replace("-", "/");
 }
 
 function formatISODate(date: Date) {
@@ -642,6 +1438,396 @@ function InventoryTrendChart({
   );
 }
 
+function FeedStockTrendChart({
+  points,
+  onPointClick
+}: {
+  points: FeedStockTrendPoint[];
+  onPointClick: (date: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(680);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const update = () => setWidth(el.clientWidth || 680);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const height = 236;
+  const padding = { top: 22, right: 18, bottom: 30, left: 54 };
+  const innerW = Math.max(width - padding.left - padding.right, 10);
+  const innerH = height - padding.top - padding.bottom;
+  const maxQuantity = Math.max(...points.map((point) => point.quantity), 0);
+  const niceMax = buildNiceCeiling(maxQuantity);
+  const hasData = points.length > 0 && maxQuantity > 0;
+
+  const coords = points.map((point, index) => {
+    const x =
+      points.length === 1
+        ? padding.left + innerW / 2
+        : padding.left + (index / (points.length - 1)) * innerW;
+    const y = padding.top + innerH - (niceMax > 0 ? (point.quantity / niceMax) * innerH : 0);
+    return { x, y, point, index };
+  });
+
+  const linePath = buildSmoothLinePath(coords);
+  const areaPath =
+    coords.length && hasData
+      ? `${linePath} L ${coords[coords.length - 1].x} ${padding.top + innerH} L ${coords[0].x} ${
+          padding.top + innerH
+        } Z`
+      : "";
+  const yTicks = 4;
+  const gridLines = Array.from({ length: yTicks + 1 }, (_, row) => ({
+    value: (niceMax / yTicks) * (yTicks - row),
+    y: padding.top + (innerH / yTicks) * row
+  }));
+  const labelEvery = Math.max(1, Math.ceil(points.length / 7));
+
+  const handleMove = (event: ReactMouseEvent<SVGSVGElement>) => {
+    if (!coords.length) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    let nearest = 0;
+    let bestDistance = Infinity;
+    coords.forEach((coord, index) => {
+      const distance = Math.abs(coord.x - x);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        nearest = index;
+      }
+    });
+    setActiveIndex(nearest);
+  };
+
+  const active = activeIndex != null && activeIndex < coords.length ? coords[activeIndex] : null;
+
+  return (
+    <div className="feed-stock-trend-chart" ref={containerRef}>
+      <svg
+        className="feed-stock-trend-chart__svg"
+        width={width}
+        height={height}
+        role="img"
+        aria-label="近30天饲料库存余量趋势"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setActiveIndex(null)}
+      >
+        <defs>
+          <linearGradient id="feedStockTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#16a34a" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#16a34a" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {gridLines.map((grid, row) => (
+          <g key={`feed-grid-${row}`}>
+            <line
+              className="feed-stock-trend-chart__gridline"
+              x1={padding.left}
+              y1={grid.y}
+              x2={width - padding.right}
+              y2={grid.y}
+            />
+            <text
+              className="feed-stock-trend-chart__ytick"
+              x={padding.left - 10}
+              y={grid.y + 3}
+              textAnchor="end"
+            >
+              {formatFeedTrendQty(grid.value)}
+            </text>
+          </g>
+        ))}
+        {areaPath ? <path className="feed-stock-trend-chart__area" d={areaPath} fill="url(#feedStockTrendFill)" /> : null}
+        {hasData && linePath ? <path className="feed-stock-trend-chart__line" d={linePath} /> : null}
+        {hasData
+          ? coords.map((coord) => (
+              <g key={coord.point.date} className="feed-stock-trend-chart__point">
+                <circle
+                  className={`feed-stock-trend-chart__dot${
+                    coord.point.anomaly ? ` is-${coord.point.anomaly}` : ""
+                  }`}
+                  cx={coord.x}
+                  cy={coord.y}
+                  r={coord.point.anomaly ? 3.8 : 2.4}
+                />
+                <circle
+                  className="feed-stock-trend-chart__hit-area"
+                  data-feed-trend-date={coord.point.date}
+                  cx={coord.x}
+                  cy={coord.y}
+                  r={9}
+                  onClick={() => onPointClick(coord.point.date)}
+                />
+              </g>
+            ))
+          : null}
+        {coords.map((coord, index) =>
+          index % labelEvery === 0 || index === coords.length - 1 ? (
+            <text
+              key={`feed-xtick-${coord.point.date}`}
+              className="feed-stock-trend-chart__xtick"
+              x={coord.x}
+              y={height - 10}
+              textAnchor="middle"
+            >
+              {formatMonthDay(coord.point.date)}
+            </text>
+          ) : null
+        )}
+        {active ? (
+          <g className="feed-stock-trend-chart__cursor">
+            <line x1={active.x} y1={padding.top} x2={active.x} y2={padding.top + innerH} />
+            <circle cx={active.x} cy={active.y} r={4.4} />
+          </g>
+        ) : null}
+        {!hasData ? (
+          <text className="feed-stock-trend-chart__empty" x={width / 2} y={padding.top + innerH / 2} textAnchor="middle">
+            暂无库存数据
+          </text>
+        ) : null}
+      </svg>
+      {active ? (
+        <div
+          className="feed-stock-trend-chart__tooltip"
+          style={{
+            left: Math.min(Math.max(active.x, 118), width - 118),
+            top: Math.max(active.y - 18, 8)
+          }}
+        >
+          <strong>{active.point.date}</strong>
+          <span>库存余量：{formatFeedTrendQty(active.point.quantity)}</span>
+          <span>当日入库：{formatFeedTrendQty(active.point.inboundQuantity)}</span>
+          <span>当日出库：{formatFeedTrendQty(active.point.outboundQuantity)}</span>
+          <span>较昨日变化：{formatSignedFeedTrendQty(active.point.changeQuantity)}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MaterialStockTrendChart({
+  points,
+  unit
+}: {
+  points: MaterialStockTrendPoint[];
+  unit: string;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(720);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const update = () => setWidth(el.clientWidth || 720);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const height = 260;
+  const padding = { top: 26, right: 22, bottom: 34, left: 58 };
+  const innerW = Math.max(width - padding.left - padding.right, 10);
+  const innerH = height - padding.top - padding.bottom;
+  const maxQuantity = Math.max(...points.map((point) => point.quantity), 0);
+  const niceMax = buildNiceCeiling(maxQuantity);
+  const hasData = points.length > 0 && maxQuantity > 0;
+  const coords = points.map((point, index) => {
+    const x =
+      points.length === 1
+        ? padding.left + innerW / 2
+        : padding.left + (index / (points.length - 1)) * innerW;
+    const y = padding.top + innerH - (niceMax > 0 ? (point.quantity / niceMax) * innerH : 0);
+    return { x, y, point, index };
+  });
+  const linePath = buildSmoothLinePath(coords);
+  const areaPath =
+    coords.length && hasData
+      ? `${linePath} L ${coords[coords.length - 1].x} ${padding.top + innerH} L ${coords[0].x} ${
+          padding.top + innerH
+        } Z`
+      : "";
+  const yTicks = 4;
+  const gridLines = Array.from({ length: yTicks + 1 }, (_, row) => ({
+    value: (niceMax / yTicks) * (yTicks - row),
+    y: padding.top + (innerH / yTicks) * row
+  }));
+  const labelEvery = Math.max(1, Math.ceil(points.length / 7));
+
+  const handleMove = (event: ReactMouseEvent<SVGSVGElement>) => {
+    if (!coords.length) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    let nearest = 0;
+    let bestDistance = Infinity;
+    coords.forEach((coord, index) => {
+      const distance = Math.abs(coord.x - x);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        nearest = index;
+      }
+    });
+    setActiveIndex(nearest);
+  };
+
+  const active = activeIndex != null && activeIndex < coords.length ? coords[activeIndex] : null;
+  const markerOffset = (point: MaterialStockTrendPoint) => {
+    const flags = [point.hasInbound, point.hasAdjustment, point.hasScrap, point.hasOutbound].filter(Boolean).length;
+    return flags > 1 ? -((flags - 1) * 5) : 0;
+  };
+
+  return (
+    <div className="material-stock-trend-chart" ref={containerRef}>
+      <svg
+        className="material-stock-trend-chart__svg"
+        width={width}
+        height={height}
+        role="img"
+        aria-label="物料库存趋势"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setActiveIndex(null)}
+      >
+        <defs>
+          <linearGradient id="materialStockTrendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {gridLines.map((grid, row) => (
+          <g key={`material-grid-${row}`}>
+            <line
+              className="material-stock-trend-chart__gridline"
+              x1={padding.left}
+              y1={grid.y}
+              x2={width - padding.right}
+              y2={grid.y}
+            />
+            <text
+              className="material-stock-trend-chart__ytick"
+              x={padding.left - 10}
+              y={grid.y + 3}
+              textAnchor="end"
+            >
+              {formatInventoryQty(grid.value, unit)}
+            </text>
+          </g>
+        ))}
+        {areaPath ? <path className="material-stock-trend-chart__area" d={areaPath} fill="url(#materialStockTrendFill)" /> : null}
+        {hasData && linePath ? <path className="material-stock-trend-chart__line" d={linePath} /> : null}
+        {hasData
+          ? coords.map((coord) => {
+              let offset = markerOffset(coord.point);
+              const markers: JSX.Element[] = [];
+              if (coord.point.hasInbound) {
+                markers.push(
+                  <circle
+                    key="inbound"
+                    className="material-stock-trend-chart__marker is-inbound"
+                    cx={coord.x + offset}
+                    cy={coord.y - 10}
+                    r={3.2}
+                  />
+                );
+                offset += 10;
+              }
+              if (coord.point.hasAdjustment) {
+                markers.push(
+                  <path
+                    key="adjustment"
+                    className="material-stock-trend-chart__marker is-adjustment"
+                    d={`M ${coord.x + offset} ${coord.y - 14} L ${coord.x + offset + 4} ${coord.y - 7} L ${
+                      coord.x + offset - 4
+                    } ${coord.y - 7} Z`}
+                  />
+                );
+                offset += 10;
+              }
+              if (coord.point.hasScrap) {
+                markers.push(
+                  <path
+                    key="scrap"
+                    className="material-stock-trend-chart__marker is-scrap"
+                    d={`M ${coord.x + offset} ${coord.y - 6} L ${coord.x + offset + 4} ${coord.y - 13} L ${
+                      coord.x + offset - 4
+                    } ${coord.y - 13} Z`}
+                  />
+                );
+                offset += 10;
+              }
+              if (coord.point.hasOutbound) {
+                markers.push(
+                  <rect
+                    key="outbound"
+                    className="material-stock-trend-chart__marker is-outbound"
+                    x={coord.x + offset - 3}
+                    y={coord.y - 13}
+                    width={6}
+                    height={6}
+                    rx={1}
+                  />
+                );
+              }
+              return (
+                <g key={`material-point-${coord.point.date}`} className="material-stock-trend-chart__point">
+                  <circle className="material-stock-trend-chart__dot" cx={coord.x} cy={coord.y} r={2.4} />
+                  {markers}
+                </g>
+              );
+            })
+          : null}
+        {coords.map((coord, index) =>
+          index % labelEvery === 0 || index === coords.length - 1 ? (
+            <text
+              key={`material-xtick-${coord.point.date}`}
+              className="material-stock-trend-chart__xtick"
+              x={coord.x}
+              y={height - 10}
+              textAnchor="middle"
+            >
+              {formatMonthDay(coord.point.date)}
+            </text>
+          ) : null
+        )}
+        {active ? (
+          <g className="material-stock-trend-chart__cursor">
+            <line x1={active.x} y1={padding.top} x2={active.x} y2={padding.top + innerH} />
+            <circle cx={active.x} cy={active.y} r={4.2} />
+          </g>
+        ) : null}
+        {!hasData ? (
+          <text className="material-stock-trend-chart__empty" x={width / 2} y={padding.top + innerH / 2} textAnchor="middle">
+            暂无库存趋势数据
+          </text>
+        ) : null}
+      </svg>
+      {active ? (
+        <div
+          className="material-stock-trend-chart__tooltip"
+          style={{
+            left: Math.min(Math.max(active.x, 116), width - 116),
+            top: Math.max(active.y - 18, 8)
+          }}
+        >
+          <strong>{active.point.date}</strong>
+          <span>库存：{formatInventoryQty(active.point.quantity, unit)}</span>
+          <span>入库：{formatInventoryQty(active.point.inboundQuantity, unit)}</span>
+          <span>出库：{formatInventoryQty(active.point.outboundQuantity, unit)}</span>
+          <span>盘点：{formatSignedInventoryQty(active.point.adjustmentQuantity, unit)}</span>
+          {active.point.scrapQuantity > 0 ? <span>报废：{formatInventoryQty(active.point.scrapQuantity, unit)}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function InventoryDonutChart({
   rows,
   totalValue
@@ -664,46 +1850,325 @@ function InventoryDonutChart({
   );
 }
 
-function parseLedgerQuantity(quantityText: string): number {
-  const matched = quantityText.match(/[-+]?\d+(\.\d+)?/);
-  return matched ? Number(matched[0]) : 0;
+function renderFeedEstimatedAvailableDaysText(result: FeedEstimatedAvailableDaysResult) {
+  const statusClass =
+    result.status === "zero" || result.status === "紧急"
+      ? "is-critical"
+      : result.status === "偏低"
+        ? "is-low"
+        : result.status === "关注"
+          ? "is-watch"
+          : result.status === "正常"
+            ? "is-normal"
+            : "is-empty";
+
+  return (
+    <span className={`inventory-feed-available-days ${statusClass}`}>
+      <span>{result.displayText}</span>
+    </span>
+  );
 }
 
-type ReceivePackageConversionDraft = {
-  fromUnit?: string;
-  quantity?: number;
-};
+function resolveInventoryStockHealth(result?: FeedEstimatedAvailableDaysResult) {
+  if (!result) {
+    return {
+      filledPercent: 80,
+      className: "is-normal"
+    };
+  }
+  const days = result.days;
+  if (days == null) {
+    return {
+      filledPercent: 0,
+      className: "is-empty"
+    };
+  }
+  if (days >= 30) {
+    return {
+      filledPercent: 100,
+      className: "is-abundant"
+    };
+  }
+  if (days >= 15) {
+    return {
+      filledPercent: 80,
+      className: "is-normal"
+    };
+  }
+  if (days >= 7) {
+    return {
+      filledPercent: 50,
+      className: "is-watch"
+    };
+  }
+  if (days >= 3) {
+    return {
+      filledPercent: 30,
+      className: "is-low"
+    };
+  }
+  return {
+    filledPercent: 10,
+    className: "is-critical"
+  };
+}
+
+function resolveInventorySummaryStockHealth(row: InventorySummary, result?: FeedEstimatedAvailableDaysResult) {
+  if (result) return resolveInventoryStockHealth(result);
+  if (row.currentStockBase < 0) {
+    return {
+      filledPercent: 10,
+      className: "is-critical"
+    };
+  }
+  return {
+    filledPercent: row.currentStockBase > 0 ? 80 : 10,
+    className: row.currentStockBase > 0 ? "is-normal" : "is-critical"
+  };
+}
+
+function renderInventoryStockHealth(
+  row: InventorySummary,
+  result?: FeedEstimatedAvailableDaysResult,
+  material?: InventoryMaterial | null
+) {
+  const health = resolveInventorySummaryStockHealth(row, result);
+  return (
+    <div className={`inventory-stock-health ${health.className}`}>
+      <span className="inventory-stock-health__bar" aria-hidden>
+        <span className="inventory-stock-health__fill" style={{ width: `${health.filledPercent}%` }} />
+      </span>
+      <span className="inventory-stock-health__qty">
+        {formatInventoryQtyWithPackage(row.currentStockBase, material || { baseUnit: row.baseUnit })}
+      </span>
+    </div>
+  );
+}
+
+function resolveInventoryUsageTrendKind(values: number[], total: number): InventoryUsageTrendKind {
+  if (!values.length || total <= 0 || values.every((value) => value === 0)) return "idle";
+
+  const average = total / values.length;
+  const sorted = [...values].sort((a, b) => b - a);
+  const highest = sorted[0] || 0;
+  const secondHighest = sorted[1] || 0;
+  if (average > 0 && highest >= average * 2.4 && highest >= Math.max(secondHighest * 1.6, average + 1)) return "spike";
+
+  const splitIndex = Math.floor(values.length / 2);
+  const firstHalf = values.slice(0, splitIndex);
+  const secondHalf = values.slice(splitIndex);
+  const firstAverage = firstHalf.reduce((sum, value) => sum + value, 0) / Math.max(firstHalf.length, 1);
+  const secondAverage = secondHalf.reduce((sum, value) => sum + value, 0) / Math.max(secondHalf.length, 1);
+
+  if (firstAverage > 0 && secondAverage >= firstAverage * 1.35) return "rising";
+  if (firstAverage > 0 && secondAverage <= firstAverage * 0.65) return "falling";
+  return "stable";
+}
+
+function resolveInventoryUsageTrendMeta(values: number[], total: number) {
+  const kind = resolveInventoryUsageTrendKind(values, total);
+  return {
+    kind,
+    color: inventoryUsageTrendColors[kind]
+  };
+}
+
+function resolveInventoryStockTrendKind(values: number[]): InventoryStockTrendKind {
+  const normalized = values.filter((value) => Number.isFinite(value));
+  if (!normalized.length || normalized.every((value) => value === 0)) return "idle";
+
+  const first = normalized[0];
+  const latest = normalized[normalized.length - 1];
+  const average = normalized.reduce((sum, value) => sum + value, 0) / normalized.length;
+  const range = Math.max(...normalized) - Math.min(...normalized);
+  const threshold = Math.max(Math.abs(average) * 0.12, 1);
+  const delta = latest - first;
+
+  if (delta >= threshold) return "rising";
+  if (delta <= -threshold) return "falling";
+  if (average > 0 && range >= average * 0.35) return "spike";
+  return "stable";
+}
+
+function resolveInventoryStockTrendMeta(values: number[]) {
+  const kind = resolveInventoryStockTrendKind(values);
+  return {
+    kind,
+    color: inventoryStockTrendColors[kind]
+  };
+}
+
+function renderInventoryMonthlyUsage(row: InventorySummary) {
+  const trendMeta = resolveInventoryUsageTrendMeta(row.usageTrend, row.monthlyUsageBase);
+  const usageText = formatInventoryQty(row.monthlyUsageBase, row.baseUnit);
+
+  return (
+    <div className={`inventory-usage-cell inventory-usage-cell--${trendMeta.kind}`}>
+      <Sparkline
+        data={row.usageTrend}
+        color={trendMeta.color}
+        unit={row.baseUnit}
+        total={row.monthlyUsageBase}
+        valueText={usageText}
+        valueFormatter={(value) => formatInventoryQty(value, row.baseUnit)}
+        className="inventory-usage-cell__sparkline"
+      />
+      <span className="inventory-usage-cell__value">{usageText}</span>
+    </div>
+  );
+}
+
+function renderInventoryStockTrend(row: InventorySummary) {
+  const trendMeta = resolveInventoryStockTrendMeta(row.stockTrend);
+  const usageText = formatInventoryQty(row.monthlyUsageBase, row.baseUnit);
+
+  return (
+    <div className={`inventory-usage-cell inventory-usage-cell--${trendMeta.kind}`}>
+      <Sparkline
+        data={row.stockTrend}
+        tooltipStatsData={row.usageTrend}
+        color={trendMeta.color}
+        unit={row.baseUnit}
+        total={row.monthlyUsageBase}
+        valueText={usageText}
+        valueFormatter={(value) => formatInventoryQty(value, row.baseUnit)}
+        className="inventory-usage-cell__sparkline"
+        title="近30天使用"
+      />
+    </div>
+  );
+}
+
+function buildStocktakeRiskLineText(status: StocktakeRiskStatus, quantityBase: number, totalBase: number, unit: string) {
+  const quantityText = formatInventoryQty(quantityBase, unit);
+  if (status === "负库存" || totalBase <= 0) return `${status}：${quantityText}`;
+  const share = Math.round((quantityBase / totalBase) * 100);
+  return `${status}：${quantityText}（${share}%）`;
+}
+
+function buildStocktakeRiskLines(row: InventoryStocktakeScopeRow, lots: InventoryLot[]): StocktakeRiskLine[] {
+  const lines: StocktakeRiskLine[] = [];
+
+  if (row.bookQtyBase < 0) {
+    const quantityBase = Math.abs(row.bookQtyBase);
+    lines.push({
+      status: "负库存",
+      tone: "negative",
+      quantityBase,
+      text: buildStocktakeRiskLineText("负库存", quantityBase, row.bookQtyBase, row.baseUnit)
+    });
+  }
+
+  const expiredQuantityBase = lots
+    .filter((lot) => lot.materialId === row.materialId && lot.status === "过期" && lot.remainingQtyBase > 0)
+    .reduce((sum, lot) => sum + lot.remainingQtyBase, 0);
+  if (expiredQuantityBase > 0) {
+    lines.push({
+      status: "已过期",
+      tone: "expired",
+      quantityBase: expiredQuantityBase,
+      text: buildStocktakeRiskLineText("已过期", expiredQuantityBase, row.bookQtyBase, row.baseUnit)
+    });
+  }
+
+  const expiringQuantityBase = lots
+    .filter((lot) => lot.materialId === row.materialId && lot.status === "临期" && lot.remainingQtyBase > 0)
+    .reduce((sum, lot) => sum + lot.remainingQtyBase, 0);
+  if (expiringQuantityBase > 0) {
+    lines.push({
+      status: "临期",
+      tone: "expiring",
+      quantityBase: expiringQuantityBase,
+      text: buildStocktakeRiskLineText("临期", expiringQuantityBase, row.bookQtyBase, row.baseUnit)
+    });
+  }
+
+  return lines;
+}
+
+function renderStocktakeRecentChangesTooltip(recentLedgers: InventoryLedgerRow[]) {
+  return (
+    <div className="inventory-stocktake-change-tooltip">
+      <strong>最近库存变化</strong>
+      {recentLedgers.length ? (
+        <div className="inventory-stocktake-change-tooltip__rows">
+          {recentLedgers.map((ledger) => (
+            <span key={ledger.id}>
+              <span>{formatInventoryShortDate(ledger.occurredAt)}</span>
+              <span>{ledger.type}</span>
+              <b>{ledger.quantityText}</b>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <Text type="secondary">暂无库存变化</Text>
+      )}
+    </div>
+  );
+}
+
+function resolveMaterialDetailStockStatus(
+  summary: InventorySummary,
+  lots: InventoryLot[]
+): { label: string; tone: MaterialStockStatusTone } {
+  if (summary.currentStockBase < 0) {
+    return { label: "负库存", tone: "danger" };
+  }
+  if (lots.some((lot) => lot.status === "过期" && lot.remainingQtyBase > 0)) {
+    return { label: "过期风险", tone: "danger" };
+  }
+  if (lots.some((lot) => lot.status === "临期" && lot.remainingQtyBase > 0)) {
+    return { label: "临期风险", tone: "warning" };
+  }
+  return { label: "正常", tone: "success" };
+}
+
+function renderPurchaseOrderEstimatedAvailableDays(result?: FeedEstimatedAvailableDaysResult) {
+  return result ? (
+    <span className="inventory-purchase-days-text">{result.displayText}</span>
+  ) : (
+    <Text type="secondary">—</Text>
+  );
+}
+
+function renderPurchaseOrderEstimatedAvailableDaysMeta(result?: FeedEstimatedAvailableDaysResult) {
+  return result ? (
+    <div className="inventory-cell-stack">
+      <span>{result.displayText}</span>
+      <Text type="secondary">预计可用</Text>
+    </div>
+  ) : (
+    "—"
+  );
+}
+
+function compareFeedEstimatedAvailableDays(
+  left: FeedEstimatedAvailableDaysResult | undefined,
+  right: FeedEstimatedAvailableDaysResult | undefined
+) {
+  const leftValue = left?.sortValue;
+  const rightValue = right?.sortValue;
+  if (leftValue == null && rightValue == null) return 0;
+  if (leftValue == null) return 1;
+  if (rightValue == null) return -1;
+  return leftValue - rightValue;
+}
+
+function parseLedgerQuantity(quantityText: string): number {
+  return parseInventoryLedgerQuantity(quantityText);
+}
 
 function formatInventoryNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-function normalizeReceivePackageConversions(
-  baseUnit: string,
-  drafts: ReceivePackageConversionDraft[] = []
-): InventoryPackageConversion[] {
-  return drafts
-    .map((draft, index) => ({
-      fromUnit: draft.fromUnit || "",
-      quantity: Number(draft.quantity || 0),
-      toUnit: index === 0 ? baseUnit : drafts[index - 1]?.fromUnit || ""
-    }))
-    .filter((conversion) => conversion.fromUnit || conversion.quantity);
-}
-
-function buildDefaultPackageConversion(): ReceivePackageConversionDraft[] {
-  return [{ fromUnit: undefined, quantity: undefined }];
-}
-
-function buildReceiveUnitOptions(baseUnit: string, conversions: InventoryPackageConversion[]) {
-  return Array.from(new Set([baseUnit, ...conversions.map((conversion) => conversion.fromUnit)].filter(Boolean))).map((unit) => ({
-    label: unit,
-    value: unit
-  }));
-}
-
 function formatPackageConversionSummary(conversions: InventoryPackageConversion[]) {
   return conversions.map((conversion) => `1${conversion.fromUnit} = ${formatInventoryNumber(conversion.quantity)}${conversion.toUnit}`);
+}
+
+function formatMaterialUnitConversions(material: InventoryMaterial) {
+  const conversions = formatPackageConversionSummary(material.packageConversions || []);
+  return conversions.length ? conversions.join("；") : "—";
 }
 
 function formatPrimaryPackageSpec(material: InventoryMaterial, conversions: InventoryPackageConversion[]) {
@@ -722,35 +2187,8 @@ function parseInventoryScrapRemark(remark?: string) {
   };
 }
 
-function formatInventoryQtyWithPackage(quantity: number, material?: InventoryMaterial | null, preferredUnit?: string) {
-  const baseUnit = material?.baseUnit || "";
-  const baseText = formatInventoryQty(quantity, baseUnit);
-  const packageUnit = preferredUnit || material?.auxiliaryUnit;
-  if (!material || !packageUnit || packageUnit === baseUnit) return baseText;
-  const factor = calculateInventoryBaseQuantity(1, packageUnit, baseUnit, material.packageConversions || []);
-  if (!factor) return baseText;
-  return `${baseText}（约 ${formatInventoryNumber(quantity / factor)}${packageUnit}）`;
-}
-
-function formatReceiveMaterialSpecLine(material: InventoryMaterial, summary?: InventorySummary) {
-  const stockText = summary
-    ? material.category === "饲料"
-      ? formatInventoryQtyWithPackage(summary.currentStockBase, material)
-      : formatInventoryQty(summary.currentStockBase, material.baseUnit)
-    : formatInventoryQty(0, material.baseUnit);
-  return `规格：${formatPrimaryPackageSpec(material, material.packageConversions || [])}｜当前库存：${stockText}`;
-}
-
-function formatReceiveIncreasePreview(quantity: number | undefined, unit: string | undefined, baseUnit: string, conversions: InventoryPackageConversion[]) {
-  if (!quantity || quantity <= 0 || !unit || !baseUnit) return "";
-  const baseQuantity = calculateInventoryBaseQuantity(quantity, unit, baseUnit, conversions);
-  if (!baseQuantity) return "";
-  return `本次入库：${formatInventoryNumber(quantity)}${unit} = ${formatInventoryQty(baseQuantity, baseUnit)}`;
-}
-
 function resolveRiskPrimaryAction(type: InventoryRiskType | InventoryHomeRiskKind) {
   if (type === "负库存") return "发起盘点";
-  if (type === "低库存") return undefined;
   if (type === "临期") return "发起盘点";
   return "报废";
 }
@@ -763,7 +2201,7 @@ function resolveRiskAdviceText(type: InventoryHomeRiskKind) {
   if (type === "负库存") return "账面库存出现负数异常。请立即发起盘点核对实物，修正后即可还原准确的库存数据。";
   if (type === "已过期") return "该批次物料已过有效期，存在安全隐患。建议及时发起报废，处理后将扣减该批次，防止一线误领误用。";
   if (type === "临期") return "物料逼近保质期终点。建议核查实物状态并优先安排出库，抢先消耗以避免资产浪费。";
-  return "当前库存已跌破安全线，面临断供风险。请尽快补充入库，库存回升后系统将自动撤销预警。";
+  return "";
 }
 
 function resolveDifferenceHandlingLabel(method?: InventoryDifferenceMethod) {
@@ -837,7 +2275,7 @@ function createInitialStocktakeRecords(): InventoryStocktakeRecord[] {
     },
     {
       no: "PD20260620001",
-      name: "兽药月度盘点",
+      name: "药品月度盘点",
       mode: "分类盘点",
       materialCount: 18,
       differenceCount: 1,
@@ -864,7 +2302,12 @@ function createInitialStocktakeRecords(): InventoryStocktakeRecord[] {
   ];
 }
 
-export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryPageProps) {
+export function ConsoleInventoryPage({
+  activeModule = "inventory",
+  financeBootstrapView = null,
+  onFinanceBootstrapHandled,
+  onRequestFinance
+}: ConsoleInventoryPageProps) {
   const [materials, setMaterials] = useState<InventoryMaterial[]>(initialToleranceResolution.materials);
   const [lots, setLots] = useState<InventoryLot[]>(initialToleranceResolution.lots);
   const [ledgers, setLedgers] = useState<InventoryLedgerRow[]>([
@@ -875,30 +2318,44 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     | "home"
     | "ledgers"
     | "detail"
-    | "stocktake-scope"
     | "stocktake-execute"
     | "stocktake-confirm"
     | "stocktake-complete"
     | "stocktake-detail"
     | "difference-list"
     | "batch-receive"
-  >(initialView);
+    | "outbound-execute"
+    | "outbound-confirm"
+    | "outbound-detail"
+    | "purchase-order-draft"
+    | "purchase-order-detail"
+    | "finance"
+  >(activeModule === "finance" ? "finance" : "home");
   const [activeCategory, setActiveCategory] = useState<InventoryCategory>(inventoryCategoryOrder[0]);
   const [summaryKeyword, setSummaryKeyword] = useState("");
   const [materialStatusFilter, setMaterialStatusFilter] = useState<InventoryMaterialStatusFilter>("启用中");
+  const [ledgerPageTab, setLedgerPageTab] = useState<InventoryLedgerPageTabKey>("ledger");
   const [ledgerKeyword, setLedgerKeyword] = useState("");
   const [ledgerDateRange, setLedgerDateRange] = useState<[string, string] | null>(null);
   const [ledgerTypes, setLedgerTypes] = useState<InventoryLedgerType[]>([]);
-  const [stocktakeStartOpen, setStocktakeStartOpen] = useState(false);
-  const [stocktakeMode, setStocktakeMode] = useState<InventoryStocktakeMode>("异常盘点");
+  const [checkKeyword, setCheckKeyword] = useState("");
+  const [checkDateRange, setCheckDateRange] = useState<[string, string] | null>(null);
+  const [checkChecker, setCheckChecker] = useState<string | undefined>(undefined);
+  const [checkDiffFilter, setCheckDiffFilter] = useState<InventoryCheckDiffFilter>("全部");
+  const [expandedCheckRowKeys, setExpandedCheckRowKeys] = useState<string[]>([]);
+  const [focusedCheckRecordId, setFocusedCheckRecordId] = useState<string | null>(null);
+  const [inboundKeyword, setInboundKeyword] = useState("");
+  const [inboundDateRange, setInboundDateRange] = useState<[string, string] | null>(inventoryInboundDefaultDateRange);
+  const [inboundTypeFilter, setInboundTypeFilter] = useState<InventoryInboundTypeFilter>("全部");
+  const [expandedInboundRowKeys, setExpandedInboundRowKeys] = useState<string[]>([]);
+  const [stocktakeMode, setStocktakeMode] = useState<InventoryStocktakeMode>("指定物料盘点");
   const [stocktakeScopeRows, setStocktakeScopeRows] = useState<InventoryStocktakeScopeRow[]>([]);
   const [stocktakeScopeKeyword, setStocktakeScopeKeyword] = useState("");
   const [stocktakeScopeCategory, setStocktakeScopeCategory] = useState<InventoryCategory | "全部">("全部");
-  const [stocktakeScopeStatus, setStocktakeScopeStatus] = useState<InventoryStocktakeScopeRow["status"] | "全部">("全部");
-  const [stocktakeScopeSelectedRowIds, setStocktakeScopeSelectedRowIds] = useState<string[]>([]);
+  const [stocktakeRiskFilter, setStocktakeRiskFilter] = useState<StocktakeRiskStatus | "全部">("全部");
   const [stocktakeTaskValues, setStocktakeTaskValues] = useState<InventoryStocktakeTaskFormValues | null>(null);
+  const [, setStocktakeSubmitted] = useState(false);
   const [stocktakeActuals, setStocktakeActuals] = useState<Record<string, number | undefined>>({});
-  const [stocktakeSubmitted, setStocktakeSubmitted] = useState(false);
   const [stocktakeCompleteResult, setStocktakeCompleteResult] = useState<InventoryStocktakeTransaction | null>(null);
   const [selectedStocktakeRecordNo, setSelectedStocktakeRecordNo] = useState<string | null>(null);
   const [stocktakeRecords, setStocktakeRecords] = useState<InventoryStocktakeRecord[]>(createInitialStocktakeRecords);
@@ -907,48 +2364,81 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     ...initialToleranceResolution.processedDifferences
   ]);
   const [differenceTab, setDifferenceTab] = useState<InventoryDifferenceTab>("pending");
-  const [stocktakeDifferenceResult, setStocktakeDifferenceResult] = useState<InventoryDifferenceRecord[]>([]);
   const [handlingDifferenceId, setHandlingDifferenceId] = useState<string | null>(null);
   const [handleOptionKey, setHandleOptionKey] = useState<string | null>(null);
   const [handleReason, setHandleReason] = useState<string | undefined>(undefined);
   const [handleReasonNote, setHandleReasonNote] = useState("");
   const [handleSupplementAmount, setHandleSupplementAmount] = useState<number | undefined>(undefined);
-  const [outboundOpen, setOutboundOpen] = useState(false);
-  const [receiveOpen, setReceiveOpen] = useState(false);
-  const [receiveMaterialText, setReceiveMaterialText] = useState("");
-  const [receiveMaterialId, setReceiveMaterialId] = useState<string | undefined>();
-  const [receiveNewMaterialDraft, setReceiveNewMaterialDraft] = useState<InventoryMaterial | null>(null);
-  const [batchReceiveCategory, setBatchReceiveCategory] = useState<InventoryCategory>("饲料");
-  const [batchReceiveEntries, setBatchReceiveEntries] = useState<InventoryBatchReceiveEntry[]>(() => [createEmptyBatchReceiveEntry()]);
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const [quickCreateForm] = Form.useForm();
-  const quickCreateCategory = (Form.useWatch("category", quickCreateForm) || "饲料") as InventoryCategory;
-  const quickCreateBaseUnit = Form.useWatch("baseUnit", quickCreateForm) as string | undefined;
-  const quickCreatePackageDrafts = (Form.useWatch("packageConversions", quickCreateForm) || []) as ReceivePackageConversionDraft[];
+  const [outboundKeyword, setOutboundKeyword] = useState("");
+  const [outboundCategory, setOutboundCategory] = useState<InventoryCategory | "全部">("全部");
+  const [outboundQuantities, setOutboundQuantities] = useState<Record<string, number | undefined>>({});
+  const [outboundPurpose, setOutboundPurpose] = useState("");
+  const [outboundRemark, setOutboundRemark] = useState("");
+  const [outboundOrders, setOutboundOrders] = useState<InventoryOutboundOrderRecord[]>([]);
+  const [selectedOutboundOrderNo, setSelectedOutboundOrderNo] = useState<string | null>(null);
+  const [batchReceiveHeader, setBatchReceiveHeader] = useState<InventoryBatchReceiveHeader>(() => createDefaultBatchReceiveHeader());
+  const [batchReceiveEntries, setBatchReceiveEntries] = useState<InventoryBatchReceiveEntry[]>([]);
+  const [selectedPurchaseMaterialIds, setSelectedPurchaseMaterialIds] = useState<string[]>([]);
+  const [purchaseOrderQuantities, setPurchaseOrderQuantities] = useState<Record<string, number | undefined>>({});
+  const [purchaseOrders, setPurchaseOrders] = useState<InventoryPurchaseOrderRecord[]>([]);
+  const [selectedPurchaseOrderNo, setSelectedPurchaseOrderNo] = useState<string | null>(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [materialDetailTab, setMaterialDetailTab] = useState<MaterialDetailTabKey>("detail");
+  const [materialTrendRange, setMaterialTrendRange] = useState<MaterialTrendRange>("30天");
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
   const [activeHomeRiskType, setActiveHomeRiskType] = useState<InventoryHomeRiskKind | "全部">("全部");
   const [analyticsCategoryFilter, setAnalyticsCategoryFilter] = useState<InventoryAnalyticsCategoryFilter>("全部");
   const [analyticsTimeRange, setAnalyticsTimeRange] = useState<InventoryAnalyticsTimeRange>("本月");
   const [analyticsCustomRange, setAnalyticsCustomRange] = useState<[string, string] | null>(null);
   const [expiredActionLot, setExpiredActionLot] = useState<InventoryLot | null>(null);
-  const [receiveForm] = Form.useForm();
-  const [outboundForm] = Form.useForm<InventoryOutboundFormValues>();
+  const [editingLotId, setEditingLotId] = useState<string | null>(null);
   const [scrapForm] = Form.useForm<InventoryScrapFormValues>();
+  const [lotEditForm] = Form.useForm<InventoryLotEditFormValues>();
   const [editMaterialForm] = Form.useForm<InventoryMaterialEditFormValues>();
-  const outboundMaterialId = Form.useWatch("materialId", outboundForm) as string | undefined;
-  const receiveBaseUnitValue = Form.useWatch("baseUnit", receiveForm) as string | undefined;
-  const receivePackageDrafts = (Form.useWatch("packageConversions", receiveForm) || []) as ReceivePackageConversionDraft[];
-  const receiveInboundQuantity = Form.useWatch("inboundQuantity", receiveForm) as number | undefined;
-  const receiveInboundUnit = Form.useWatch("inboundUnit", receiveForm) as string | undefined;
   const editBaseUnitValue = Form.useWatch("baseUnit", editMaterialForm) as string | undefined;
 
   useEffect(() => {
-    setInventoryView(initialView);
-  }, [initialView]);
+    if (activeModule === "finance") {
+      if (financeBootstrapView === "difference-list") {
+        setInventoryView("difference-list");
+        onFinanceBootstrapHandled?.();
+        return;
+      }
+      setInventoryView((current) => (current === "difference-list" ? current : "finance"));
+      return;
+    }
+    setInventoryView((current) => {
+      if (current === "finance" || current === "difference-list") return "home";
+      return current;
+    });
+  }, [activeModule, financeBootstrapView, onFinanceBootstrapHandled]);
 
-  const summaries = useMemo(() => buildInventorySummaries(materials, lots), [materials, lots]);
+  const summaries = useMemo(
+    () => buildInventorySummaries(materials, lots, ledgers, { referenceAt: INVENTORY_DEMO_REFERENCE_AT }),
+    [ledgers, lots, materials]
+  );
+  const summaryByMaterialId = useMemo(
+    () => new Map(summaries.map((summary) => [summary.materialId, summary])),
+    [summaries]
+  );
+  const recentLedgerMap = useMemo(() => {
+    const map = new Map<string, InventoryLedgerRow[]>();
+    ledgers.forEach((ledger) => {
+      const materialLedgers = map.get(ledger.materialId) || [];
+      materialLedgers.push(ledger);
+      map.set(ledger.materialId, materialLedgers);
+    });
+    map.forEach((materialLedgers, materialId) => {
+      map.set(
+        materialId,
+        materialLedgers
+          .slice()
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+          .slice(0, 3)
+      );
+    });
+    return map;
+  }, [ledgers]);
   const categoryTabs = useMemo(
     () => buildInventoryCategoryTabs(summaries, materialStatusFilter),
     [materialStatusFilter, summaries]
@@ -968,21 +2458,181 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       }),
     [ledgerDateRange, ledgerKeyword, ledgerTypes, ledgers, materials]
   );
+  const inventoryCheckRecords = inventorySeedCheckRecords;
+  const inventoryCheckCheckerOptions = useMemo(
+    () =>
+      Array.from(new Set(inventoryCheckRecords.map((record) => record.checker))).map((checker) => ({
+        label: checker,
+        value: checker
+      })),
+    [inventoryCheckRecords]
+  );
+  const filteredCheckRecords = useMemo(() => {
+    const keyword = checkKeyword.trim();
+    return inventoryCheckRecords
+      .filter((record) => {
+        if (!checkDateRange) return true;
+        const checkDate = record.checkTime.slice(0, 10);
+        return checkDate >= checkDateRange[0] && checkDate <= checkDateRange[1];
+      })
+      .filter((record) => !checkChecker || record.checker === checkChecker)
+      .filter((record) => {
+        if (checkDiffFilter === "有差异") return record.diffItems > 0;
+        if (checkDiffFilter === "无差异") return record.diffItems === 0;
+        return true;
+      })
+      .filter((record) => {
+        if (!keyword) return true;
+        return record.details.some((detail) => isInventoryCheckDetailKeywordMatch(detail, keyword));
+      })
+      .sort((a, b) => new Date(b.checkTime).getTime() - new Date(a.checkTime).getTime());
+  }, [checkChecker, checkDateRange, checkDiffFilter, checkKeyword, inventoryCheckRecords]);
+  const inventoryInboundOrders = inventorySeedInboundOrders;
+  const filteredInboundOrders = useMemo(() => {
+    const keyword = inboundKeyword.trim();
+    return inventoryInboundOrders
+      .filter((order) => {
+        if (!inboundDateRange) return true;
+        const inboundDate = order.inboundTime.slice(0, 10);
+        return inboundDate >= inboundDateRange[0] && inboundDate <= inboundDateRange[1];
+      })
+      .filter((order) => inboundTypeFilter === "全部" || order.type === inboundTypeFilter)
+      .filter((order) => {
+        if (!keyword) return true;
+        if (includesInventorySearchKeyword(order.orderNo, keyword)) return true;
+        return order.details.some((detail) => includesInventorySearchKeyword(detail.materialName, keyword));
+      })
+      .sort((a, b) => b.inboundTime.localeCompare(a.inboundTime));
+  }, [
+    inboundDateRange,
+    inboundKeyword,
+    inboundTypeFilter,
+    inventoryInboundOrders
+  ]);
+  const detailMatchedCheckRecordIds = useMemo(() => {
+    const keyword = checkKeyword.trim();
+    if (!keyword) return [];
+    return filteredCheckRecords
+      .filter((record) => record.details.some((detail) => isInventoryCheckDetailKeywordMatch(detail, keyword)))
+      .map((record) => record.id);
+  }, [checkKeyword, filteredCheckRecords]);
+
+  useEffect(() => {
+    if (ledgerPageTab !== "checks") return;
+    if (!checkKeyword.trim()) {
+      setFocusedCheckRecordId(null);
+      return;
+    }
+    if (!detailMatchedCheckRecordIds.length) {
+      setFocusedCheckRecordId(null);
+      return;
+    }
+
+    setExpandedCheckRowKeys((current) => Array.from(new Set([...current, ...detailMatchedCheckRecordIds])));
+    const firstMatchId = detailMatchedCheckRecordIds[0];
+    setFocusedCheckRecordId(firstMatchId);
+    window.setTimeout(() => {
+      document.querySelector(`[data-row-key="${firstMatchId}"]`)?.scrollIntoView({ block: "center" });
+    }, 0);
+  }, [checkKeyword, detailMatchedCheckRecordIds, ledgerPageTab]);
+  const feedMaterials = useMemo(() => materials.filter((material) => material.category === "饲料"), [materials]);
+  const feedMaterialIds = useMemo(() => new Set(feedMaterials.map((material) => material.id)), [feedMaterials]);
+  const feedCurrentStockBase = useMemo(
+    () =>
+      summaries
+        .filter((summary) => summary.category === "饲料")
+        .reduce((sum, summary) => sum + Math.max(summary.currentStockBase, 0), 0),
+    [summaries]
+  );
+  const feedStockTrendPoints = useMemo<FeedStockTrendPoint[]>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(today.getDate() - 29);
+    const dateList = enumerateDates(formatISODate(start), formatISODate(today));
+    const ledgerDeltaByDate = ledgers.reduce(
+      (map, ledger) => {
+        if (!feedMaterialIds.has(ledger.materialId)) return map;
+        const date = ledger.occurredAt.slice(0, 10);
+        const quantity = Math.abs(parseLedgerQuantity(ledger.quantityText));
+        const entry = map.get(date) || { inbound: 0, outbound: 0, adjustment: 0, net: 0 };
+        if (ledger.type === "采购入库" || ledger.type === "入库更正" || ledger.type === "盘盈" || ledger.type === "消耗冲销") {
+          entry.inbound += quantity;
+          entry.net += quantity;
+        } else if (ledger.type === "业务消耗" || ledger.type === "盘亏" || ledger.type === "报废") {
+          entry.outbound += quantity;
+          entry.net -= quantity;
+        } else {
+          entry.adjustment += parseLedgerQuantity(ledger.quantityText);
+          entry.net += parseLedgerQuantity(ledger.quantityText);
+        }
+        map.set(date, entry);
+        return map;
+      },
+      new Map<string, { inbound: number; outbound: number; adjustment: number; net: number }>()
+    );
+    const eodByDate = new Map<string, number>();
+    let cursorStock = feedCurrentStockBase;
+    for (let index = dateList.length - 1; index >= 0; index -= 1) {
+      const date = dateList[index];
+      eodByDate.set(date, cursorStock);
+      cursorStock -= ledgerDeltaByDate.get(date)?.net || 0;
+    }
+    return dateList.map((date, index) => {
+      const movement = ledgerDeltaByDate.get(date) || { inbound: 0, outbound: 0, adjustment: 0, net: 0 };
+      const quantity = eodByDate.get(date) || 0;
+      const previousQuantity = index === 0 ? quantity - movement.net : eodByDate.get(dateList[index - 1]) || quantity;
+      const changeQuantity = quantity - previousQuantity;
+      const previousPositive = previousQuantity > 0 ? previousQuantity : quantity > 0 ? quantity : 1;
+      const changeRatio = Math.abs(changeQuantity) / previousPositive;
+      return {
+        date,
+        quantity,
+        inboundQuantity: movement.inbound,
+        outboundQuantity: movement.outbound,
+        adjustmentQuantity: movement.adjustment,
+        changeQuantity,
+        anomaly: changeRatio >= 0.3 ? (changeQuantity >= 0 ? "increase" : "drop") : undefined
+      };
+    });
+  }, [feedCurrentStockBase, feedMaterialIds, ledgers]);
+  const feedStockTrendLatest = feedStockTrendPoints[feedStockTrendPoints.length - 1] || null;
+  const feedStockTrendPrevious = feedStockTrendPoints[feedStockTrendPoints.length - 2] || null;
+  const feedStockYesterdayChange = feedStockTrendLatest && feedStockTrendPrevious
+    ? feedStockTrendLatest.quantity - feedStockTrendPrevious.quantity
+    : 0;
+  const feedStockDailyOutboundAverage = useMemo(() => {
+    const totalOutbound = feedStockTrendPoints.reduce((sum, point) => sum + point.outboundQuantity, 0);
+    return totalOutbound / Math.max(feedStockTrendPoints.length, 1);
+  }, [feedStockTrendPoints]);
+  const feedStockAvailableDays =
+    feedStockDailyOutboundAverage > 0 && feedStockTrendLatest
+      ? Math.max(0, Math.floor(feedStockTrendLatest.quantity / feedStockDailyOutboundAverage))
+      : null;
   const currentStocktakeNo = stocktakeTaskValues ? `PD${new Date().toISOString().slice(0, 10).replace(/-/g, "")}002` : "";
+  const stocktakeRiskMap = useMemo(() => {
+    const map = new Map<string, StocktakeRiskStatus[]>();
+    riskItems.forEach((item) => {
+      const status = item.type === "过期" ? "已过期" : item.type;
+      const statuses = map.get(item.materialId) || [];
+      if (!statuses.includes(status)) statuses.push(status);
+      map.set(item.materialId, statuses);
+    });
+    return map;
+  }, [riskItems]);
   const filteredStocktakeScopeRows = useMemo(() => {
     const keyword = stocktakeScopeKeyword.trim();
     return stocktakeScopeRows.filter((row) => {
       if (stocktakeScopeCategory !== "全部" && row.category !== stocktakeScopeCategory) return false;
-      if (stocktakeScopeStatus !== "全部" && row.status !== stocktakeScopeStatus) return false;
+      const riskStatuses = stocktakeRiskMap.get(row.materialId) || [];
+      if (stocktakeRiskFilter !== "全部" && !riskStatuses.includes(stocktakeRiskFilter)) return false;
       if (!keyword) return true;
-      return `${row.materialName}${row.brand}${row.lotNo || ""}`.includes(keyword);
+      return `${row.materialName}${row.brand}`.includes(keyword);
     });
-  }, [stocktakeScopeCategory, stocktakeScopeKeyword, stocktakeScopeRows, stocktakeScopeStatus]);
+  }, [stocktakeRiskFilter, stocktakeRiskMap, stocktakeScopeCategory, stocktakeScopeKeyword, stocktakeScopeRows]);
   const selectedStocktakeScopeRows = useMemo(() => {
-    if (stocktakeMode !== "指定物料盘点") return stocktakeScopeRows;
-    const selectedIds = new Set(stocktakeScopeSelectedRowIds);
-    return stocktakeScopeRows.filter((row) => selectedIds.has(row.id));
-  }, [stocktakeMode, stocktakeScopeRows, stocktakeScopeSelectedRowIds]);
+    return stocktakeScopeRows;
+  }, [stocktakeScopeRows]);
   const stocktakeDifferenceRows = selectedStocktakeScopeRows
     .map((row) => ({
       ...row,
@@ -993,7 +2643,8 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           : undefined
     }))
     .filter((row) => row.diff !== undefined);
-  const stocktakeDiffSummary = stocktakeDifferenceRows.reduce(
+  const stocktakeChangedRows = stocktakeDifferenceRows.filter((row) => row.diff !== 0);
+  const stocktakeDiffSummary = stocktakeChangedRows.reduce(
     (counts, row) => {
       if (row.diff === 0) counts.noDifferenceCount += 1;
       if (row.diff !== undefined && row.diff > 0) counts.gainCount += 1;
@@ -1013,11 +2664,24 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     });
   }, [activeCategory, materialStatusFilter, materials, summaries, summaryKeyword]);
 
+  const feedAvailableDaysMap = useMemo(() => {
+    const map = new Map<string, FeedEstimatedAvailableDaysResult>();
+    filteredSummaries.forEach((summary) => {
+      if (!shouldShowEstimatedAvailableDays(summary.category)) return;
+      map.set(
+        summary.materialId,
+        buildFeedEstimatedAvailableDays(summary.currentStockBase, summary.materialId, ledgers, {
+          referenceAt: INVENTORY_DEMO_REFERENCE_AT
+        })
+      );
+    });
+    return map;
+  }, [filteredSummaries, ledgers]);
+
   const riskMaterialRows = useMemo<InventoryHomeRiskRow[]>(() => {
     return riskItems
       .map((item) => {
         const type: InventoryHomeRiskKind = item.type === "过期" ? "已过期" : item.type;
-        const relativeExpiryText = item.expiryDate ? formatRelativeExpiryDate(item.expiryDate) : "";
         return {
           id: item.id,
           type,
@@ -1025,7 +2689,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           materialName: item.materialName,
           brand: item.brand,
           lotNo: item.lotNo,
-          valueText: type === "临期" && relativeExpiryText ? relativeExpiryText : item.valueText,
+          valueText: item.valueText,
           dateText: type === "临期" && item.expiryDate ? item.expiryDate : undefined,
           detailText: item.lotNo ? `批次 ${item.lotNo}` : "库存异常",
           adviceText: resolveRiskAdviceText(type),
@@ -1038,7 +2702,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   }, [riskItems]);
 
   const homeActionItems: Array<{ key: InventoryHomeRiskKind; label: string; count: number }> = [
-    { key: "低库存", label: "低库存", count: riskMaterialRows.filter((item) => item.type === "低库存").length },
+    { key: "已过期", label: "已过期", count: riskMaterialRows.filter((item) => item.type === "已过期").length },
     { key: "临期", label: "临期库存", count: riskMaterialRows.filter((item) => item.type === "临期").length },
     { key: "负库存", label: "负库存", count: riskMaterialRows.filter((item) => item.type === "负库存").length }
   ];
@@ -1047,6 +2711,44 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       ? riskMaterialRows.slice(0, 5)
       : riskMaterialRows.filter((item) => item.type === activeHomeRiskType);
   const materialMap = useMemo(() => new Map(materials.map((material) => [material.id, material])), [materials]);
+  const summaryMap = useMemo(() => new Map(summaries.map((summary) => [summary.materialId, summary])), [summaries]);
+  const selectedPurchaseOrderRows = useMemo<InventoryPurchaseOrderLine[]>(() => {
+    return selectedPurchaseMaterialIds.reduce<InventoryPurchaseOrderLine[]>((rows, materialId) => {
+      const material = materialMap.get(materialId);
+      if (!material || getInventoryMaterialStatus(material) === "已停用") return rows;
+      const summary = summaryMap.get(materialId);
+      const currentStockBase = summary?.currentStockBase ?? 0;
+      const lastPurchaseInfo = resolveInventoryLastPurchaseInfo(material, lots, ledgers);
+      rows.push({
+        materialId,
+        materialName: material.materialName,
+        brand: material.brand,
+        category: material.category,
+        baseUnit: material.baseUnit,
+        currentStockText: formatInventoryQty(currentStockBase, material.baseUnit),
+        estimatedAvailableDays:
+          summary && shouldShowEstimatedAvailableDays(summary.category)
+            ? buildFeedEstimatedAvailableDays(currentStockBase, materialId, ledgers, {
+                referenceAt: INVENTORY_DEMO_REFERENCE_AT
+              })
+            : undefined,
+        lastPurchaseAt: lastPurchaseInfo.occurredAt,
+        lastPurchaseQtyText: lastPurchaseInfo.quantityText,
+        lastPurchaseLotNo: lastPurchaseInfo.lotNo,
+        lastPurchaseSupplier: lastPurchaseInfo.supplier,
+        lastPurchaseSource: lastPurchaseInfo.source,
+        quantityBase:
+          purchaseOrderQuantities[materialId] !== undefined
+            ? purchaseOrderQuantities[materialId]
+            : lastPurchaseInfo.quantityBase || undefined
+      });
+      return rows;
+    }, []);
+  }, [ledgers, lots, materialMap, purchaseOrderQuantities, selectedPurchaseMaterialIds, summaryMap]);
+  const selectedPurchaseOrder = useMemo(
+    () => purchaseOrders.find((order) => order.no === selectedPurchaseOrderNo) || null,
+    [purchaseOrders, selectedPurchaseOrderNo]
+  );
   const lotByNo = useMemo(() => new Map(lots.map((lot) => [lot.lotNo, lot])), [lots]);
   const materialAverageCostMap = useMemo(() => {
     return materials.reduce((map, material) => {
@@ -1219,7 +2921,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     ? materials.find((item) => item.id === selectedMaterialId) || null
     : null;
   const editingMaterial = editingMaterialId ? materials.find((item) => item.id === editingMaterialId) || null : null;
-  const editSafetyStockUnitText = editingMaterial?.baseUnit || editBaseUnitValue || "核算单位";
   const selectedMaterialLots = selectedMaterialId
     ? getInventoryLotsForMaterial(lots, selectedMaterialId)
     : [];
@@ -1230,86 +2931,134 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
     : [];
   const selectedMaterialConsumptionLedgers = selectedMaterialLedgers.filter((ledger) => ledger.type === "业务消耗");
-  const receiveDate = new Date().toISOString().slice(0, 10);
-  const receiveSequence =
-    lots.filter((lot) => lot.lotNo.startsWith(`RK-${receiveDate.replace(/-/g, "")}`)).length + 1;
-  const receiveLotNo = generateInventoryLotNo(receiveDate, receiveSequence);
-  const receiveMaterialKeyword = receiveMaterialText.trim();
-  const activeReceiveMaterials = materials.filter((material) => getInventoryMaterialStatus(material) === "启用中");
-  const receiveMaterialExists = Boolean(
-    receiveMaterialId || activeReceiveMaterials.some((item) => item.materialName === receiveMaterialKeyword)
+  const materialTrendDays = materialTrendRange === "7天" ? 7 : materialTrendRange === "90天" ? 90 : 30;
+  const selectedMaterialStockStatus =
+    selectedSummary && selectedMaterialLots.length
+      ? resolveMaterialDetailStockStatus(selectedSummary, selectedMaterialLots)
+      : selectedSummary
+        ? resolveMaterialDetailStockStatus(selectedSummary, [])
+        : null;
+  const selectedInventoryValue = selectedMaterialLots.reduce(
+    (sum, lot) => sum + Math.max(lot.remainingQtyBase, 0) * lot.baseUnitCost,
+    0
   );
-  const selectedReceiveMaterial = receiveMaterialId
-    ? activeReceiveMaterials.find((item) => item.id === receiveMaterialId) || null
-    : activeReceiveMaterials.find((item) => item.materialName === receiveMaterialKeyword) || null;
-  const activeReceiveNewDraft =
-    !selectedReceiveMaterial && receiveNewMaterialDraft && receiveNewMaterialDraft.materialName === receiveMaterialKeyword
-      ? receiveNewMaterialDraft
+  const selectedConsumptionQty30Days = selectedMaterialConsumptionLedgers
+    .filter((ledger) => new Date().getTime() - new Date(ledger.occurredAt).getTime() <= 30 * 24 * 60 * 60 * 1000)
+    .reduce((sum, ledger) => sum + Math.abs(parseLedgerQuantity(ledger.quantityText)), 0);
+  const selectedAverageDailyConsumption = selectedConsumptionQty30Days / 30;
+  const selectedEstimatedAvailableDays =
+    selectedSummary && selectedAverageDailyConsumption > 0
+      ? Math.max(0, Math.floor(selectedSummary.currentStockBase / selectedAverageDailyConsumption))
       : null;
-  const effectiveReceiveMaterial = selectedReceiveMaterial || activeReceiveNewDraft;
-  const receiveDuplicateCandidates =
-    receiveMaterialKeyword && !effectiveReceiveMaterial
-      ? activeReceiveMaterials
-          .filter(
-            (item) =>
-              item.materialName !== receiveMaterialKeyword &&
-              (item.materialName.includes(receiveMaterialKeyword) ||
-                receiveMaterialKeyword.includes(item.materialName))
-          )
-          .slice(0, 4)
-      : [];
-  const receiveMaterialInfoVisible = Boolean(receiveMaterialKeyword);
-  const effectiveReceiveBaseUnit = effectiveReceiveMaterial?.baseUnit || receiveBaseUnitValue || "";
-  const receivePackageConversions = effectiveReceiveMaterial?.packageConversions || normalizeReceivePackageConversions(effectiveReceiveBaseUnit, receivePackageDrafts);
-  const receiveInboundUnitOptions = buildReceiveUnitOptions(effectiveReceiveBaseUnit, receivePackageConversions);
-  const receivePackageValidationMessage =
-    !effectiveReceiveMaterial && effectiveReceiveBaseUnit && receivePackageConversions.length
-      ? validateInventoryPackageConversions(effectiveReceiveBaseUnit, receivePackageConversions)
-      : null;
-  const receivePackageSummary = formatPackageConversionSummary(receivePackageConversions);
-  const receiveSelectedSummary = selectedReceiveMaterial
-    ? summaries.find((summary) => summary.materialId === selectedReceiveMaterial.id)
-    : undefined;
-  const receiveMaterialSpecLine = selectedReceiveMaterial
-    ? formatReceiveMaterialSpecLine(selectedReceiveMaterial, receiveSelectedSummary)
-    : "";
-  const receiveIncreasePreview = formatReceiveIncreasePreview(
-    receiveInboundQuantity,
-    receiveInboundUnit,
-    effectiveReceiveBaseUnit,
-    receivePackageConversions
-  );
-  const receiveMaterialOptions = getInventoryReceiveMaterialOptions(materials);
-  const activeOutboundMaterials = materials.filter((material) => getInventoryMaterialStatus(material) === "启用中");
+  const selectedMaterialTrendPoints = useMemo<MaterialStockTrendPoint[]>(() => {
+    if (!selectedSummary) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(today.getDate() - (materialTrendDays - 1));
+    const dateList = enumerateDates(formatISODate(start), formatISODate(today));
+    const ledgerDeltaByDate = selectedMaterialLedgers.reduce(
+      (map, ledger) => {
+        const date = ledger.occurredAt.slice(0, 10);
+        if (!dateList.includes(date)) return map;
+        const signedQuantity = parseLedgerQuantity(ledger.quantityText);
+        const quantity = Math.abs(signedQuantity);
+        const entry = map.get(date) || { inbound: 0, outbound: 0, adjustment: 0, scrap: 0, net: 0 };
+        if (ledger.type === "采购入库" || ledger.type === "入库更正" || ledger.type === "盘盈" || ledger.type === "消耗冲销") {
+          entry.inbound += quantity;
+          entry.net += quantity;
+        } else if (ledger.type === "业务消耗" || ledger.type === "盘亏") {
+          entry.outbound += quantity;
+          entry.net -= quantity;
+        } else if (ledger.type === "报废") {
+          entry.scrap += quantity;
+          entry.net -= quantity;
+        } else {
+          entry.adjustment += signedQuantity;
+          entry.net += signedQuantity;
+        }
+        map.set(date, entry);
+        return map;
+      },
+      new Map<string, { inbound: number; outbound: number; adjustment: number; scrap: number; net: number }>()
+    );
+    const eodByDate = new Map<string, number>();
+    let cursorStock = selectedSummary.currentStockBase;
+    for (let index = dateList.length - 1; index >= 0; index -= 1) {
+      const date = dateList[index];
+      eodByDate.set(date, cursorStock);
+      cursorStock -= ledgerDeltaByDate.get(date)?.net || 0;
+    }
+    return dateList.map((date) => {
+      const movement = ledgerDeltaByDate.get(date) || { inbound: 0, outbound: 0, adjustment: 0, scrap: 0, net: 0 };
+      return {
+        date,
+        quantity: eodByDate.get(date) || 0,
+        inboundQuantity: movement.inbound,
+        outboundQuantity: movement.outbound,
+        adjustmentQuantity: movement.adjustment,
+        scrapQuantity: movement.scrap,
+        hasInbound: movement.inbound > 0,
+        hasOutbound: movement.outbound > 0,
+        hasAdjustment: movement.adjustment !== 0,
+        hasScrap: movement.scrap > 0
+      };
+    });
+  }, [materialTrendDays, selectedMaterialLedgers, selectedSummary]);
   const batchReceiveSubmittingEntries = batchReceiveEntries.filter(isBatchReceiveEntrySubmitting);
   const batchReceiveReadyEntries = batchReceiveEntries.filter((entry) =>
-    isBatchReceiveEntryReady(entry, materials, batchReceiveCategory)
+    isBatchReceiveEntryReady(entry, materials)
   );
-  const selectedOutboundMaterial = outboundMaterialId
-    ? activeOutboundMaterials.find((item) => item.id === outboundMaterialId) || null
+  const outboundScopeRows = useMemo<InventoryOutboundScopeRow[]>(() => {
+    return summaries
+      .filter((summary) => summary.materialStatus === "启用中")
+      .map((summary) => ({
+        id: `outbound-${summary.materialId}`,
+        materialId: summary.materialId,
+        materialName: summary.materialName,
+        brand: summary.brand,
+        category: summary.category,
+        baseUnit: summary.baseUnit,
+        currentStockBase: summary.currentStockBase,
+        nearestExpiryDate: summary.nearestExpiryDate,
+        stockRisk: summary.stockRisk,
+        materialStatus: summary.materialStatus
+      }))
+      .sort(
+        (a, b) =>
+          inventoryCategoryOrder.indexOf(a.category) - inventoryCategoryOrder.indexOf(b.category) ||
+          a.materialName.localeCompare(b.materialName, "zh-Hans-CN")
+      );
+  }, [summaries]);
+  const filteredOutboundRows = useMemo(() => {
+    const keyword = outboundKeyword.trim();
+    return outboundScopeRows.filter((row) => {
+      if (outboundCategory !== "全部" && row.category !== outboundCategory) return false;
+      if (!keyword) return true;
+      return `${row.materialName}${row.brand}`.includes(keyword);
+    });
+  }, [outboundCategory, outboundKeyword, outboundScopeRows]);
+  const outboundSelectedRows = useMemo<InventoryOutboundOrderLine[]>(() => {
+    return outboundScopeRows.reduce<InventoryOutboundOrderLine[]>((rows, row) => {
+      const quantity = outboundQuantities[row.materialId];
+      if (typeof quantity !== "number" || quantity <= 0) return rows;
+      rows.push({
+        ...row,
+        outboundQuantity: quantity,
+        afterStockBase: row.currentStockBase - quantity,
+        ledgerCount: 0
+      });
+      return rows;
+    }, []);
+  }, [outboundQuantities, outboundScopeRows]);
+  const selectedOutboundOrder = selectedOutboundOrderNo
+    ? outboundOrders.find((order) => order.no === selectedOutboundOrderNo) || null
     : null;
-  const selectedOutboundSummary = outboundMaterialId
-    ? summaries.find((item) => item.materialId === outboundMaterialId) || null
-    : null;
-  const outboundMaterialOptions = activeOutboundMaterials.map((material) => {
-    const summary = summaries.find((item) => item.materialId === material.id);
-    return {
-      label: `${material.materialName} ${material.brand} · 库存 ${
-        summary ? formatInventoryQty(summary.currentStockBase, material.baseUnit) : `0${material.baseUnit}`
-      }`,
-      value: material.id
-    };
-  });
   const selectedRiskMessages =
     selectedSummary && selectedMaterial
       ? [
           selectedSummary.currentStockBase < 0
             ? `负库存：当前库存 ${formatInventoryQty(selectedSummary.currentStockBase, selectedSummary.baseUnit)}，请补录入库或修正库存流水。`
-            : "",
-          selectedSummary.safetyStockBase !== undefined &&
-          selectedSummary.currentStockBase >= 0 &&
-          selectedSummary.currentStockBase <= selectedSummary.safetyStockBase
-            ? `低库存：当前库存 ${formatInventoryQty(selectedSummary.currentStockBase, selectedSummary.baseUnit)}，低于或等于安全库存 ${formatInventoryQty(selectedSummary.safetyStockBase, selectedSummary.baseUnit)}。`
             : "",
           ...selectedMaterialLots
             .filter((lot) => lot.status === "临期" && lot.remainingQtyBase > 0)
@@ -1322,17 +3071,61 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             : ""
         ].filter((message): message is string => Boolean(message))
       : [];
-  const selectedConsumptionQty = selectedMaterialConsumptionLedgers.reduce(
-    (sum, ledger) => sum + parseLedgerQuantity(ledger.quantityText),
-    0
-  );
-  const selectedConsumptionQty7Days = selectedMaterialConsumptionLedgers
-    .filter((ledger) => new Date().getTime() - new Date(ledger.occurredAt).getTime() <= 7 * 24 * 60 * 60 * 1000)
-    .reduce((sum, ledger) => sum + parseLedgerQuantity(ledger.quantityText), 0);
-  const selectedConsumptionCost = selectedMaterialConsumptionLedgers.reduce((sum, ledger) => {
-    const lot = selectedMaterialLots.find((item) => item.lotNo === ledger.lotNo);
-    return sum + parseLedgerQuantity(ledger.quantityText) * (lot?.baseUnitCost || 0);
-  }, 0);
+  const openPurchaseOrderDraft = () => {
+    const enabledSelectedIds = selectedPurchaseMaterialIds.filter((materialId) => {
+      const material = materialMap.get(materialId);
+      return material && getInventoryMaterialStatus(material) === "启用中";
+    });
+    if (!enabledSelectedIds.length) {
+      message.warning("请先选择需要采购的物料。");
+      return;
+    }
+
+    const nextQuantities = enabledSelectedIds.reduce<Record<string, number | undefined>>((values, materialId) => {
+      const material = materialMap.get(materialId);
+      if (!material) return values;
+      const lastPurchaseInfo = resolveInventoryLastPurchaseInfo(material, lots, ledgers);
+      values[materialId] = lastPurchaseInfo.quantityBase > 0 ? lastPurchaseInfo.quantityBase : undefined;
+      return values;
+    }, {});
+    setSelectedPurchaseMaterialIds(enabledSelectedIds);
+    setPurchaseOrderQuantities(nextQuantities);
+    setSelectedPurchaseOrderNo(null);
+    setInventoryView("purchase-order-draft");
+  };
+
+  const submitPurchaseOrder = () => {
+    if (!selectedPurchaseOrderRows.length) {
+      message.error("请先选择需要采购的物料。");
+      return;
+    }
+
+    const invalidLine = selectedPurchaseOrderRows.find((row) => !row.quantityBase || row.quantityBase <= 0);
+    if (invalidLine) {
+      message.error(`${invalidLine.materialName} 的采购数量必须大于 0。`);
+      return;
+    }
+
+    const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const orderNo = `CG${todayKey}-${String(purchaseOrders.length + 1).padStart(3, "0")}`;
+    const createdAt = `${new Date().toISOString().slice(0, 10)} 14:00`;
+    const nextOrder: InventoryPurchaseOrderRecord = {
+      no: orderNo,
+      createdAt,
+      lines: selectedPurchaseOrderRows.map((row) => ({
+        ...row,
+        quantityBase: row.quantityBase || 0
+      }))
+    };
+
+    setPurchaseOrders((prev) => [nextOrder, ...prev]);
+    setSelectedPurchaseOrderNo(orderNo);
+    setInventoryView("purchase-order-detail");
+    setSelectedPurchaseMaterialIds([]);
+    setPurchaseOrderQuantities({});
+    message.success(`采购单 ${orderNo} 已生成`);
+  };
+
   const openCategory = (category: InventoryCategory, keyword = "") => {
     setActiveCategory(category);
     setSummaryKeyword(keyword);
@@ -1354,77 +3147,74 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     setExpiredActionLot(lot);
     scrapForm.setFieldsValue({
       scrapQuantity: lot.remainingQtyBase,
-      reason: "超过有效期",
+      reason: lot.status === "过期" ? "过期/变质" : undefined,
       handlingMethod: "无害化处理"
     });
   };
 
-  const openStocktakeScope = (mode: InventoryStocktakeMode, targetMaterialId?: string) => {
-    const effectiveMode: InventoryStocktakeMode = targetMaterialId ? "指定物料盘点" : mode;
+  const openLotEditModal = (lot: InventoryLot) => {
+    setEditingLotId(lot.id);
+    lotEditForm.setFieldsValue({
+      expiryDate: lot.expiryDate,
+      supplierBatchNo: lot.supplierBatchNo,
+      note: lot.note
+    });
+  };
+
+  const closeLotEditModal = () => {
+    setEditingLotId(null);
+    lotEditForm.resetFields();
+  };
+
+  const submitLotEdit = async () => {
+    if (!editingLotId) return;
+    const values = await lotEditForm.validateFields();
+    setLots((prev) =>
+      prev.map((lot) =>
+        lot.id === editingLotId
+          ? {
+              ...lot,
+              expiryDate: values.expiryDate?.trim() || undefined,
+              supplierBatchNo: values.supplierBatchNo?.trim() || undefined,
+              note: values.note?.trim() || undefined
+            }
+          : lot
+      )
+    );
+    closeLotEditModal();
+    message.success("批次信息已更新");
+  };
+
+  const openStocktakeScope = () => {
+    const effectiveMode: InventoryStocktakeMode = "指定物料盘点";
     const rows = buildInventoryStocktakeScope({
       mode: effectiveMode,
       materials,
       lots,
-      summaries,
-      category: activeCategory
+      summaries
     });
-    const initialSelectedRows = targetMaterialId
-      ? buildInventoryStocktakeScope({
-          mode: "指定物料盘点",
-          materials,
-          lots,
-          summaries,
-          targetMaterialId
-        })
-      : effectiveMode === "指定物料盘点"
-        ? []
-        : rows;
     setStocktakeMode(effectiveMode);
     setStocktakeScopeRows(rows);
-    setStocktakeScopeSelectedRowIds(initialSelectedRows.map((row) => row.id));
     setStocktakeScopeKeyword("");
     setStocktakeScopeCategory("全部");
-    setStocktakeScopeStatus("全部");
+    setStocktakeRiskFilter("全部");
     setStocktakeActuals({});
-    setStocktakeSubmitted(false);
-    setStocktakeTaskValues(null);
+    setStocktakeTaskValues(buildDefaultStocktakeTaskValues(effectiveMode));
     setStocktakeCompleteResult(null);
-    setStocktakeStartOpen(false);
-    setInventoryView("stocktake-scope");
-  };
-
-  const removeStocktakeScopeRow = (rowId: string) => {
-    setStocktakeScopeRows((prev) => prev.filter((row) => row.id !== rowId));
-    setStocktakeScopeSelectedRowIds((prev) => prev.filter((id) => id !== rowId));
-    setStocktakeActuals((prev) => {
-      const next = { ...prev };
-      delete next[rowId];
-      return next;
-    });
-  };
-
-  const fillStocktakeBookStock = () => {
-    setStocktakeActuals((prev) => ({
-      ...selectedStocktakeScopeRows.reduce<Record<string, number>>((values, row) => {
-        values[row.id] = row.bookQtyBase < 0 ? 0 : row.bookQtyBase;
-        return values;
-      }, {}),
-      ...prev
-    }));
-  };
-
-  const beginStocktakeExecution = () => {
-    setStocktakeTaskValues(buildDefaultStocktakeTaskValues(stocktakeMode));
     setInventoryView("stocktake-execute");
   };
 
   const validateStocktakeExecution = () => {
-    for (const row of selectedStocktakeScopeRows) {
+    for (const row of stocktakeDifferenceRows) {
       const actualQty = stocktakeActuals[row.id];
-      if (actualQty === undefined || actualQty < 0) {
-        message.error("请完整填写实际库存，且实际库存不能小于 0。");
+      if (actualQty !== undefined && actualQty < 0) {
+        message.error("盘点库存不能小于 0。");
         return false;
       }
+    }
+    if (!stocktakeChangedRows.length) {
+      message.info("本次没有填写发生变化的库存。");
+      return false;
     }
     return true;
   };
@@ -1441,59 +3231,44 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     const stocktakeNo = currentStocktakeNo || `PD${new Date().toISOString().slice(0, 10).replace(/-/g, "")}002`;
     const occurredAt = `${new Date().toISOString().slice(0, 10)} 10:45`;
     try {
-      const newDifferences = buildInventoryStocktakeDifferences({
-        scopeRows: selectedStocktakeScopeRows,
-        actualQuantities: stocktakeActuals,
+      const changedActualQuantities = Object.fromEntries(
+        stocktakeChangedRows.map((row) => [row.id, row.actualQty])
+      );
+      const transaction = buildInventoryStocktakeTransaction({
+        materials,
+        lots,
+        scopeRows: stocktakeChangedRows,
+        actualQuantities: changedActualQuantities,
         operator: effectiveStocktakeValues.assignee,
         stocktakeNo,
         occurredAt,
-        idPrefix: `diff-${Date.now()}`
+        ledgerIdPrefix: `ledger-stocktake-${Date.now()}`
       });
-      const toleranceResolution = resolveInventoryToleranceDifferences({
-        differences: newDifferences,
-        materials,
-        lots,
-        ledgers,
-        operator: "系统",
-        occurredAt,
-        ledgerIdPrefix: `ledger-auto-tolerance-${Date.now()}`
-      });
-      const allStocktakeDifferences = [
-        ...toleranceResolution.pendingDifferences,
-        ...toleranceResolution.processedDifferences
-      ];
-      setMaterials(toleranceResolution.materials);
-      setLots(toleranceResolution.lots);
-      setLedgers((prev) => [...toleranceResolution.ledgers, ...prev]);
-      setDifferences((prev) => [...allStocktakeDifferences, ...prev]);
-      setStocktakeDifferenceResult(allStocktakeDifferences);
-      const pendingDifferenceCount = toleranceResolution.pendingDifferences.length;
+      setMaterials(transaction.materials);
+      setLots(transaction.lots);
+      setLedgers((prev) => [...transaction.ledgers, ...prev]);
+      setStocktakeCompleteResult(transaction);
       const nextRecord: InventoryStocktakeRecord = {
         no: stocktakeNo,
-        name: effectiveStocktakeValues.name,
+        name: `库存盘点-${new Date().toISOString().slice(0, 10).replace(/-/g, "/")}`,
         mode: stocktakeMode,
-        materialCount: selectedStocktakeScopeRows.length,
-        differenceCount: allStocktakeDifferences.length,
-        status: pendingDifferenceCount > 0 ? "待确认" : "已完成",
-        reason: effectiveStocktakeValues.reason,
+        materialCount: stocktakeScopeRows.length,
+        differenceCount: transaction.summary.adjustmentCount,
+        status: "已完成",
+        reason: "库存修正",
         assignee: effectiveStocktakeValues.assignee,
         createdAt: occurredAt.replace("10:45", "10:30"),
-        completedAt: pendingDifferenceCount > 0 ? undefined : occurredAt,
-        scopeRows: selectedStocktakeScopeRows,
+        completedAt: occurredAt,
+        scopeRows: stocktakeChangedRows,
         actualQuantities: Object.fromEntries(
           Object.entries(stocktakeActuals).filter((entry): entry is [string, number] => typeof entry[1] === "number")
-        )
+        ),
+        transaction
       };
       setStocktakeRecords((prev) => [nextRecord, ...prev]);
       setSelectedStocktakeRecordNo(stocktakeNo);
       setInventoryView("stocktake-complete");
-      message.success(
-        pendingDifferenceCount > 0
-          ? `已自动处理 ${toleranceResolution.processedDifferences.length} 条小差异，仍有 ${pendingDifferenceCount} 条进入盘点差异处理`
-          : toleranceResolution.processedDifferences.length > 0
-            ? `盘点完成，${toleranceResolution.processedDifferences.length} 条小差异已自动处理并生成库存流水`
-            : "盘点完成，账实一致，无差异"
-      );
+      message.success("盘点已确认，新库存已生效");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "盘点提交失败，请检查数据。");
     }
@@ -1507,17 +3282,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     () => differences.filter((item) => item.status === "已处理"),
     [differences]
   );
-  const pendingDifferenceMaterialIds = useMemo(
-    () => new Set(pendingDifferences.map((item) => item.materialId)),
-    [pendingDifferences]
-  );
-  const pendingDifferenceByMaterial = useMemo(() => {
-    const map = new Map<string, number>();
-    pendingDifferences.forEach((item) => {
-      map.set(item.materialId, (map.get(item.materialId) || 0) + item.diffBase);
-    });
-    return map;
-  }, [pendingDifferences]);
   const handlingDifference = useMemo(
     () => differences.find((item) => item.id === handlingDifferenceId) || null,
     [differences, handlingDifferenceId]
@@ -1642,7 +3406,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       brand: material.brand,
       category: material.category,
       baseUnit: material.baseUnit,
-      safetyStockBase: material.safetyStockBase,
       note: material.note
     });
   };
@@ -1657,7 +3420,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     const usageState = resolveMaterialUsageState(editingMaterial.id);
     const normalizedValues = {
       ...values,
-      safetyStockBase: typeof values.safetyStockBase === "number" ? values.safetyStockBase : undefined,
       note: values.note?.trim() || undefined
     };
     const validationMessage = validateInventoryMaterialEdit({
@@ -1684,7 +3446,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           brand: normalizedValues.brand,
           category: normalizedValues.category,
           baseUnit: usageState.canEditBaseUnit ? normalizedValues.baseUnit : editingMaterial.baseUnit,
-          safetyStockBase: normalizedValues.safetyStockBase,
           note: normalizedValues.note
         })
       );
@@ -1727,7 +3488,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         ? usageState.currentStock !== 0
           ? "当前物料仍有库存。停用后，该物料将不再支持新任务选择和新增入库，但库存、批次和历史记录仍会保留。请确认是否停用。"
           : "停用后，该物料将不再支持新任务选择和新增入库，但历史记录仍会保留。请确认是否停用。"
-        : "启用后，该物料将重新支持采购入库和新任务选择。请确认是否启用。",
+        : "启用后，该物料将重新支持入库和新任务选择。请确认是否启用。",
       okText: isDisabling ? "确认停用" : "确认启用",
       cancelText: "取消",
       okButtonProps: isDisabling ? { danger: true } : undefined,
@@ -1738,158 +3499,111 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     });
   };
 
-  const deleteMaterial = (materialId: string) => {
-    const material = materials.find((item) => item.id === materialId);
-    if (!material) return;
-    const usageState = resolveMaterialUsageState(materialId);
-    Modal.confirm({
-      title: usageState.currentStock !== 0 ? "当前物料仍有库存，确认删除？" : "确认删除物料？",
-      content:
-        usageState.currentStock !== 0
-          ? "当前物料仍有库存。删除后，该物料将不再支持新任务选择和新增入库，但库存、批次和历史记录仍会保留。请确认是否删除。"
-          : "删除后，该物料将不再支持新任务选择和新增入库，但历史记录仍会保留。请确认是否删除。",
-      okText: "确认删除",
-      cancelText: "取消",
-      okButtonProps: { danger: true },
-      onOk: () => {
-        setMaterials((prev) => toggleInventoryMaterialStatus(prev, materialId, "已停用"));
-        setSelectedMaterialId(null);
-        setInventoryView("home");
-        message.success("物料已删除");
-      }
-    });
+  const resetOutboundState = () => {
+    setOutboundKeyword("");
+    setOutboundCategory("全部");
+    setOutboundQuantities({});
+    setOutboundPurpose("");
+    setOutboundRemark("");
   };
 
-  const resetReceiveFormState = () => {
-    receiveForm.resetFields();
-    setReceiveMaterialText("");
-    setReceiveMaterialId(undefined);
-    setReceiveNewMaterialDraft(null);
+  const openOutboundExecution = () => {
+    resetOutboundState();
+    setInventoryView("outbound-execute");
   };
 
-  const buildReceiveProfileValues = (category: InventoryCategory, values: Record<string, unknown>) => {
-    return buildMaterialProfileFromForm(category, values);
-  };
-
-  const openQuickCreateMaterial = () => {
-    const presetCategory = (receiveForm.getFieldValue("category") as InventoryCategory) || "饲料";
-    const presetBaseUnit = inventoryCategoryBaseUnitRecommendations[presetCategory]?.[0];
-    quickCreateForm.resetFields();
-    quickCreateForm.setFieldsValue({
-      materialName: receiveMaterialKeyword,
-      category: presetCategory,
-      baseUnit: presetBaseUnit,
-      packageConversions: buildDefaultPackageConversion()
-    });
-    setQuickCreateOpen(true);
-  };
-
-  const confirmQuickCreateMaterial = async () => {
-    const values = await quickCreateForm.validateFields();
-    const category = (values.category || "饲料") as InventoryCategory;
-    const baseUnit = String(values.baseUnit);
-    const packageConversions = normalizeReceivePackageConversions(baseUnit, values.packageConversions);
-    if (packageConversions.length) {
-      const packageMessage = validateInventoryPackageConversions(baseUnit, packageConversions);
-      if (packageMessage) {
-        message.error(packageMessage);
-        return;
-      }
+  const submitOutboundExecution = () => {
+    if (!outboundSelectedRows.length) {
+      message.info("请至少填写一种物料的出库数量。");
+      return;
     }
-    const draft: InventoryMaterial = {
-      id: `mat-draft-${Date.now()}`,
-      materialName: String(values.materialName).trim(),
-      materialNameEn: values.materialNameEn ? String(values.materialNameEn).trim() : undefined,
-      category,
-      brand: String(values.brand).trim(),
-      brandEn: values.brandEn ? String(values.brandEn).trim() : undefined,
-      baseUnit,
-      unitSystem: [`1${baseUnit} = 1${baseUnit}`],
-      packageConversions,
-      status: "启用中",
-      auxiliaryUnit: packageConversions[0]?.fromUnit || baseUnit,
-      note: values.note ? String(values.note).trim() : undefined,
-      ...buildReceiveProfileValues(category, values)
-    };
-    draft.profileIncomplete = isMaterialProfileIncomplete(draft);
-
-    setReceiveNewMaterialDraft(draft);
-    setReceiveMaterialId(undefined);
-    setReceiveMaterialText(draft.materialName);
-    receiveForm.setFieldsValue({
-      materialName: draft.materialName,
-      brand: draft.brand,
-      category: draft.category,
-      baseUnit: draft.baseUnit,
-      inboundUnit: draft.auxiliaryUnit,
-      inboundQuantity: undefined
-    });
-    setQuickCreateOpen(false);
-    message.success(draft.profileIncomplete ? "已新建物料草稿，部分专属资料待完善" : "已新建物料草稿");
-  };
-
-  const clearReceiveNewMaterialDraft = () => {
-    setReceiveNewMaterialDraft(null);
-    setReceiveMaterialId(undefined);
-    setReceiveMaterialText("");
-    receiveForm.setFieldsValue({
-      materialName: undefined,
-      brand: undefined,
-      category: undefined,
-      baseUnit: undefined,
-      inboundUnit: undefined,
-      inboundQuantity: undefined
-    });
-  };
-
-  const resetOutboundFormState = () => {
-    outboundForm.resetFields();
-  };
-
-  const applyReceiveBaseUnit = (baseUnit: string) => {
-    receiveForm.setFieldsValue({
-      baseUnit,
-      packageConversions: buildDefaultPackageConversion(),
-      inboundUnit: undefined,
-      inboundQuantity: undefined
-    });
-  };
-
-  const applyReceiveCategoryRecommendation = (category: InventoryCategory) => {
-    const recommendedBaseUnit = inventoryCategoryBaseUnitRecommendations[category]?.[0];
-    if (recommendedBaseUnit && !receiveForm.getFieldValue("baseUnit")) {
-      applyReceiveBaseUnit(recommendedBaseUnit);
+    const invalidRow = outboundSelectedRows.find((row) => row.outboundQuantity <= 0);
+    if (invalidRow) {
+      message.error(`${invalidRow.materialName} 的出库数量必须大于 0。`);
+      return;
     }
+    if (!outboundPurpose.trim()) {
+      message.error("请填写领用用途。");
+      return;
+    }
+    if (outboundRemark.length > 200) {
+      message.error("备注不能超过 200 字。");
+      return;
+    }
+    setInventoryView("outbound-confirm");
   };
 
-  const applyExistingReceiveMaterial = (material: InventoryMaterial) => {
-    setReceiveMaterialId(material.id);
-    setReceiveNewMaterialDraft(null);
-    const defaultInboundUnit = material.auxiliaryUnit || material.packageConversions?.[0]?.fromUnit || material.baseUnit;
-    receiveForm.setFieldsValue({
-      brand: material.brand,
-      category: material.category,
-      baseUnit: material.baseUnit,
-      packageConversions: undefined,
-      inboundUnit: defaultInboundUnit,
-      inboundQuantity: undefined
-    });
-  };
+  const confirmOutboundOrder = () => {
+    if (!outboundSelectedRows.length) {
+      message.info("请至少填写一种物料的出库数量。");
+      setInventoryView("outbound-execute");
+      return;
+    }
+    if (!outboundPurpose.trim()) {
+      message.error("请填写领用用途。");
+      setInventoryView("outbound-execute");
+      return;
+    }
 
-  const openReceiveForMaterial = (materialId: string) => {
-    const material = activeReceiveMaterials.find((item) => item.id === materialId);
-    if (!material) return;
-    resetReceiveFormState();
-    setReceiveMaterialText(material.materialName);
-    receiveForm.setFieldsValue({ materialName: material.materialName });
-    applyExistingReceiveMaterial(material);
-    setReceiveOpen(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const todayKey = today.replace(/-/g, "");
+    const outboundNo = `CK${todayKey}-${String(outboundOrders.length + 1).padStart(3, "0")}`;
+    let nextMaterials = materials;
+    let nextLots = lots;
+    const nextLedgers: InventoryLedgerRow[] = [];
+    const nextLines: InventoryOutboundOrderLine[] = [];
+
+    try {
+      outboundSelectedRows.forEach((row, index) => {
+        const transaction = buildInventoryOutboundTransaction({
+          materials: nextMaterials,
+          lots: nextLots,
+          materialId: row.materialId,
+          outboundQuantity: row.outboundQuantity,
+          purpose: outboundPurpose,
+          remark: outboundRemark,
+          operator: "当前用户",
+          outboundDate: today,
+          ledgerIdPrefix: `ledger-outbound-${Date.now()}-${index}`
+        });
+        nextMaterials = transaction.materials;
+        nextLots = transaction.lots;
+        nextLedgers.push(...transaction.ledgers);
+        const lastLedger = transaction.ledgers[transaction.ledgers.length - 1];
+        nextLines.push({
+          ...row,
+          afterStockBase: lastLedger ? parseLedgerQuantity(lastLedger.afterStockText) : row.afterStockBase,
+          ledgerCount: transaction.ledgers.length
+        });
+      });
+
+      const nextOrder: InventoryOutboundOrderRecord = {
+        no: outboundNo,
+        createdAt: `${today} 10:00`,
+        purpose: outboundPurpose.trim(),
+        remark: outboundRemark.trim() || undefined,
+        operator: "当前用户",
+        lines: nextLines,
+        ledgers: nextLedgers
+      };
+      setMaterials(nextMaterials);
+      setLots(nextLots);
+      setLedgers((prev) => [...nextLedgers, ...prev]);
+      setOutboundOrders((prev) => [nextOrder, ...prev]);
+      setSelectedOutboundOrderNo(outboundNo);
+      resetOutboundState();
+      setInventoryView("outbound-detail");
+      message.success("出库单已生成");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "出库失败，请检查出库信息。");
+    }
   };
 
   const handleRiskAction = (actionText: string | undefined, item: InventoryHomeRiskRow) => {
     if (!actionText) return;
     if (actionText === "入库") {
-      openReceiveForMaterial(item.materialId);
+      setBatchReceiveEntries([]);
+      setInventoryView("batch-receive");
       return;
     }
     if (actionText === "报废") {
@@ -1897,134 +3611,20 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       if (lot) openExpiredScrapModal(lot);
       return;
     }
-    openStocktakeScope("指定物料盘点", item.materialId);
-  };
-
-  const submitReceive = async () => {
-    const values = await receiveForm.validateFields();
-    if (!selectedReceiveMaterial && !activeReceiveNewDraft) {
-      message.error("请先选择已有物料或新建物料。");
-      return;
-    }
-    const materialId = `mat-receive-${Date.now()}`;
-    const materialSource = selectedReceiveMaterial || activeReceiveNewDraft;
-    const baseUnit = materialSource?.baseUnit || values.baseUnit;
-    const inboundQuantity = Number(values.inboundQuantity || 0);
-    if (!baseUnit) {
-      message.error("请选择核算单位。");
-      return;
-    }
-    if (inboundQuantity <= 0) {
-      message.error("入库数量必须大于 0。");
-      return;
-    }
-    const inboundUnit = values.inboundUnit || baseUnit;
-    const packageConversions = materialSource?.packageConversions || normalizeReceivePackageConversions(baseUnit, values.packageConversions);
-    const packageValidationMessage = packageConversions.length
-      ? validateInventoryPackageConversions(baseUnit, packageConversions)
-      : null;
-    if (packageValidationMessage) {
-      message.error(packageValidationMessage);
-      return;
-    }
-    const baseQuantity = calculateInventoryBaseQuantity(inboundQuantity, inboundUnit, baseUnit, packageConversions);
-    if (!baseQuantity) {
-      message.error("当前入库单位缺少物料规格，无法换算为核算单位。");
-      return;
-    }
-    const receivedEntry = buildInventoryReceiveEntryFromSearch({
-      materials,
-      selectedMaterialId: receiveMaterialId,
-      materialText: values.materialName,
-      category: activeReceiveNewDraft?.category || values.category,
-      brand: activeReceiveNewDraft?.brand || values.brand,
-      baseUnit,
-      safetyStockBase: activeReceiveNewDraft?.safetyStockBase ?? values.safetyStockBase,
-      note: activeReceiveNewDraft?.note ?? values.note,
-      newMaterialId: materialId,
-      lotId: `lot-receive-${Date.now()}`,
-      expiryDate: values.expiryDate,
-      unitPrice: values.unitPrice,
-      inboundQuantity,
-      inboundUnit,
-      baseQuantity,
-      packageConversions,
-      supplier: values.supplier,
-      supplierPhone: values.supplierPhone,
-      storageLocation: values.storageLocation,
-      receiveDate,
-      sequence: receiveSequence
-    });
-
-    let finalMaterial = receivedEntry.material;
-    if (activeReceiveNewDraft) {
-      const { id, materialName, category, brand, baseUnit: builtBaseUnit, unitSystem, packageConversions: builtPackages, auxiliaryUnit } =
-        receivedEntry.material;
-      finalMaterial = {
-        ...activeReceiveNewDraft,
-        id,
-        materialName,
-        category,
-        brand,
-        baseUnit: builtBaseUnit,
-        unitSystem,
-        packageConversions: builtPackages,
-        auxiliaryUnit,
-        status: "启用中"
-      };
-    }
-
-    if (!materials.some((item) => item.id === finalMaterial.id)) {
-      setMaterials((prev) => [...prev, finalMaterial]);
-    }
-    setLots((prev) => [...prev, receivedEntry.lot]);
-    setLedgers((prev) => [
-      {
-        id: `ledger-receive-${Date.now()}`,
-        occurredAt: `${receiveDate} 09:00`,
-        type: "采购入库",
-        source: `入库批次 ${receivedEntry.lot.lotNo}`,
-        materialId: receivedEntry.material.id,
-        lotNo: receivedEntry.lot.lotNo,
-      quantityText: `+${formatInventoryQty(receivedEntry.lot.convertedQtyBase, receivedEntry.material.baseUnit)}`,
-        afterStockText: formatInventoryQty(
-          (summaries.find((summary) => summary.materialId === receivedEntry.material.id)?.currentStockBase || 0) +
-            receivedEntry.lot.convertedQtyBase,
-          receivedEntry.material.baseUnit
-        ),
-        operator: "当前用户",
-        remark:
-          [
-            `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}`,
-            receivedEntry.lot.inboundUnit === receivedEntry.material.baseUnit
-              ? ""
-              : `换算数量：${formatInventoryQty(receivedEntry.lot.convertedQtyBase, receivedEntry.material.baseUnit)}`,
-            receivedEntry.lot.inboundUnit === receivedEntry.material.baseUnit
-              ? ""
-              : `规格：${formatPackageConversionSummary(packageConversions).join("，")}`,
-            values.storageLocation ? `存放位置：${values.storageLocation}` : ""
-          ].filter(Boolean).join("；")
-      },
-      ...prev
-    ]);
-    setActiveCategory(receivedEntry.material.category);
-    setSummaryKeyword(receivedEntry.material.materialName);
-    resetReceiveFormState();
-    setReceiveOpen(false);
-    message.success("已生成系统批次，并写入对应物料列表和批次明细");
+    openStocktakeScope();
   };
 
   const submitBatchReceive = () => {
     if (!batchReceiveReadyEntries.length) {
       if (batchReceiveSubmittingEntries.length) {
-        message.error("已填写数量的条目需要补齐物料、到期日期、总进货价、供应商和存放位置。");
+        message.error("已填写的条目需要补齐物料、数量、供应商、总金额和保质期。");
       } else {
         message.error("请至少填写一条入库记录。");
       }
       return;
     }
 
-    const receiveDateValue = new Date().toISOString().slice(0, 10);
+    const receiveDateValue = batchReceiveHeader.receiveDate || new Date().toISOString().slice(0, 10);
     let baseSequence = lots.filter((lot) => lot.lotNo.startsWith(`RK-${receiveDateValue.replace(/-/g, "")}`)).length + 1;
     const stockByMaterial = new Map(summaries.map((summary) => [summary.materialId, summary.currentStockBase]));
     const pendingMaterials: InventoryMaterial[] = [];
@@ -2036,8 +3636,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       batchReceiveReadyEntries.forEach((entry, index) => {
         const materialSource = resolveBatchReceiveEntryMaterial(
           entry,
-          [...materials, ...pendingMaterials],
-          batchReceiveCategory
+          [...materials, ...pendingMaterials]
         );
         if (!materialSource) {
           throw new Error(`第 ${index + 1} 条：请先选择已有物料或完善新建物料信息。`);
@@ -2046,7 +3645,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         const selectedExistingId = entry.materialId || materials.find((item) => item.materialName === materialSource.materialName)?.id;
         const newDraft =
           !entry.materialId && entry.newMaterialForm
-            ? buildBatchInlineNewMaterialDraft(batchReceiveCategory, entry.materialKeyword.trim(), entry.newMaterialForm)
+            ? buildBatchInlineNewMaterialDraft(entry.category || materialSource.category, entry.materialKeyword.trim(), entry.newMaterialForm)
             : null;
         const draft = buildBatchReceiveEntryEffectiveDraft(entry, materialSource);
         const inboundQuantity = Number(draft.inboundQuantity || 0);
@@ -2059,7 +3658,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           packageConversions
         );
         if (!baseQuantity) {
-          throw new Error(`${materialSource.materialName} 的入库单位缺少包装规格，无法换算为核算单位。`);
+          throw new Error(`${materialSource.materialName} 的入库单位无法换算，请先完善物料档案单位。`);
         }
 
         const receivedEntry = buildInventoryReceiveEntryFromSearch({
@@ -2069,11 +3668,11 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           category: newDraft?.category || materialSource.category,
           brand: newDraft?.brand || materialSource.brand,
           baseUnit: materialSource.baseUnit,
-          safetyStockBase: newDraft?.safetyStockBase,
           note: newDraft?.note,
           newMaterialId: newDraft ? `mat-batch-${Date.now()}-${index}` : `mat-batch-${Date.now()}-${index}`,
           lotId: `lot-batch-receive-${Date.now()}-${index}`,
           expiryDate: draft.expiryDate || "",
+          productionDate: draft.productionDate,
           unitPrice: Number(draft.unitPrice || 0),
           inboundQuantity,
           inboundUnit,
@@ -2081,7 +3680,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           packageConversions,
           supplier: draft.supplier,
           supplierPhone: draft.supplierPhone || undefined,
-          storageLocation: draft.storageLocation?.trim(),
+          externalBatchNo: draft.externalBatchNo,
           receiveDate: receiveDateValue,
           sequence: baseSequence + index
         });
@@ -2113,7 +3712,10 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         nextLots.push(receivedEntry.lot);
 
         const remarkParts = [
-          `批量入库：${batchReceiveCategory}`,
+          `入库：${finalMaterial.category}`,
+          draft.supplier ? `供应商：${draft.supplier}` : "",
+          draft.supplierPhone ? `供应商电话：${draft.supplierPhone}` : "",
+          batchReceiveHeader.purchaseOrderNo ? `采购单号：${batchReceiveHeader.purchaseOrderNo}` : "",
           `原始数量：${formatInventoryQty(receivedEntry.lot.inboundQty, receivedEntry.lot.inboundUnit)}`,
           receivedEntry.lot.inboundUnit === finalMaterial.baseUnit
             ? ""
@@ -2121,8 +3723,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           receivedEntry.lot.inboundUnit === finalMaterial.baseUnit
             ? ""
             : `规格：${formatPackageConversionSummary(packageConversions).join("，")}`,
-          draft.storageLocation ? `存放位置：${draft.storageLocation.trim()}` : "",
-          draft.note ? `备注：${draft.note}` : ""
+          draft.externalBatchNo ? `外部批次：${draft.externalBatchNo}` : "",
+          draft.note ? `行备注：${draft.note}` : "",
+          batchReceiveHeader.remark ? `整单备注：${batchReceiveHeader.remark}` : ""
         ].filter(Boolean);
 
         nextLedgers.push({
@@ -2131,7 +3734,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             (index % 6) * 10
           ).padStart(2, "0")}`,
           type: "采购入库",
-          source: `批量入库 ${receivedEntry.lot.lotNo}`,
+          source: `入库 ${receivedEntry.lot.lotNo}`,
           materialId: finalMaterial.id,
           lotNo: receivedEntry.lot.lotNo,
           quantityText: `+${formatInventoryQty(receivedEntry.lot.convertedQtyBase, finalMaterial.baseUnit)}`,
@@ -2149,46 +3752,14 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       setLedgers((prev) => [...nextLedgers, ...prev]);
       setBatchReceiveEntries((prev) => {
         const remaining = prev.filter((entry) => !submittedEntryIds.includes(entry.id));
-        return remaining.length ? remaining : [createEmptyBatchReceiveEntry()];
+        return remaining;
       });
-      setActiveCategory(batchReceiveCategory);
+      setBatchReceiveHeader(createDefaultBatchReceiveHeader());
+      setActiveCategory(nextLots[0] ? (materials.find((item) => item.id === nextLots[0].materialId)?.category || pendingMaterials[0]?.category || "饲料") : "饲料");
       setSummaryKeyword("");
-      message.success(`批量入库成功，已生成 ${nextLots.length} 个批次和 ${nextLedgers.length} 条库存流水`);
+      message.success(`入库成功，已生成 ${nextLots.length} 个批次和 ${nextLedgers.length} 条库存流水`);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "批量入库失败，请检查入库信息。");
-    }
-  };
-
-  const submitOutbound = async () => {
-    const values = await outboundForm.validateFields();
-    const material = materials.find((item) => item.id === values.materialId);
-    if (!material) {
-      message.error("请选择出库物料。");
-      return;
-    }
-
-    try {
-      const transaction = buildInventoryOutboundTransaction({
-        materials,
-        lots,
-        materialId: values.materialId,
-        outboundQuantity: values.outboundQuantity,
-        purpose: values.purpose,
-        remark: values.remark,
-        operator: "当前用户",
-        outboundDate: new Date().toISOString().slice(0, 10),
-        ledgerIdPrefix: `ledger-outbound-${Date.now()}`
-      });
-      setMaterials(transaction.materials);
-      setLots(transaction.lots);
-      setLedgers((prev) => [...transaction.ledgers, ...prev]);
-      setActiveCategory(material.category);
-      setSummaryKeyword(material.materialName);
-      resetOutboundFormState();
-      setOutboundOpen(false);
-      message.success("出库成功");
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "出库失败，请检查出库信息。");
+      message.error(error instanceof Error ? error.message : "入库失败，请检查入库信息。");
     }
   };
 
@@ -2209,6 +3780,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         scrapQuantity: values.scrapQuantity,
         reason: values.reason,
         handlingMethod: values.handlingMethod,
+        photoNote: values.photoNote,
         operator: "当前用户",
         occurredAt: `${new Date().toISOString().slice(0, 10)} 11:20`,
         ledgerId: `ledger-scrap-${Date.now()}`
@@ -2227,108 +3799,256 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     }
   };
 
-  const summaryColumns: ColumnsType<InventorySummary> = [
+  const purchaseOrderColumns: ColumnsType<InventoryPurchaseOrderLine> = [
     {
-      title: "物料名称",
+      title: "物料",
       dataIndex: "materialName",
-      sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
-      render: (_, row) => (
-        <button
-          type="button"
-          className="inventory-material-link"
-          onClick={() => openMaterialDetail(row.materialId)}
-        >
-          <strong>{row.materialName}</strong>
-          <span>
-            {row.brand}｜<Tag color={row.materialStatus === "已停用" ? "default" : "success"}>{row.materialStatus}</Tag>
-          </span>
-        </button>
-      )
-    },
-    {
-      title: "品牌",
-      dataIndex: "brand",
-      sorter: (a, b) => a.brand.localeCompare(b.brand, "zh-Hans-CN"),
-      render: (value) => value || "—"
-    },
-    {
-      title: "分类",
-      dataIndex: "category",
-      filters: inventoryCategoryOrder.map((value) => ({ text: value, value })),
-      onFilter: (value, row) => row.category === value,
-      sorter: (a, b) => a.category.localeCompare(b.category, "zh-Hans-CN")
-    },
-    {
-      title: "当前库存",
-      dataIndex: "currentStockBase",
-      sorter: (a, b) => a.currentStockBase - b.currentStockBase,
+      width: 180,
       render: (_, row) => (
         <div className="inventory-cell-stack">
-          <span>
-            {formatInventoryQtyWithPackage(
-              row.currentStockBase,
-              materials.find((material) => material.id === row.materialId)
-            )}
-          </span>
-          {pendingDifferenceMaterialIds.has(row.materialId) ? (
-            <Tag color="gold" className="inventory-pending-diff-tag">
-              含未处理差异
-            </Tag>
-          ) : null}
+          <span>{row.materialName}</span>
+          <Text type="secondary">
+            {row.brand}｜{row.category}
+          </Text>
         </div>
       )
     },
     {
-      title: "最近到期日",
-      dataIndex: "nearestExpiryDate",
-      sorter: (a, b) =>
-        new Date(String(a.nearestExpiryDate)).getTime() - new Date(String(b.nearestExpiryDate)).getTime(),
-      render: (_, row) => formatNearestExpiryDate(row)
+      title: "当前库存余量",
+      dataIndex: "currentStockText",
+      width: 140
     },
     {
-      title: "库存状态",
-      dataIndex: "stockRisk",
-      filters: ["正常", "临期", "低库存", "负库存"].map((value) => ({ text: value, value })),
-      onFilter: (value, row) => resolveListStockStatus(row, lots) === value,
-      sorter: (a, b) => resolveListStockStatus(a, lots).localeCompare(resolveListStockStatus(b, lots), "zh-Hans-CN"),
+      title: "预计可用天数",
+      dataIndex: "estimatedAvailableDays",
+      width: 140,
+      render: (_, row) => renderPurchaseOrderEstimatedAvailableDays(row.estimatedAvailableDays)
+    },
+    {
+      title: "上次入库",
+      dataIndex: "lastPurchaseAt",
+      width: 300,
       render: (_, row) => {
-        const status = resolveListStockStatus(row, lots);
-        return <Tag color={statusColor(status)}>{status}</Tag>;
+        if (row.lastPurchaseSource === "none") {
+          return <Text type="secondary">暂无入库记录</Text>;
+        }
+        return (
+          <div className="inventory-cell-stack">
+            <Space size={6} wrap>
+              <span>{row.lastPurchaseAt ? formatInventoryDateTime(row.lastPurchaseAt) : "无入库时间"}</span>
+              {row.lastPurchaseSource === "lot" ? <Tag>批次记录</Tag> : null}
+            </Space>
+            <Text type="secondary">
+              上次入库 {row.lastPurchaseQtyText}
+              {row.lastPurchaseSupplier ? `｜${row.lastPurchaseSupplier}` : ""}
+              {row.lastPurchaseLotNo ? `｜${row.lastPurchaseLotNo}` : ""}
+            </Text>
+          </div>
+        );
       }
     },
     {
-      title: "操作",
-      width: 148,
+      title: "本次采购数量",
+      dataIndex: "quantityBase",
+      width: 220,
       render: (_, row) => (
-        <Space size={2}>
-          <Tooltip title="查看详情">
-            <Button type="text" icon={<EyeOutlined />} onClick={() => openMaterialDetail(row.materialId)} />
-          </Tooltip>
-          <Tooltip title="编辑物料">
-            <Button type="text" icon={<EditOutlined />} onClick={() => openEditMaterial(row.materialId)} />
-          </Tooltip>
-          {row.materialStatus === "已停用" ? (
-            <Tooltip title="启用物料">
-              <Button
-                type="text"
-                icon={<PlayCircleOutlined />}
-                onClick={() => toggleMaterialStatus(row.materialId, "启用中")}
-              />
-            </Tooltip>
-          ) : (
-            <Tooltip title="停用物料">
-              <Button
-                type="text"
-                danger
-                icon={<StopOutlined />}
-                onClick={() => toggleMaterialStatus(row.materialId, "已停用")}
-              />
-            </Tooltip>
-          )}
-        </Space>
+        <InputNumber
+          min={0.01}
+          value={row.quantityBase}
+          addonAfter={row.baseUnit}
+          placeholder="请输入数量"
+          style={{ width: "100%" }}
+          onChange={(value) =>
+            setPurchaseOrderQuantities((prev) => ({
+              ...prev,
+              [row.materialId]: typeof value === "number" ? value : undefined
+            }))
+          }
+        />
       )
     }
   ];
+
+  const purchaseOrderDocumentColumns: ColumnsType<InventoryPurchaseOrderRecord["lines"][number]> = [
+    {
+      title: "序号",
+      width: 64,
+      render: (_, __, index) => index + 1
+    },
+    {
+      title: "物料",
+      dataIndex: "materialName",
+      render: (_, row) => (
+        <div className="inventory-cell-stack">
+          <span>{row.materialName}</span>
+          <Text type="secondary">
+            {row.brand}｜{row.category}
+          </Text>
+        </div>
+      )
+    },
+    {
+      title: "当前库存余量",
+      dataIndex: "currentStockText",
+      width: 140
+    },
+    {
+      title: "预计可用天数",
+      dataIndex: "estimatedAvailableDays",
+      width: 140,
+      render: (_, row) => renderPurchaseOrderEstimatedAvailableDaysMeta(row.estimatedAvailableDays)
+    },
+    {
+      title: "上次入库参考",
+      dataIndex: "lastPurchaseAt",
+      width: 300,
+      render: (_, row) => (
+        <div className="inventory-cell-stack">
+          <span>{row.lastPurchaseSource === "none" ? "暂无入库记录" : row.lastPurchaseAt ? formatInventoryDateTime(row.lastPurchaseAt) : "无入库时间"}</span>
+          {row.lastPurchaseSource === "none" ? null : (
+            <Text type="secondary">
+              上次入库 {row.lastPurchaseQtyText}
+              {row.lastPurchaseSupplier ? `｜${row.lastPurchaseSupplier}` : ""}
+              {row.lastPurchaseLotNo ? `｜${row.lastPurchaseLotNo}` : ""}
+            </Text>
+          )}
+        </div>
+      )
+    },
+    {
+      title: "本次采购数量",
+      dataIndex: "quantityBase",
+      width: 140,
+      render: (_, row) => <strong>{formatInventoryQty(row.quantityBase, row.baseUnit)}</strong>
+    }
+  ];
+
+  const summaryColumns: ColumnsType<InventorySummary> = useMemo(() => {
+    const columns: ColumnsType<InventorySummary> = [
+      {
+        title: "物料名称",
+        dataIndex: "materialName",
+        sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
+        render: (_, row) => (
+          <button
+            type="button"
+            className="inventory-material-link"
+            onClick={() => openMaterialDetail(row.materialId)}
+          >
+            <strong>{row.materialName}</strong>
+            <span>
+              {row.brand}｜<Tag color={row.materialStatus === "已停用" ? "default" : "success"}>{row.materialStatus}</Tag>
+            </span>
+          </button>
+        )
+      },
+      {
+        title: "当前库存",
+        dataIndex: "currentStockBase",
+        sorter: (a, b) => a.currentStockBase - b.currentStockBase,
+        render: (_, row) =>
+          renderInventoryStockHealth(row, feedAvailableDaysMap.get(row.materialId), materialMap.get(row.materialId))
+      },
+      {
+        title: "库存趋势",
+        dataIndex: "stockTrend",
+        width: 170,
+        defaultSortOrder: "descend",
+        sorter: (a, b) => a.monthlyUsageBase - b.monthlyUsageBase,
+        render: (_, row) => renderInventoryStockTrend(row)
+      }
+    ];
+
+    if (activeCategory === "药品") {
+      columns.splice(1, 0, {
+        title: "药品分类",
+        dataIndex: "medicineClass",
+        width: 132,
+        className: "inventory-table-column-nowrap",
+        filters: inventoryMedicineClassOptions.map((value) => ({ text: value, value })),
+        onFilter: (value, row) => row.medicineClass === value,
+        sorter: (a, b) => (a.medicineClass || "").localeCompare(b.medicineClass || "", "zh-Hans-CN"),
+        render: (value) => value || "—"
+      });
+    }
+
+    if (shouldShowEstimatedAvailableDays(activeCategory)) {
+      columns.push({
+        title: "预计可用天数",
+        key: "estimatedAvailableDays",
+        sorter: (a, b) =>
+          compareFeedEstimatedAvailableDays(
+            feedAvailableDaysMap.get(a.materialId),
+            feedAvailableDaysMap.get(b.materialId)
+          ),
+        render: (_, row) =>
+          renderFeedEstimatedAvailableDaysText(
+            feedAvailableDaysMap.get(row.materialId) ||
+              buildFeedEstimatedAvailableDays(row.currentStockBase, row.materialId, ledgers, {
+                referenceAt: INVENTORY_DEMO_REFERENCE_AT
+              })
+          )
+      });
+    }
+
+    columns.push(
+      {
+        title: "最近到期日",
+        dataIndex: "nearestExpiryDate",
+        sorter: (a, b) =>
+          new Date(String(a.nearestExpiryDate)).getTime() - new Date(String(b.nearestExpiryDate)).getTime(),
+        render: (_, row) => formatNearestExpiryDate(row)
+      },
+      {
+        title: "库存状态",
+        dataIndex: "stockRisk",
+        filters: ["正常", "临期", "负库存"].map((value) => ({ text: value, value })),
+        onFilter: (value, row) => resolveListStockStatus(row, lots) === value,
+        sorter: (a, b) => resolveListStockStatus(a, lots).localeCompare(resolveListStockStatus(b, lots), "zh-Hans-CN"),
+        render: (_, row) => {
+          const status = resolveListStockStatus(row, lots);
+          return <Tag color={statusColor(status)}>{status}</Tag>;
+        }
+      },
+      {
+        title: "操作",
+        width: 112,
+        render: (_, row) => (
+          <Space size={2}>
+            <Tooltip title="查看详情">
+              <Button type="text" icon={<EyeOutlined />} onClick={() => openMaterialDetail(row.materialId)} />
+            </Tooltip>
+            {row.materialStatus === "已停用" ? (
+              <Tooltip title="启用物料">
+                <Button
+                  type="text"
+                  icon={<PlayCircleOutlined />}
+                  onClick={() => toggleMaterialStatus(row.materialId, "启用中")}
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip title="停用物料">
+                <Button
+                  type="text"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={() => toggleMaterialStatus(row.materialId, "已停用")}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        )
+      }
+    );
+
+    return columns;
+  }, [
+    activeCategory,
+    feedAvailableDaysMap,
+    ledgers,
+    lots,
+    materials
+  ]);
 
   const materialLotColumns: ColumnsType<InventoryLot> = [
     { title: "库存批次", dataIndex: "lotNo", sorter: (a, b) => a.lotNo.localeCompare(b.lotNo) },
@@ -2367,7 +4087,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     },
     { title: "供应商", dataIndex: "supplier", render: (value) => value || "—" },
     { title: "供应商电话", dataIndex: "supplierPhone", render: (value) => value || "—" },
-    { title: "存放位置", dataIndex: "storageLocation", render: (value) => value || "—" },
     {
       title: "入库时间",
       dataIndex: "lotNo",
@@ -2403,14 +4122,20 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     },
     {
       title: "操作",
-      width: 88,
-      render: (_, row) =>
-        row.status === "过期" && row.remainingQtyBase > 0 ? (
-          <Button type="link" danger onClick={() => openExpiredScrapModal(row)}>
-            报废
-          </Button>
-        ) : (
-          <Text type="secondary">—</Text>
+      width: 128,
+      render: (_, row) => (
+        <Space size={4}>
+          <Tooltip title="修改">
+            <Button type="text" icon={<EditOutlined />} onClick={() => openLotEditModal(row)} />
+          </Tooltip>
+          {row.remainingQtyBase > 0 ? (
+            <Tooltip title="报废">
+              <Button type="text" danger onClick={() => openExpiredScrapModal(row)}>
+                报废
+              </Button>
+            </Tooltip>
+          ) : null}
+        </Space>
         )
     }
   ];
@@ -2434,19 +4159,12 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         <Text type="secondary" className="inventory-ledger-balance">
           结存 {quantityDisplay.balanceText}
         </Text>
+        <Tag className="inventory-ledger-type-tag">{row.type}</Tag>
       </span>
     );
   };
 
   const ledgerColumns: ColumnsType<InventoryLedgerRow> = [
-    {
-      title: "流水类型",
-      dataIndex: "type",
-      filters: ["采购入库", "业务消耗", "消耗冲销", "入库更正", "盘盈", "盘亏", "盘点调整", "报废"].map((value) => ({ text: value, value })),
-      onFilter: (value, row) => row.type === value,
-      sorter: (a, b) => a.type.localeCompare(b.type, "zh-Hans-CN"),
-      render: (value) => <Tag>{value}</Tag>
-    },
     {
       title: "物料",
       dataIndex: "materialId",
@@ -2467,9 +4185,16 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           materials.find((material) => material.id === b.materialId)?.category || "",
           "zh-Hans-CN"
         ),
-      render: (value) => materials.find((material) => material.id === value)?.category || "—"
+      render: (value) => {
+        const material = materials.find((item) => item.id === value);
+        return material ? formatMaterialCategoryLabel(material) : "—";
+      }
     },
-    { title: "批次", dataIndex: "lotNo", render: (value) => value || "物料级负库存" },
+    {
+      title: "批次",
+      dataIndex: "lotNo",
+      render: (value, row) => value || (parseLedgerQuantity(row.quantityText) < 0 ? "物料级负库存" : "物料级调整")
+    },
     {
       title: (
         <span className="inventory-table-title-with-help">
@@ -2495,87 +4220,127 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       render: (_, row) => renderLedgerChange(row)
     },
     {
-      title: "操作人/时间",
-      dataIndex: "operator",
+      title: "时间",
+      dataIndex: "occurredAt",
       sorter: (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
-      render: (_, row) => (
-        <span className="inventory-operator-time">
-          <strong>{row.operator}</strong>
-          <Text type="secondary">{formatInventoryDateTime(row.occurredAt)}</Text>
-        </span>
-      )
+      render: (value) => formatInventoryDate(value)
     }
   ];
 
-  const stocktakeScopeColumns: ColumnsType<InventoryStocktakeScopeRow> = [
-    { title: "物料名称", dataIndex: "materialName", sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN") },
+  const toggleInventoryCheckRecord = (record: InventoryCheckRecord, event?: ReactMouseEvent<HTMLElement>) => {
+    event?.stopPropagation();
+    setExpandedCheckRowKeys((current) =>
+      current.includes(record.id)
+        ? current.filter((key) => key !== record.id)
+        : [...current, record.id]
+    );
+  };
+
+  const toggleInventoryInboundOrder = (record: InventoryInboundOrder, event?: ReactMouseEvent<HTMLElement>) => {
+    event?.stopPropagation();
+    const willExpand = !expandedInboundRowKeys.includes(record.id);
+    setExpandedInboundRowKeys((current) =>
+      current.includes(record.id)
+        ? current.filter((key) => key !== record.id)
+        : [...current, record.id]
+    );
+    if (willExpand) {
+      window.setTimeout(() => {
+        document.querySelector(`[data-row-key="${record.id}"]`)?.scrollIntoView({
+          block: "start",
+          behavior: "smooth"
+        });
+      }, 120);
+    }
+  };
+
+  const openInventoryLedgerFromCheckDetail = (record: InventoryCheckRecord, detail: InventoryCheckDetail) => {
+    const checkDate = dayjs(record.checkTime.slice(0, 10));
+    setLedgerPageTab("ledger");
+    setLedgerDateRange([checkDate.subtract(30, "day").format("YYYY-MM-DD"), checkDate.format("YYYY-MM-DD")]);
+    setLedgerKeyword(detail.batchNo || detail.materialName.split(" ")[0]);
+    message.info("已切换至库存流水，并预填关联记录与盘点日前 30 天筛选");
+  };
+
+  const renderStocktakeCurrentStock = (row: InventoryStocktakeScopeRow) => {
+    const riskLines = buildStocktakeRiskLines(row, lots);
+    const recentLedgers = recentLedgerMap.get(row.materialId) || [];
+
+    return (
+      <div className="inventory-stocktake-current">
+        <Tooltip
+          title={renderStocktakeRecentChangesTooltip(recentLedgers)}
+          overlayClassName="inventory-stocktake-change-tooltip-popover"
+          placement="topLeft"
+        >
+          <span className="inventory-stocktake-current__qty">{formatInventoryQty(row.bookQtyBase, row.baseUnit)}</span>
+        </Tooltip>
+        {riskLines.length ? (
+          <div className="inventory-stocktake-current__risks">
+            {riskLines.map((line) => (
+              <span key={line.status} className={`inventory-stocktake-risk-line is-${line.tone}`}>
+                {line.text}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderStocktakeMonthlyUsage = (row: InventoryStocktakeScopeRow) => {
+    const summary = summaryByMaterialId.get(row.materialId);
+    return summary ? renderInventoryMonthlyUsage(summary) : "—";
+  };
+
+  const stocktakeExecuteColumns: ColumnsType<InventoryStocktakeScopeRow> = [
+    {
+      title: "名称",
+      dataIndex: "materialName",
+      sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
+      render: (value) => value
+    },
     {
       title: "分类",
       dataIndex: "category",
+      width: 120,
+      className: "inventory-table-column-nowrap",
       filters: inventoryCategoryOrder.map((value) => ({ text: value, value })),
-      onFilter: (value, row) => row.category === value
+      onFilter: (value, row) => row.category === value,
+      sorter: (a, b) => formatMaterialCategoryLabel(a).localeCompare(formatMaterialCategoryLabel(b), "zh-Hans-CN"),
+      render: (_, row) => formatMaterialCategoryLabel(row)
     },
     {
-      title: "账面库存",
+      title: "品牌",
+      dataIndex: "brand",
+      sorter: (a, b) => a.brand.localeCompare(b.brand, "zh-Hans-CN"),
+      render: (value) => value || "—"
+    },
+    {
+      title: "当前库存",
       dataIndex: "bookQtyBase",
       sorter: (a, b) => a.bookQtyBase - b.bookQtyBase,
-      render: (_, row) => formatInventoryQty(row.bookQtyBase, row.baseUnit)
+      render: (_, row) => renderStocktakeCurrentStock(row)
     },
     {
-      title: "异常原因",
-      dataIndex: "reason",
-      filters: ["负库存", "低库存", "临期", "已过期", "手动添加", "分类盘点", "全部盘点"].map((value) => ({ text: value, value })),
-      onFilter: (value, row) => row.reason === value,
-      render: (value) => <Tag color={statusColor(value)}>{value}</Tag>
+      title: "近30天使用",
+      dataIndex: "materialId",
+      width: 170,
+      sorter: (a, b) =>
+        (summaryByMaterialId.get(a.materialId)?.monthlyUsageBase || 0) -
+        (summaryByMaterialId.get(b.materialId)?.monthlyUsageBase || 0),
+      render: (_, row) => renderStocktakeMonthlyUsage(row)
     },
     {
-      title: "状态",
-      dataIndex: "status",
-      filters: ["异常", "可盘点"].map((value) => ({ text: value, value })),
-      onFilter: (value, row) => row.status === value,
-      render: (value) => <Tag color={statusColor(value)}>{value}</Tag>
-    }
-  ];
-
-  if (stocktakeMode !== "指定物料盘点") {
-    stocktakeScopeColumns.push({
-      title: "操作",
-      width: 82,
-      render: (_, row) => (
-        <Tooltip title="移除">
-          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => removeStocktakeScopeRow(row.id)} />
-        </Tooltip>
-      )
-    });
-  }
-
-  const stocktakeScopeRowSelection: TableRowSelection<InventoryStocktakeScopeRow> | undefined =
-    stocktakeMode === "指定物料盘点"
-      ? {
-          selectedRowKeys: stocktakeScopeSelectedRowIds,
-          preserveSelectedRowKeys: true,
-          onChange: (selectedRowKeys: Key[]) => {
-            setStocktakeScopeSelectedRowIds(selectedRowKeys.map(String));
-          }
-        }
-      : undefined;
-
-  const stocktakeExecuteColumns: ColumnsType<InventoryStocktakeScopeRow> = [
-    { title: "物料名称", dataIndex: "materialName" },
-    {
-      title: "账面库存",
-      dataIndex: "bookQtyBase",
-      render: (_, row) => (stocktakeTaskValues?.showBookStock ? formatInventoryQty(row.bookQtyBase, row.baseUnit) : "已隐藏")
-    },
-    {
-      title: "实际库存",
+      title: "盘点库存",
       dataIndex: "id",
-      width: 150,
+      width: 168,
       render: (_, row) => (
         <InputNumber
           min={0}
           value={stocktakeActuals[row.id]}
           addonAfter={row.baseUnit}
+          placeholder="不调整"
           style={{ width: "100%" }}
           onChange={(value) =>
             setStocktakeActuals((prev) => ({
@@ -2585,50 +4350,147 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           }
         />
       )
-    },
-    {
-      title: "差异",
-      dataIndex: "id",
-      render: (_, row) => {
-        const actualQty = stocktakeActuals[row.id];
-        if (actualQty === undefined) return "—";
-        const diff = actualQty - row.bookQtyBase;
-        return (
-          <Text type={diff < 0 ? "danger" : diff > 0 ? "success" : "secondary"}>
-            {diff > 0 ? "+" : ""}
-            {formatInventoryQty(diff, row.baseUnit)}
-          </Text>
-        );
-      }
-    },
+    }
   ];
 
   const stocktakeConfirmColumns: ColumnsType<(typeof stocktakeDifferenceRows)[number]> = [
-    { title: "物料名称", dataIndex: "materialName" },
-    { title: "账面库存", dataIndex: "bookQtyBase", render: (_, row) => formatInventoryQty(row.bookQtyBase, row.baseUnit) },
-    { title: "实际库存", dataIndex: "actualQty", render: (_, row) => formatInventoryQty(row.actualQty || 0, row.baseUnit) },
+    {
+      title: "名称",
+      dataIndex: "materialName",
+      render: (value) => value
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      render: (_, row) => formatMaterialCategoryLabel(row)
+    },
+    { title: "品牌", dataIndex: "brand", render: (value) => value || "—" },
+    { title: "当前库存", dataIndex: "bookQtyBase", render: (_, row) => renderStocktakeCurrentStock(row) },
+    { title: "盘点库存", dataIndex: "actualQty", render: (_, row) => formatInventoryQty(row.actualQty || 0, row.baseUnit) },
     {
       title: "差异",
       dataIndex: "diff",
       render: (_, row) =>
         row.diff === undefined ? "—" : `${row.diff > 0 ? "+" : ""}${formatInventoryQty(row.diff, row.baseUnit)}`
-    },
-    {
-      title: "盘点结果",
-      dataIndex: "status",
-      render: (_, row) => {
-        if (!row.diff) return <Tag>无差异</Tag>;
-        return <Tag color={row.diff > 0 ? "green" : "orange"}>{row.diff > 0 ? "盘盈 · 待处理" : "盘亏 · 待处理"}</Tag>;
-      }
     }
   ];
 
-  const usageRecordColumns: ColumnsType<InventoryLedgerRow> = [
-    { title: "任务类型", dataIndex: "source", render: (value) => resolveBusinessType(value) },
-    { title: "任务名称", dataIndex: "source" },
-    { title: "使用量", dataIndex: "quantityText" },
-    { title: "提交人", dataIndex: "operator" },
-    { title: "时间", dataIndex: "occurredAt", render: (value) => formatInventoryDateTime(value) }
+  const outboundExecuteColumns: ColumnsType<InventoryOutboundScopeRow> = [
+    {
+      title: "物料名称",
+      dataIndex: "materialName",
+      sorter: (a, b) => a.materialName.localeCompare(b.materialName, "zh-Hans-CN"),
+      render: (_, row) => (
+        <div className="inventory-cell-stack">
+          <span>{row.materialName}</span>
+          <span>
+            {row.brand}｜<Tag color="success">{row.materialStatus}</Tag>
+          </span>
+        </div>
+      )
+    },
+    {
+      title: "品牌",
+      dataIndex: "brand",
+      sorter: (a, b) => a.brand.localeCompare(b.brand, "zh-Hans-CN"),
+      render: (value) => value || "—"
+    },
+    {
+      title: "分类",
+      dataIndex: "category",
+      filters: inventoryCategoryOrder.map((value) => ({ text: value, value })),
+      onFilter: (value, row) => row.category === value,
+      sorter: (a, b) => a.category.localeCompare(b.category, "zh-Hans-CN"),
+      render: (_, row) => {
+        const material = materialMap.get(row.materialId);
+        return material ? formatMaterialCategoryLabel(material) : row.category;
+      }
+    },
+    {
+      title: "当前库存",
+      dataIndex: "currentStockBase",
+      sorter: (a, b) => a.currentStockBase - b.currentStockBase,
+      render: (_, row) =>
+        formatInventoryQtyWithPackage(row.currentStockBase, materialMap.get(row.materialId) || { baseUnit: row.baseUnit })
+    },
+    {
+      title: "最近到期日",
+      dataIndex: "nearestExpiryDate",
+      sorter: (a, b) => new Date(a.nearestExpiryDate || "9999-12-31").getTime() - new Date(b.nearestExpiryDate || "9999-12-31").getTime(),
+      render: (_, row) => row.nearestExpiryDate || "—"
+    },
+    {
+      title: "库存状态",
+      dataIndex: "stockRisk",
+      filters: ["正常", "负库存"].map((value) => ({ text: value, value })),
+      onFilter: (value, row) => row.stockRisk === value,
+      render: (value) => <Tag color={statusColor(value)}>{value}</Tag>
+    },
+    {
+      title: "出库数量",
+      dataIndex: "materialId",
+      width: 180,
+      render: (_, row) => (
+        <InputNumber
+          min={0}
+          value={outboundQuantities[row.materialId]}
+          addonAfter={row.baseUnit}
+          placeholder="不出库"
+          style={{ width: "100%" }}
+          onChange={(value) =>
+            setOutboundQuantities((prev) => ({
+              ...prev,
+              [row.materialId]: typeof value === "number" && value > 0 ? value : undefined
+            }))
+          }
+        />
+      )
+    }
+  ];
+
+  const outboundConfirmColumns: ColumnsType<InventoryOutboundOrderLine> = [
+    {
+      title: "物料名称",
+      dataIndex: "materialName",
+      render: (_, row) => (
+        <div className="inventory-cell-stack">
+          <span>{row.materialName}</span>
+          <Text type="secondary">{row.brand}｜{row.category}</Text>
+        </div>
+      )
+    },
+    {
+      title: "当前库存",
+      dataIndex: "currentStockBase",
+      render: (_, row) =>
+        formatInventoryQtyWithPackage(row.currentStockBase, materialMap.get(row.materialId) || { baseUnit: row.baseUnit })
+    },
+    { title: "出库数量", dataIndex: "outboundQuantity", render: (_, row) => formatInventoryQty(row.outboundQuantity, row.baseUnit) },
+    {
+      title: "预计出库后库存",
+      dataIndex: "afterStockBase",
+      render: (_, row) => (
+        <span className={row.afterStockBase < 0 ? "inventory-diff-amount inventory-diff-amount--loss" : undefined}>
+          {formatInventoryQty(row.afterStockBase, row.baseUnit)}
+        </span>
+      )
+    }
+  ];
+
+  const outboundOrderLineColumns: ColumnsType<InventoryOutboundOrderLine> = [
+    {
+      title: "物料名称",
+      dataIndex: "materialName",
+      render: (_, row) => (
+        <div className="inventory-cell-stack">
+          <span>{row.materialName}</span>
+          <Text type="secondary">{row.brand}｜{row.category}</Text>
+        </div>
+      )
+    },
+    { title: "出库数量", dataIndex: "outboundQuantity", render: (_, row) => formatInventoryQty(row.outboundQuantity, row.baseUnit) },
+    { title: "出库后库存", dataIndex: "afterStockBase", render: (_, row) => formatInventoryQty(row.afterStockBase, row.baseUnit) },
+    { title: "生成流水", dataIndex: "ledgerCount", render: (value) => `${value} 条` }
   ];
 
   const categoryTabItems = categoryTabs.map((tab: InventoryCategoryTab) => ({
@@ -2636,18 +4498,30 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     label: `${tab.label} ${tab.count}`,
     children: (
       <>
-        <div className="inventory-table-toolbar">
-          <Input.Search
-            allowClear
-            placeholder={`搜索${tab.label}名称或品牌`}
-            value={activeCategory === tab.key ? summaryKeyword : ""}
-            onChange={(event) => setSummaryKeyword(event.target.value)}
-          />
-          <Select
-            value={materialStatusFilter}
-            onChange={(value) => setMaterialStatusFilter(value)}
-            options={materialStatusFilterOptions.map((value) => ({ label: value, value }))}
-          />
+        <div className="inventory-table-toolbar inventory-table-toolbar--with-actions">
+          <div className="inventory-table-toolbar__filters">
+            <Input.Search
+              allowClear
+              placeholder={`搜索${tab.label}名称或品牌`}
+              value={activeCategory === tab.key ? summaryKeyword : ""}
+              onChange={(event) => setSummaryKeyword(event.target.value)}
+            />
+            <Select
+              value={materialStatusFilter}
+              onChange={(value) => setMaterialStatusFilter(value)}
+              options={materialStatusFilterOptions.map((value) => ({ label: value, value }))}
+            />
+          </div>
+          {selectedPurchaseMaterialIds.length > 0 ? (
+            <Space className="inventory-table-toolbar__actions" size={10}>
+              <Text type="secondary" className="inventory-table-selection-count">
+                已选 {selectedPurchaseMaterialIds.length} 种
+              </Text>
+              <Button type="primary" icon={<FileAddOutlined />} onClick={openPurchaseOrderDraft}>
+                生成采购单
+              </Button>
+            </Space>
+          ) : null}
         </div>
         <Table
           rowKey="materialId"
@@ -2655,108 +4529,45 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           columns={summaryColumns}
           dataSource={filteredSummaries}
           pagination={false}
+          rowSelection={{
+            selectedRowKeys: selectedPurchaseMaterialIds,
+            preserveSelectedRowKeys: true,
+            onChange: (keys) => setSelectedPurchaseMaterialIds(keys.map(String)),
+            getCheckboxProps: (row) => ({
+              disabled: row.materialStatus === "已停用",
+              name: row.materialName
+            })
+          }}
+          key={tab.key === "饲料" ? "feed-summary-with-days" : `summary-${tab.key}`}
         />
       </>
     )
   }));
 
-  const renderQuickCreateMaterialModal = () => (
+  const renderLotEditModal = () => (
     <Modal
-      title="快速新建物料"
-      open={quickCreateOpen}
-      width={560}
-      okText="确认新建"
+      title="修改批次信息"
+      open={Boolean(editingLotId)}
+      okText="保存"
       cancelText="取消"
-      destroyOnClose
-      onOk={confirmQuickCreateMaterial}
-      onCancel={() => {
-        setQuickCreateOpen(false);
-      }}
-      className="compact-modal"
+      onOk={submitLotEdit}
+      onCancel={closeLotEditModal}
     >
       <Alert
         showIcon
         type="info"
-        style={{ marginBottom: 14 }}
-        message="只填物料档案信息（不含本次采购数量、供应商、安全库存等）。分类专属字段多数可选填；饲料类需填写适用猪只与适用阶段，疫苗类需填写接种方式。其他未填齐的必填专属字段会标记“资料待完善”，可稍后在物料管理补全。"
+        className="inventory-lot-edit-alert"
+        message="仅允许修改到期日、供应商批次号和备注；库存数量与总进货价必须通过单据流程调整。"
       />
-      <Form layout="vertical" form={quickCreateForm}>
-        <Form.Item name="materialName" label="物料名称(中文)" rules={[{ required: true, message: "请输入物料中文名称" }]}>
-          <Input placeholder="如：妊娠母猪料、氟苯尼考" />
+      <Form layout="vertical" form={lotEditForm}>
+        <Form.Item label="到期日" name="expiryDate">
+          <Input placeholder="YYYY-MM-DD" />
         </Form.Item>
-        <Form.Item name="materialNameEn" label="物料名称(英文)">
-          <Input placeholder="选填" />
+        <Form.Item label="供应商批次号" name="supplierBatchNo" rules={[{ max: 50, message: "供应商批次号不能超过 50 字" }]}>
+          <Input placeholder="请输入供应商批次号" />
         </Form.Item>
-        <Form.Item name="category" label="物料分类" rules={[{ required: true, message: "请选择物料分类" }]}>
-          <Select
-            placeholder="请选择物料分类"
-            options={receiveMaterialCategoryOptions.map((value) => ({ label: value, value }))}
-            onChange={(value) => {
-              const recommended = inventoryCategoryBaseUnitRecommendations[value as InventoryCategory]?.[0];
-              if (recommended) {
-                quickCreateForm.setFieldsValue({ baseUnit: recommended });
-              }
-            }}
-          />
-        </Form.Item>
-        <Form.Item name="brand" label="品牌名称(中文)" rules={[{ required: true, message: "请输入中文品牌名" }]}>
-          <Input placeholder="如 A品牌、百利" />
-        </Form.Item>
-        <Form.Item name="brandEn" label="品牌名称(英文)">
-          <Input placeholder="选填" />
-        </Form.Item>
-        <Form.Item name="baseUnit" label="核算单位" rules={[{ required: true, message: "请选择核算单位" }]}>
-          <Select
-            showSearch
-            placeholder="如 ml、kg、头份、个"
-            options={inventoryUnitOptions.map((unit) => ({ label: unit, value: unit }))}
-          />
-        </Form.Item>
-        <Form.List name="packageConversions">
-          {(fields, { add, remove }) => (
-            <div className="inventory-package-spec">
-              <span className="inventory-package-spec__title">包装规格（选填）</span>
-              {fields.map((field, index) => {
-                const toUnit =
-                  index === 0
-                    ? quickCreateBaseUnit || "核算单位"
-                    : quickCreatePackageDrafts[index - 1]?.fromUnit || "下一级单位";
-                const { key, ...fieldProps } = field;
-                return (
-                  <div className="inventory-package-row" key={key}>
-                    <span>1</span>
-                    <Form.Item {...fieldProps} name={[field.name, "fromUnit"]}>
-                      <Select
-                        placeholder="包装单位"
-                        options={inventoryUnitOptions.map((value) => ({ label: value, value }))}
-                      />
-                    </Form.Item>
-                    <span>=</span>
-                    <Form.Item {...fieldProps} name={[field.name, "quantity"]}>
-                      <InputNumber min={0.01} placeholder="数量" style={{ width: "100%" }} />
-                    </Form.Item>
-                    <span className="inventory-package-row__unit">{toUnit}</span>
-                    {fields.length ? (
-                      <Button type="text" onClick={() => remove(field.name)}>
-                        删除
-                      </Button>
-                    ) : null}
-                  </div>
-                );
-              })}
-              <Button
-                type="link"
-                onClick={() => add({ fromUnit: undefined, quantity: undefined })}
-                disabled={!quickCreateBaseUnit}
-              >
-                + 添加上级包装
-              </Button>
-            </div>
-          )}
-        </Form.List>
-        <MaterialProfileFields category={quickCreateCategory} requiredMode="quick" />
-        <Form.Item name="note" label="备注">
-          <Input.TextArea rows={2} placeholder="选填" />
+        <Form.Item label="备注" name="note" rules={[{ max: 200, message: "备注不能超过 200 字" }]}>
+          <Input.TextArea rows={3} showCount maxLength={200} placeholder="请输入备注" />
         </Form.Item>
       </Form>
     </Modal>
@@ -2768,11 +4579,18 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       open={Boolean(expiredActionLot)}
       okText="确认报废"
       cancelText="取消"
+      okButtonProps={{ danger: true }}
       onOk={submitExpiredScrap}
       onCancel={closeExpiredScrapModal}
     >
       {expiredActionLot ? (
         <Form layout="vertical" form={scrapForm}>
+          <Alert
+            showIcon
+            type="error"
+            className="inventory-scrap-confirm-alert"
+            message="请确认该批次确需报废。确认后会扣减批次库存并生成报废库存流水。"
+          />
           <Descriptions
             size="small"
             column={1}
@@ -2784,6 +4602,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                 children: getInventoryMaterialLabel(materials, expiredActionLot.materialId)
               },
               { key: "lot", label: "批次", children: expiredActionLot.lotNo },
+              { key: "supplierBatchNo", label: "供应商批次号", children: expiredActionLot.supplierBatchNo || "—" },
               {
                 key: "stock",
                 label: "当前批次库存",
@@ -2815,20 +4634,15 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
               style={{ width: "100%" }}
             />
           </Form.Item>
-          <Form.Item label="报废原因" name="reason" rules={[{ required: true, message: "请填写报废原因" }]}>
-            <Select
-              showSearch
-              options={inventoryScrapReasonOptions.map((value) => ({ label: value, value }))}
-            />
+          <Form.Item label="报废原因" name="reason" rules={[{ required: true, message: "请选择报废原因" }]}>
+            <Select options={inventoryScrapReasonOptions.map((value) => ({ label: value, value }))} />
           </Form.Item>
           <Form.Item label="处理方式" name="handlingMethod" rules={[{ required: true, message: "请选择处理方式" }]}>
             <Select options={inventoryScrapHandlingMethodOptions.map((value) => ({ label: value, value }))} />
           </Form.Item>
-          <Alert
-            showIcon
-            type="warning"
-            message="确认后系统将扣减该批次库存，生成类型为报废的库存流水；全部报废后首页过期风险项会关闭。"
-          />
+          <Form.Item label="拍照上传" name="photoNote" extra="原型中以照片说明模拟上传留档；正式环境可替换为附件上传组件。">
+            <Input.TextArea rows={2} placeholder="选填：填写照片编号或留档说明" />
+          </Form.Item>
         </Form>
       ) : null}
     </Modal>
@@ -2891,30 +4705,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           </section>
 
           <section className="inventory-receive-section">
-            <strong>预警与备注</strong>
-            <Form.Item
-              label={
-                <span className="inventory-form-label-with-help">
-                  安全库存
-                  <Tooltip
-                    trigger="click"
-                    placement="topLeft"
-                    title="填写后，当前库存低于该数值时，系统会向 Console 用户发送库存不足提醒；不填写则不启用该物料的低库存提醒。"
-                  >
-                    <button type="button" className="inventory-field-help" aria-label="编辑安全库存说明">
-                      <InfoCircleOutlined />
-                    </button>
-                  </Tooltip>
-                </span>
-              }
-            >
-              <div className="inventory-unit-input-row">
-                <Form.Item name="safetyStockBase" noStyle>
-                  <InputNumber min={0} placeholder="请输入最低库存数量" style={{ width: "100%" }} />
-                </Form.Item>
-                <Input className="inventory-receive-unit-field" disabled value={editSafetyStockUnitText} />
-              </div>
-            </Form.Item>
+            <strong>备注</strong>
             <Form.Item label="备注" name="note" rules={[{ max: 200, message: "备注不能超过 200 字" }]}>
               <Input.TextArea rows={3} showCount maxLength={200} placeholder="请输入业务补充说明" />
             </Form.Item>
@@ -2928,6 +4719,416 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
     ? stocktakeRecords.find((record) => record.no === selectedStocktakeRecordNo) || null
     : null;
 
+  const renderFinanceAnalyticsCards = () => (
+    <div className="finance-analysis-grid">
+      <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--share">
+        <div className="inventory-analytics-card__head">
+          <div>
+            <strong>库存金额占比</strong>
+          </div>
+          <div className="inventory-analytics-card__meta">
+            <span>
+              <Text type="secondary">最大占比</Text>
+              <strong>{formatPercent(largestInventoryShare)}</strong>
+            </span>
+          </div>
+        </div>
+        <div className="inventory-analytics-share-layout">
+          <InventoryDonutChart rows={sortedInventoryValueShareRows} totalValue={inventoryTotalValue} />
+          <div className="inventory-analytics-share-list">
+            {sortedInventoryValueShareRows.map((row) => (
+              <button
+                key={row.category}
+                type="button"
+                className={`inventory-analytics-share-row${analyticsCategoryFilter === row.category ? " is-active" : ""}`}
+                aria-pressed={analyticsCategoryFilter === row.category}
+                onClick={() =>
+                  setAnalyticsCategoryFilter(analyticsCategoryFilter === row.category ? "全部" : row.category)
+                }
+              >
+                <span className="inventory-analytics-share-row__label">
+                  <i style={{ background: row.color }} />
+                  <span>{row.category}</span>
+                </span>
+                <span className="inventory-analytics-share-row__value">
+                  <strong>{formatCurrency(row.amount)}</strong>
+                  <Text type="secondary">{row.amount > 0 ? formatPercent(row.share) : "—"}</Text>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--top">
+        <div className="inventory-analytics-card__head">
+          <div>
+            <strong>本月消耗金额 Top 物料</strong>
+          </div>
+        </div>
+        <div className="inventory-top-spend-list">
+          {windowTopSpendRows.length ? (
+            windowTopSpendRows.map((row, index) => (
+              <div key={row.id} className="inventory-top-spend-row">
+                <span className="inventory-top-spend-row__rank">{index + 1}</span>
+                <div className="inventory-top-spend-row__content">
+                  <div className="inventory-top-spend-row__head">
+                    <div>
+                      <strong>{row.materialName}</strong>
+                      <Text type="secondary">{row.isCategorySummary ? "物料类型" : row.category}</Text>
+                    </div>
+                    <strong>{formatCurrency(row.amount)}</strong>
+                  </div>
+                  <div className="inventory-top-spend-row__track">
+                    <span
+                      className="inventory-top-spend-row__bar"
+                      style={{ width: `${Math.max(row.share * 100, 10)}%`, background: row.color }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="inventory-empty-panel">该时间段暂无消耗记录</div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--trend">
+        <div className="inventory-analytics-card__head inventory-analytics-card__head--trend">
+          <div>
+            <strong>库存消耗趋势</strong>
+          </div>
+          <div className="inventory-trend-filters">
+            <div className="inventory-analytics-filter-tags" aria-label="库存消耗趋势时间范围筛选">
+              {inventoryAnalyticsTimeRangeOptions.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`inventory-action-filter${analyticsTimeRange === item ? " is-active" : ""}`}
+                  onClick={() => setAnalyticsTimeRange(item)}
+                >
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            {analyticsTimeRange === "自定义" ? (
+              <DatePicker.RangePicker
+                size="small"
+                allowClear
+                placeholder={["开始日期", "结束日期"]}
+                onChange={(_, dateStrings) =>
+                  setAnalyticsCustomRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+                }
+              />
+            ) : null}
+          </div>
+        </div>
+        <div className="inventory-analytics-filter-tags inventory-trend-filters__category" aria-label="库存消耗趋势分类筛选">
+          {inventoryAnalyticsCategoryFilterOptions.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`inventory-action-filter${analyticsCategoryFilter === item ? " is-active" : ""}`}
+              onClick={() => setAnalyticsCategoryFilter(item)}
+            >
+              <span>{item}</span>
+            </button>
+          ))}
+        </div>
+        <div className="inventory-analytics-trend-meta">
+          <span>
+            <Text type="secondary">{analyticsRangeLabel}累计</Text>
+            <strong>{formatCurrency(consumptionTrendTotal)}</strong>
+          </span>
+          <span>
+            <Text type="secondary">日均消耗</Text>
+            <strong>{formatCurrency(Math.round(consumptionTrendAverage))}</strong>
+          </span>
+          <span>
+            <Text type="secondary">峰值日</Text>
+            <strong>
+              {consumptionTrendPeak && consumptionTrendPeak.amount > 0
+                ? `${formatMonthDay(consumptionTrendPeak.date)} · ${formatCurrency(consumptionTrendPeak.amount)}`
+                : "暂无"}
+            </strong>
+          </span>
+          <span>
+            <Text type="secondary">饲料消耗重量</Text>
+            <strong>{formatInventoryQty(Math.abs(feedConsumptionWeight), "kg")}</strong>
+          </span>
+        </div>
+        <InventoryTrendChart
+          points={consumptionTrendPoints}
+          rangeLabel={analyticsRangeLabel}
+          categoryLabel={analyticsFilterSummaryLabel}
+        />
+      </Card>
+    </div>
+  );
+
+  const renderInventoryRiskCard = () => (
+    <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--risk inventory-home-risk-card">
+      <div className="inventory-analytics-card__head">
+        <div>
+          <strong>库存风险</strong>
+        </div>
+      </div>
+      <div className="inventory-risk-filter-tags" aria-label="库存风险筛选">
+        {homeActionItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`inventory-action-filter${activeHomeRiskType === item.key ? " is-active" : ""}`}
+            onClick={() => setActiveHomeRiskType(activeHomeRiskType === item.key ? "全部" : item.key)}
+          >
+            <span>{item.label}</span>
+            <strong>{item.count}</strong>
+          </button>
+        ))}
+      </div>
+      <div className="inventory-risk-list">
+        {filteredHomeRiskRows.length ? (
+          filteredHomeRiskRows.map((item) => (
+            <div
+              key={item.id}
+              className={`inventory-risk-row inventory-risk-row--${item.type}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => openMaterialDetail(item.materialId)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openMaterialDetail(item.materialId);
+                }
+              }}
+            >
+              <span className="inventory-risk-row__type">{item.type}</span>
+              <div className="inventory-risk-row__main">
+                <div className="inventory-risk-row__title">
+                  <strong>{item.materialName}</strong>
+                  <span>{item.brand}</span>
+                </div>
+                <Text type="secondary">{item.adviceText}</Text>
+              </div>
+              <div className="inventory-risk-row__side">
+                <span className="inventory-risk-row__value">
+                  <strong>{item.valueText}</strong>
+                  {item.dateText ? <em>{item.dateText}</em> : null}
+                </span>
+                {item.actionText || item.auxiliaryActionText ? (
+                  <span className="inventory-risk-row__actions">
+                    {item.actionText ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRiskAction(item.actionText, item);
+                        }}
+                      >
+                        {item.actionText}
+                      </button>
+                    ) : null}
+                    {item.auxiliaryActionText ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRiskAction(item.auxiliaryActionText, item);
+                        }}
+                      >
+                        {item.auxiliaryActionText}
+                      </button>
+                    ) : null}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="inventory-empty-panel">暂无待处理物料</div>
+        )}
+      </div>
+    </Card>
+  );
+
+  const openFeedTrendLedgerDate = (date: string) => {
+    setLedgerKeyword("");
+    setLedgerTypes([]);
+    setLedgerDateRange([date, date]);
+    setInventoryView("ledgers");
+  };
+
+  const renderFeedStockTrendCard = () => (
+    <Card className="inventory-console-card inventory-analytics-card inventory-feed-stock-card">
+      <div className="inventory-analytics-card__head inventory-feed-stock-card__head">
+        <div>
+          <strong>饲料库存余量趋势</strong>
+          <Text type="secondary">近30天每日库存结余</Text>
+        </div>
+        <div className="inventory-feed-stock-metrics">
+          <span>
+            <Text type="secondary">当前库存</Text>
+            <strong>{formatFeedTrendQty(feedStockTrendLatest?.quantity || 0)}</strong>
+          </span>
+          <span>
+            <Text type="secondary">较昨日变化</Text>
+            <strong className={feedStockYesterdayChange < 0 ? "is-down" : feedStockYesterdayChange > 0 ? "is-up" : ""}>
+              {formatSignedFeedTrendQty(feedStockYesterdayChange)}
+            </strong>
+          </span>
+          <span>
+            <Text type="secondary">预计可用天数</Text>
+            <strong>{feedStockAvailableDays == null ? "暂无" : `${feedStockAvailableDays}天`}</strong>
+          </span>
+        </div>
+      </div>
+      <FeedStockTrendChart
+        points={feedStockTrendPoints}
+        onPointClick={openFeedTrendLedgerDate}
+      />
+    </Card>
+  );
+
+  if (inventoryView === "purchase-order-draft") {
+    return (
+      <div className="inventory-console-page inventory-purchase-order-page">
+        <div className="inventory-console-header">
+          <div>
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+              返回选择物料
+            </Button>
+            <Title level={3}>生成采购单</Title>
+            <Text type="secondary">已选 {selectedPurchaseOrderRows.length} 种物料，确认前可调整本次采购数量</Text>
+          </div>
+          <Space>
+            <Button onClick={() => setInventoryView("home")}>返回库存列表</Button>
+            <Button type="primary" icon={<FileAddOutlined />} disabled={!selectedPurchaseOrderRows.length} onClick={submitPurchaseOrder}>
+              确认生成采购单
+            </Button>
+          </Space>
+        </div>
+
+        <Card className="inventory-console-card inventory-purchase-order-card">
+          <Space direction="vertical" size={12} className="inventory-purchase-order-editor">
+            <Alert showIcon type="info" message="已默认复用上次入库数量，可结合当前库存余量和预计可用天数修改本次采购数量。" />
+            <Table
+              rowKey="materialId"
+              className="inventory-console-table inventory-purchase-order-table"
+              columns={purchaseOrderColumns}
+              dataSource={selectedPurchaseOrderRows}
+              pagination={false}
+            />
+          </Space>
+        </Card>
+      </div>
+    );
+  }
+
+  if (inventoryView === "purchase-order-detail") {
+    if (!selectedPurchaseOrder) {
+      return (
+        <div className="inventory-console-page inventory-purchase-order-page">
+          <div className="inventory-console-header">
+            <div>
+              <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+                返回库存管理
+              </Button>
+              <Title level={3}>采购单</Title>
+            </div>
+          </div>
+          <div className="inventory-empty-panel">未找到采购单据</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inventory-console-page inventory-purchase-order-page">
+        <div className="inventory-console-header">
+          <div>
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+              返回库存管理
+            </Button>
+            <Title level={3}>采购单</Title>
+            <Text type="secondary">单据已生成，可截图转发或导出 Excel</Text>
+          </div>
+          <Space>
+            <Button icon={<ExportOutlined />} onClick={() => downloadPurchaseOrderExcel(selectedPurchaseOrder)}>
+              导出 Excel
+            </Button>
+            <Button type="primary" onClick={() => setInventoryView("home")}>
+              返回库存首页
+            </Button>
+          </Space>
+        </div>
+
+        <section className="inventory-purchase-document">
+          <div className="inventory-purchase-document__head">
+            <div>
+              <Text type="secondary">Sentri 库存管理</Text>
+              <h2>采购单</h2>
+            </div>
+            <span>待采购</span>
+          </div>
+          <Descriptions
+            className="inventory-purchase-document__meta"
+            bordered
+            size="small"
+            column={4}
+            items={[
+              { key: "no", label: "单据号", children: selectedPurchaseOrder.no },
+              { key: "createdAt", label: "生成时间", children: selectedPurchaseOrder.createdAt },
+              { key: "lineCount", label: "物料种数", children: `${selectedPurchaseOrder.lines.length} 种` },
+              { key: "source", label: "来源", children: "库存管理首页" }
+            ]}
+          />
+          <Table
+            rowKey="materialId"
+            className="inventory-console-table inventory-purchase-document-table"
+            columns={purchaseOrderDocumentColumns}
+            dataSource={selectedPurchaseOrder.lines}
+            pagination={false}
+          />
+        </section>
+      </div>
+    );
+  }
+
+  if (inventoryView === "finance") {
+    return (
+      <div className="inventory-console-page finance-analysis-page">
+        <div className="inventory-console-header">
+          <div>
+            <Title level={3}>财务分析</Title>
+            <Text type="secondary">库存金额 · 消耗结构 · 消耗趋势 · 盘点差异</Text>
+          </div>
+          <Space>
+            <Button icon={<ExportOutlined />} onClick={openOutboundExecution}>出库</Button>
+            <Badge count={pendingDifferences.length} size="small" offset={[-2, 2]}>
+              <Button onClick={() => setInventoryView("difference-list")}>盘点差异</Button>
+            </Badge>
+          </Space>
+        </div>
+
+        {pendingDifferences.length ? (
+          <Alert
+            showIcon
+            type="warning"
+            className="inventory-difference-banner"
+            message={`存在 ${pendingDifferences.length} 条盘点差异待财务分析，库存已按盘点结果更新`}
+            action={
+              <Button size="small" type="link" onClick={() => setInventoryView("difference-list")}>
+                去处理
+              </Button>
+            }
+          />
+        ) : null}
+
+        {renderFinanceAnalyticsCards()}
+      </div>
+    );
+  }
+
   if (inventoryView === "batch-receive") {
     return (
       <div className="inventory-console-page inventory-batch-receive-page">
@@ -2936,28 +5137,30 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
               返回库存管理
             </Button>
-            <Title level={3}>批量入库</Title>
-            <Text type="secondary">按卡片逐条维护到货记录，字段与采购入库一致，一次提交多条入库</Text>
+            <Title level={3}>入库</Title>
           </div>
         </div>
 
         <BatchReceivePanel
-          category={batchReceiveCategory}
-          onCategoryChange={setBatchReceiveCategory}
+          header={batchReceiveHeader}
+          onHeaderChange={setBatchReceiveHeader}
           entries={batchReceiveEntries}
           onEntriesChange={setBatchReceiveEntries}
           materials={materials}
+          lots={lots}
+          ledgers={ledgers}
           summaries={summaries}
           readyCount={batchReceiveReadyEntries.length}
           onCancel={() => setInventoryView("home")}
-          onClear={() => setBatchReceiveEntries([createEmptyBatchReceiveEntry()])}
+          onClear={() => setBatchReceiveEntries([])}
           onSubmit={submitBatchReceive}
+          onValidationError={message.error}
         />
       </div>
     );
   }
 
-  if (inventoryView === "stocktake-scope") {
+  if (inventoryView === "outbound-execute") {
     return (
       <div className="inventory-console-page">
         <div className="inventory-console-header">
@@ -2965,45 +5168,132 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
               返回库存管理
             </Button>
-            <Title level={3}>确认盘点范围</Title>
-            <Text type="secondary">盘点方式：{stocktakeMode}｜已选择物料：{selectedStocktakeScopeRows.length} 个</Text>
+            <Title level={3}>出库</Title>
+            <Text type="secondary">全部物料 {outboundScopeRows.length} 个｜已填写出库 {outboundSelectedRows.length} 个</Text>
           </div>
         </div>
-
         <Card className="inventory-console-card">
-          <div className="inventory-stocktake-toolbar">
-            <Input.Search allowClear placeholder="搜索物料名称或品牌" value={stocktakeScopeKeyword} onChange={(event) => setStocktakeScopeKeyword(event.target.value)} />
-            <Select value={stocktakeScopeCategory} onChange={(value) => setStocktakeScopeCategory(value)} options={["全部", ...inventoryCategoryOrder].map((value) => ({ label: value, value }))} />
-            <Select value={stocktakeScopeStatus} onChange={(value) => setStocktakeScopeStatus(value)} options={["全部", "异常", "可盘点"].map((value) => ({ label: value, value }))} />
+          <div className="inventory-stocktake-toolbar inventory-outbound-toolbar">
+            <Input.Search
+              allowClear
+              placeholder="搜索名称或品牌"
+              value={outboundKeyword}
+              onChange={(event) => setOutboundKeyword(event.target.value)}
+            />
+            <Select
+              value={outboundCategory}
+              onChange={(value) => setOutboundCategory(value)}
+              options={[
+                { label: "全部分类", value: "全部" },
+                ...inventoryCategoryOrder.map((value) => ({ label: value, value }))
+              ]}
+            />
+            <Input
+              value={outboundPurpose}
+              placeholder="领用用途，例如：治疗任务领用、栏舍消毒、工具领用"
+              onChange={(event) => setOutboundPurpose(event.target.value)}
+            />
+            <Input
+              value={outboundRemark}
+              placeholder="备注，选填，最多 200 字"
+              maxLength={200}
+              onChange={(event) => setOutboundRemark(event.target.value)}
+            />
           </div>
+          <Table
+            rowKey="materialId"
+            className="inventory-console-table"
+            columns={outboundExecuteColumns}
+            dataSource={filteredOutboundRows}
+            pagination={false}
+            scroll={{ x: 1080 }}
+          />
+          <div className="inventory-stocktake-footer">
+            <Button type="primary" onClick={submitOutboundExecution}>提交出库</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (inventoryView === "outbound-confirm") {
+    const negativeCount = outboundSelectedRows.filter((row) => row.afterStockBase < 0).length;
+    return (
+      <div className="inventory-console-page">
+        <div className="inventory-console-header">
+          <div>
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("outbound-execute")}>
+              返回修改
+            </Button>
+            <Title level={3}>出库清单</Title>
+            <Text type="secondary">以下物料将出库，确认后系统生成出库单和库存流水</Text>
+          </div>
+        </div>
+        <div className="inventory-stocktake-summary">
+          <span>全部物料<strong>{outboundScopeRows.length} 个</strong></span>
+          <span>出库物料<strong>{outboundSelectedRows.length} 个</strong></span>
+          <span>预计负库存<strong>{negativeCount} 个</strong></span>
+          <span>领用用途<strong>{outboundPurpose || "未填写"}</strong></span>
+        </div>
+        <Card className="inventory-console-card">
+          <Table rowKey="materialId" className="inventory-console-table" columns={outboundConfirmColumns} dataSource={outboundSelectedRows} pagination={false} />
           <Alert
             showIcon
             type="info"
             className="inventory-stocktake-alert"
-            message="盘点只核对物料总数，不按具体批次盘点。提交后系统会自动处理容差内小差异；剩余差异进入「盘点差异处理」确认来源。"
-          />
-          <Table
-            rowKey="id"
-            className="inventory-console-table"
-            columns={stocktakeScopeColumns}
-            dataSource={filteredStocktakeScopeRows}
-            pagination={false}
-            rowSelection={stocktakeScopeRowSelection}
+            message="确认后系统会按 FEFO 自动扣减批次；库存不足的剩余数量会记录为物料级负库存，并生成无批次业务消耗流水。"
           />
           <div className="inventory-stocktake-footer">
-            <Button
-              onClick={() => {
-                setInventoryView("home");
-                setStocktakeStartOpen(true);
-              }}
-            >
-              上一步
-            </Button>
-            <Button type="primary" disabled={!selectedStocktakeScopeRows.length} onClick={beginStocktakeExecution}>
-              开始盘点
-            </Button>
+            <Button onClick={() => setInventoryView("outbound-execute")}>返回修改</Button>
+            <Button type="primary" onClick={confirmOutboundOrder}>确认出库</Button>
           </div>
         </Card>
+      </div>
+    );
+  }
+
+  if (inventoryView === "outbound-detail") {
+    const order = selectedOutboundOrder;
+    return (
+      <div className="inventory-console-page">
+        <div className="inventory-console-header">
+          <div>
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+              返回库存管理
+            </Button>
+            <Title level={3}>出库单详情</Title>
+            <Text type="secondary">{order ? `单据号 ${order.no}` : "未选择出库单"}</Text>
+          </div>
+          <Space>
+            <Button icon={<HistoryOutlined />} onClick={() => setInventoryView("ledgers")}>
+              查看库存流水
+            </Button>
+          </Space>
+        </div>
+        {order ? (
+          <>
+            <Descriptions
+              className="inventory-outbound-descriptions"
+              bordered
+              size="small"
+              column={4}
+              items={[
+                { key: "no", label: "出库单号", children: order.no },
+                { key: "createdAt", label: "出库时间", children: order.createdAt },
+                { key: "operator", label: "领用人", children: order.operator },
+                { key: "purpose", label: "领用用途", children: order.purpose },
+                { key: "count", label: "出库物料", children: `${order.lines.length} 个` },
+                { key: "ledger", label: "生成流水", children: `${order.ledgers.length} 条` },
+                { key: "remark", label: "备注", children: order.remark || "—" }
+              ]}
+            />
+            <Card className="inventory-console-card">
+              <Table rowKey="materialId" className="inventory-console-table" columns={outboundOrderLineColumns} dataSource={order.lines} pagination={false} />
+            </Card>
+          </>
+        ) : (
+          <Card className="inventory-console-card inventory-empty-panel">暂无出库单</Card>
+        )}
       </div>
     );
   }
@@ -3013,28 +5303,46 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       <div className="inventory-console-page">
         <div className="inventory-console-header">
           <div>
-            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("stocktake-scope")}>
-              返回确认范围
+            <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("home")}>
+              返回库存管理
             </Button>
-            <Title level={3}>盘点操作</Title>
-            <Text type="secondary">盘点方式：{stocktakeMode}｜{stocktakeSubmitted ? "待确认" : "盘点中"}</Text>
+            <Title level={3}>库存盘点</Title>
+            <Text type="secondary">全部物料 {stocktakeScopeRows.length} 个｜已填写变化 {stocktakeChangedRows.length} 个</Text>
           </div>
-          <Button onClick={fillStocktakeBookStock}>一键填入账面库存</Button>
         </div>
         <Card className="inventory-console-card">
-          <Descriptions
-            size="small"
-            column={{ xs: 1, sm: 2, lg: 3 }}
-            items={[
-              { key: "mode", label: "盘点范围", children: stocktakeMode },
-              { key: "count", label: "盘点物料", children: `${selectedStocktakeScopeRows.length} 个` },
-              { key: "assignee", label: "盘点人", children: stocktakeTaskValues?.assignee || "当前用户" },
-              { key: "createdAt", label: "开始时间", children: `${new Date().toISOString().slice(0, 10)} 10:30` }
-            ]}
+          <div className="inventory-stocktake-toolbar">
+            <Input.Search
+              allowClear
+              placeholder="搜索名称或品牌"
+              value={stocktakeScopeKeyword}
+              onChange={(event) => setStocktakeScopeKeyword(event.target.value)}
+            />
+            <Select
+              value={stocktakeScopeCategory}
+              onChange={(value) => setStocktakeScopeCategory(value)}
+              options={[
+                { label: "全部分类", value: "全部" },
+                ...inventoryCategoryOrder.map((value) => ({ label: value, value }))
+              ]}
+            />
+            <Select
+              value={stocktakeRiskFilter}
+              onChange={(value) => setStocktakeRiskFilter(value)}
+              options={[
+                { label: "全部异常", value: "全部" },
+                ...["负库存", "临期", "已过期"].map((value) => ({ label: value, value }))
+              ]}
+            />
+          </div>
+          <Table
+            rowKey="id"
+            className="inventory-console-table"
+            columns={stocktakeExecuteColumns}
+            dataSource={filteredStocktakeScopeRows}
+            pagination={false}
+            scroll={{ x: 1080 }}
           />
-        </Card>
-        <Card className="inventory-console-card">
-          <Table rowKey="id" className="inventory-console-table" columns={stocktakeExecuteColumns} dataSource={selectedStocktakeScopeRows} pagination={false} scroll={{ x: 1180 }} />
           <div className="inventory-stocktake-footer">
             <Button type="primary" onClick={submitStocktakeExecution}>提交盘点</Button>
           </div>
@@ -3051,27 +5359,27 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             <Button type="text" icon={<ArrowLeftOutlined />} className="inventory-back-button" onClick={() => setInventoryView("stocktake-execute")}>
               返回修改
             </Button>
-            <Title level={3}>盘点差异确认</Title>
-            <Text type="secondary">提交后系统先自动处理可闭环的小差异，剩余差异进入「盘点差异处理」</Text>
+            <Title level={3}>盘点清单</Title>
+            <Text type="secondary">以下物料库存发生变化，确认后新库存生效</Text>
           </div>
         </div>
         <div className="inventory-stocktake-summary">
-          <span>本次盘点物料<strong>{selectedStocktakeScopeRows.length} 个</strong></span>
-          <span>无差异<strong>{stocktakeDiffSummary.noDifferenceCount} 个</strong></span>
-          <span>盘盈<strong>{stocktakeDiffSummary.gainCount} 个</strong></span>
-          <span>盘亏<strong>{stocktakeDiffSummary.lossCount} 个</strong></span>
+          <span>全部物料<strong>{stocktakeScopeRows.length} 个</strong></span>
+          <span>库存变化<strong>{stocktakeChangedRows.length} 个</strong></span>
+          <span>实盘多出<strong>{stocktakeDiffSummary.gainCount} 个</strong></span>
+          <span>实盘少了<strong>{stocktakeDiffSummary.lossCount} 个</strong></span>
         </div>
         <Card className="inventory-console-card">
-          <Table rowKey="id" className="inventory-console-table" columns={stocktakeConfirmColumns} dataSource={stocktakeDifferenceRows} pagination={false} />
+          <Table rowKey="id" className="inventory-console-table" columns={stocktakeConfirmColumns} dataSource={stocktakeChangedRows} pagination={false} />
           <Alert
             showIcon
             type="info"
             className="inventory-stocktake-alert"
-            message="提交盘点后，容差内小差异会自动生成库存流水；仍需判断的差异会进入「盘点差异处理」。"
+            message="确认后系统会按盘点库存更新当前库存，并生成盘点调整流水。未填写盘点库存的物料不会变化。"
           />
           <div className="inventory-stocktake-footer">
             <Button onClick={() => setInventoryView("stocktake-execute")}>返回修改</Button>
-            <Button type="primary" onClick={confirmStocktakeAdjustment}>提交盘点</Button>
+            <Button type="primary" onClick={confirmStocktakeAdjustment}>确认</Button>
           </div>
         </Card>
       </div>
@@ -3079,44 +5387,36 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   }
 
   if (inventoryView === "stocktake-complete") {
-    const result = stocktakeDifferenceResult;
-    const gainCount = result.filter((item) => item.direction === "盘盈").length;
-    const lossCount = result.filter((item) => item.direction === "盘亏").length;
-    const autoProcessedCount = result.filter((item) => item.status === "已处理").length;
-    const pendingResultCount = result.filter((item) => item.status === "待处理").length;
-    const hasPendingDifference = pendingResultCount > 0;
+    const result = stocktakeCompleteResult;
+    const gainCount = result?.summary.gainCount || 0;
+    const lossCount = result?.summary.lossCount || 0;
+    const adjustmentCount = result?.summary.adjustmentCount || 0;
     return (
       <div className="inventory-console-page">
         <Card className="inventory-console-card inventory-stocktake-complete">
           <CheckCircleOutlined />
-          <Title level={3}>{hasPendingDifference ? "盘点已提交" : "盘点已完成"}</Title>
+          <Title level={3}>盘点已完成</Title>
           <Descriptions
             column={1}
             size="small"
             items={[
-              { key: "task", label: "盘点方式", children: stocktakeMode },
-              { key: "count", label: "盘点物料", children: `${selectedStocktakeScopeRows.length} 个` },
-              { key: "pending", label: "待处理差异", children: `${pendingResultCount} 条` },
-              { key: "auto", label: "已自动处理", children: `${autoProcessedCount} 条` },
-              { key: "gain", label: "盘盈", children: `${gainCount} 个` },
-              { key: "loss", label: "盘亏", children: `${lossCount} 个` }
+              { key: "count", label: "全部物料", children: `${stocktakeScopeRows.length} 个` },
+              { key: "adjustment", label: "库存变化", children: `${adjustmentCount} 条` },
+              { key: "gain", label: "实盘多出", children: `${gainCount} 个` },
+              { key: "loss", label: "实盘少了", children: `${lossCount} 个` }
             ]}
           />
-          {hasPendingDifference ? (
-            <Alert
-              showIcon
-              type="info"
-              className="inventory-stocktake-alert"
-              message="容差内小差异已自动处理并生成库存流水，剩余差异请到「盘点差异处理」确认来源。"
-            />
-          ) : null}
+          <Alert
+            showIcon
+            type="success"
+            className="inventory-stocktake-alert"
+            message="新库存已生效，系统已生成盘点调整流水。"
+          />
           <Space wrap>
             <Button onClick={() => setInventoryView("home")}>返回库存首页</Button>
-            {hasPendingDifference ? (
-              <Button type="primary" onClick={() => setInventoryView("difference-list")}>
-                去处理差异
-              </Button>
-            ) : null}
+            <Button type="primary" onClick={() => setInventoryView("ledgers")}>
+              查看库存流水
+            </Button>
           </Space>
         </Card>
       </div>
@@ -3171,31 +5471,60 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   }
 
   if (inventoryView === "detail" && selectedSummary && selectedMaterial) {
-    const baseInfoItems = [
+    const baseInfoItems: Array<{ label: string; value: ReactNode }> = [
       { label: "物料编码", value: resolveMaterialCode(selectedMaterial) },
-      { label: "物料名称", value: selectedMaterial.materialName },
-      { label: "品牌", value: selectedMaterial.brand },
-      { label: "分类", value: selectedMaterial.category },
+      { label: "物料名称(中文)", value: selectedMaterial.materialName },
+      { label: "物料名称(英文)", value: selectedMaterial.materialNameEn || "—" },
+      { label: "品牌名称(中文)", value: selectedMaterial.brand },
+      { label: "品牌名称(英文)", value: selectedMaterial.brandEn || "—" },
+      { label: "物料类型", value: selectedMaterial.category },
       { label: "核算单位", value: selectedMaterial.baseUnit },
-      {
-        label: "安全库存",
-        value:
-          selectedMaterial.safetyStockBase !== undefined
-            ? formatInventoryQty(selectedMaterial.safetyStockBase, selectedMaterial.baseUnit)
-            : "未启用"
-      },
+      { label: "单位换算", value: formatMaterialUnitConversions(selectedMaterial) },
       { label: "状态", value: getInventoryMaterialStatus(selectedMaterial) },
       { label: "备注", value: selectedMaterial.note || "—" },
       ...buildMaterialExtensionItems(selectedMaterial).map((item) => ({ label: item.label, value: item.value || "—" }))
     ];
     const selectedMaterialStatus = getInventoryMaterialStatus(selectedMaterial);
+    const inventorySummaryItems: Array<{
+      label: string;
+      value: ReactNode;
+      className?: string;
+    }> = [
+      {
+        label: "当前库存",
+        value: formatInventoryQtyWithPackage(selectedSummary.currentStockBase, selectedMaterial)
+      },
+      {
+        label: "预计可用",
+        value:
+          selectedEstimatedAvailableDays !== null ? (
+            `${selectedEstimatedAvailableDays}天`
+          ) : (
+            <Tooltip title="暂无消耗数据">
+              <span>—</span>
+            </Tooltip>
+          )
+      },
+      {
+        label: "库存价值",
+        value: formatCurrency(selectedInventoryValue)
+      },
+      {
+        label: "库存状态",
+        value: selectedMaterialStockStatus?.label || "正常",
+        className: selectedMaterialStockStatus ? `is-${selectedMaterialStockStatus.tone}` : "is-success"
+      }
+    ];
     const detailTabItems = [
       {
         key: "detail",
         label: "详情信息",
         children: (
-          <>
-            <Card className="inventory-console-card" title="物料基础信息">
+          <div className="inventory-detail-workspace">
+            <section className="inventory-detail-section">
+              <div className="inventory-detail-section__head">
+                <Title level={4}>基础信息</Title>
+              </div>
               <Descriptions
                 column={{ xs: 1, sm: 2, lg: 3 }}
                 size="small"
@@ -3205,9 +5534,48 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                   children: item.value
                 }))}
               />
-            </Card>
+            </section>
 
-            <Card className="inventory-console-card" title="批次库存">
+            <section className="inventory-detail-section">
+              <div className="inventory-detail-section__head">
+                <Title level={4}>库存概览</Title>
+              </div>
+              <div className="inventory-summary-strip">
+                {inventorySummaryItems.map((item) => (
+                  <div key={item.label} className={`inventory-summary-strip__item ${item.className || ""}`}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="inventory-detail-section">
+              <div className="inventory-detail-section__head">
+                <Title level={4}>库存趋势</Title>
+                <div className="inventory-trend-range-switch" aria-label="库存趋势周期">
+                  {(["7天", "30天", "90天"] as MaterialTrendRange[]).map((range) => (
+                    <Button
+                      key={range}
+                      size="small"
+                      type={materialTrendRange === range ? "primary" : "text"}
+                      onClick={() => setMaterialTrendRange(range)}
+                    >
+                      {range}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <MaterialStockTrendChart
+                points={selectedMaterialTrendPoints}
+                unit={selectedSummary.baseUnit}
+              />
+            </section>
+
+            <section className="inventory-detail-section">
+              <div className="inventory-detail-section__head">
+                <Title level={4}>批次库存</Title>
+              </div>
               <Table
                 rowKey="id"
                 className="inventory-console-table"
@@ -3216,9 +5584,12 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
                 pagination={false}
                 scroll={{ x: 980 }}
               />
-            </Card>
+            </section>
 
-            <Card className="inventory-console-card" title="库存风险">
+            <section className="inventory-detail-section">
+              <div className="inventory-detail-section__head">
+                <Title level={4}>库存风险</Title>
+              </div>
               {selectedRiskMessages.length ? (
                 <div className="inventory-detail-risk-list">
                   <Alert
@@ -3235,39 +5606,8 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
               ) : (
                 <Alert showIcon type="success" message="暂无库存风险" />
               )}
-            </Card>
-
-            <Card className="inventory-console-card" title="关联业务与消耗分析">
-              <div className="inventory-analysis-grid">
-                <span>
-                  近7天消耗
-                  <strong>{formatInventoryQty(Math.abs(selectedConsumptionQty7Days), selectedSummary.baseUnit)}</strong>
-                </span>
-                <span>
-                  近30天消耗
-                  <strong>{formatInventoryQty(Math.abs(selectedConsumptionQty), selectedSummary.baseUnit)}</strong>
-                </span>
-                <span>
-                  本月消耗金额
-                  <strong>{formatCurrency(Math.abs(selectedConsumptionCost))}</strong>
-                </span>
-                <span>
-                  消耗任务数
-                  <strong>{selectedMaterialConsumptionLedgers.length} 次</strong>
-                </span>
-              </div>
-              <div className="inventory-source-breakdown">
-                <Text type="secondary">消耗记录</Text>
-              </div>
-              <Table
-                rowKey="id"
-                className="inventory-console-table inventory-analysis-table"
-                columns={usageRecordColumns}
-                dataSource={selectedMaterialConsumptionLedgers}
-                pagination={false}
-              />
-            </Card>
-          </>
+            </section>
+          </div>
         )
       },
       {
@@ -3310,32 +5650,21 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             <Button icon={<EditOutlined />} onClick={() => openEditMaterial(selectedMaterial.id)}>
               编辑物料
             </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={() => deleteMaterial(selectedMaterial.id)}>
-              删除物料
-            </Button>
+            {selectedMaterialStatus === "已停用" ? (
+              <Button icon={<PlayCircleOutlined />} onClick={() => toggleMaterialStatus(selectedMaterial.id, "启用中")}>
+                启用物料
+              </Button>
+            ) : (
+              <Button danger icon={<StopOutlined />} onClick={() => toggleMaterialStatus(selectedMaterial.id, "已停用")}>
+                停用物料
+              </Button>
+            )}
           </Space>
         </div>
 
         {renderMaterialEditModal()}
-
-        {pendingDifferenceByMaterial.has(selectedMaterial.id) ? (
-          <Alert
-            showIcon
-            type="warning"
-            className="inventory-difference-banner"
-            message={`该物料存在未处理盘点差异：${
-              (pendingDifferenceByMaterial.get(selectedMaterial.id) || 0) > 0 ? "盘盈 +" : "盘亏 "
-            }${formatInventoryQty(
-              Math.abs(pendingDifferenceByMaterial.get(selectedMaterial.id) || 0),
-              selectedMaterial.baseUnit
-            )}（库存暂未变动，处理后更新）`}
-            action={
-              <Button size="small" type="link" onClick={() => setInventoryView("difference-list")}>
-                去处理
-              </Button>
-            }
-          />
-        ) : null}
+        {renderLotEditModal()}
+        {renderExpiredActionModal()}
 
         <Tabs
           className="inventory-detail-tabs"
@@ -3360,39 +5689,73 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
             >
               返回库存管理
             </Button>
-            <Title level={3}>库存流水</Title>
+            <Title level={3}>库存记录</Title>
           </div>
         </div>
 
         <Card className="inventory-console-card">
-          <div className="inventory-ledger-filterbar">
-            <DatePicker.RangePicker
-              placeholder={["开始日期", "结束日期"]}
-              onChange={(_, dateStrings) =>
-                setLedgerDateRange(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)
+          <Tabs
+            className="inventory-ledger-page-tabs"
+            activeKey={ledgerPageTab}
+            onChange={(key) => setLedgerPageTab(key as InventoryLedgerPageTabKey)}
+            items={[
+              {
+                key: "ledger",
+                label: "库存流水",
+                children: (
+                  <InventoryLedgerTable
+                    dateRange={ledgerDateRange}
+                    keyword={ledgerKeyword}
+                    ledgerTypes={ledgerTypes}
+                    columns={ledgerColumns}
+                    dataSource={filteredLedgers}
+                    onDateRangeChange={setLedgerDateRange}
+                    onKeywordChange={setLedgerKeyword}
+                    onLedgerTypesChange={setLedgerTypes}
+                  />
+                )
+              },
+              {
+                key: "checks",
+                label: "盘点记录",
+                children: (
+                  <InventoryCheckTable
+                    dateRange={checkDateRange}
+                    keyword={checkKeyword}
+                    checker={checkChecker}
+                    diffFilter={checkDiffFilter}
+                    checkerOptions={inventoryCheckCheckerOptions}
+                    dataSource={filteredCheckRecords}
+                    expandedRowKeys={expandedCheckRowKeys}
+                    focusedRecordId={focusedCheckRecordId}
+                    onDateRangeChange={setCheckDateRange}
+                    onKeywordChange={setCheckKeyword}
+                    onCheckerChange={setCheckChecker}
+                    onDiffFilterChange={setCheckDiffFilter}
+                    onExpandedRowKeysChange={setExpandedCheckRowKeys}
+                    onToggleRecord={toggleInventoryCheckRecord}
+                    onViewLedger={openInventoryLedgerFromCheckDetail}
+                  />
+                )
+              },
+              {
+                key: "inbound",
+                label: "入库单",
+                children: (
+                  <InventoryInboundOrderTable
+                    dateRange={inboundDateRange}
+                    keyword={inboundKeyword}
+                    typeFilter={inboundTypeFilter}
+                    dataSource={filteredInboundOrders}
+                    expandedRowKeys={expandedInboundRowKeys}
+                    onDateRangeChange={setInboundDateRange}
+                    onKeywordChange={setInboundKeyword}
+                    onTypeFilterChange={setInboundTypeFilter}
+                    onToggleRecord={toggleInventoryInboundOrder}
+                  />
+                )
               }
-            />
-            <Input.Search
-              allowClear
-              placeholder="搜索物料名称、品牌或批次"
-              value={ledgerKeyword}
-              onChange={(event) => setLedgerKeyword(event.target.value)}
-            />
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder="流水类型"
-              value={ledgerTypes}
-              onChange={(value) => setLedgerTypes(value)}
-              options={["采购入库", "业务消耗", "消耗冲销", "入库更正", "盘盈", "盘亏", "盘点调整", "报废"].map((value) => ({ label: value, value }))}
-            />
-          </div>
-          <Table
-            rowKey="id"
-            className="inventory-console-table"
-            columns={ledgerColumns}
-            dataSource={filteredLedgers}
-            pagination={false}
+            ]}
           />
         </Card>
       </div>
@@ -3400,6 +5763,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
   }
 
   if (inventoryView === "difference-list") {
+    if (activeModule !== "finance") {
+      return null;
+    }
     const baseDifferenceColumns: ColumnsType<InventoryDifferenceRecord> = [
       {
         title: "物料",
@@ -3415,7 +5781,11 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         title: "分类",
         dataIndex: "category",
         filters: inventoryCategoryOrder.map((category) => ({ text: category, value: category })),
-        onFilter: (value, record) => record.category === value
+        onFilter: (value, record) => record.category === value,
+        render: (_, record) =>
+          record.category === "药品" && resolveMedicineClass(record)
+            ? formatMaterialCategoryLabel(record)
+            : record.category
       },
       {
         title: "账面库存",
@@ -3557,9 +5927,9 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
               type="text"
               icon={<ArrowLeftOutlined />}
               className="inventory-back-button"
-              onClick={() => setInventoryView("home")}
+              onClick={() => setInventoryView("finance")}
             >
-              返回库存首页
+              返回财务分析
             </Button>
             <Title level={3}>盘点差异处理</Title>
             <Text type="secondary">提交盘点后差异先汇总在这里，逐条确认来源后库存与批次才会更新</Text>
@@ -3611,7 +5981,7 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
           title="盘点差异分析 + 处理"
           open={Boolean(handlingDifference)}
           onClose={closeDifferenceHandler}
-          destroyOnClose
+          destroyOnHidden
           footer={
             <div className="inventory-drawer-footer">
               <Button onClick={closeDifferenceHandler}>取消</Button>
@@ -3793,273 +6163,25 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
         </div>
         <Space>
           <Button icon={<HistoryOutlined />} onClick={() => setInventoryView("ledgers")}>
-            库存流水
-          </Button>
-          <Badge count={pendingDifferences.length} size="small" offset={[-2, 2]}>
-            <Button onClick={() => setInventoryView("difference-list")}>盘点差异</Button>
-          </Badge>
-          <Button icon={<ExportOutlined />} onClick={() => setOutboundOpen(true)}>
-            出库
-          </Button>
-          <Button type="primary" icon={<InboxOutlined />} onClick={() => setReceiveOpen(true)}>
-            入库
+            库存记录
           </Button>
           <Button
+            type="primary"
             icon={<InboxOutlined />}
             onClick={() => {
-              setBatchReceiveEntries([createEmptyBatchReceiveEntry()]);
+              setBatchReceiveEntries([]);
               setInventoryView("batch-receive");
             }}
           >
-            入库2
+            入库
           </Button>
-          <Button onClick={() => setStocktakeStartOpen(true)}>发起盘点</Button>
+          <Button onClick={openStocktakeScope}>发起盘点</Button>
         </Space>
       </div>
 
-      {pendingDifferences.length ? (
-        <Alert
-          showIcon
-          type="warning"
-          className="inventory-difference-banner"
-          message={`存在 ${pendingDifferences.length} 条未处理盘点差异，库存暂以系统账面为准，处理后才会更新`}
-          action={
-            <Button size="small" type="link" onClick={() => setInventoryView("difference-list")}>
-              去处理
-            </Button>
-          }
-        />
-      ) : null}
-
-      <div className="inventory-analytics-grid">
-        <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--share">
-          <div className="inventory-analytics-card__head">
-            <div>
-              <strong>库存金额占比</strong>
-            </div>
-            <div className="inventory-analytics-card__meta">
-              <span>
-                <Text type="secondary">最大占比</Text>
-                <strong>{formatPercent(largestInventoryShare)}</strong>
-              </span>
-            </div>
-          </div>
-          <div className="inventory-analytics-share-layout">
-            <InventoryDonutChart rows={sortedInventoryValueShareRows} totalValue={inventoryTotalValue} />
-            <div className="inventory-analytics-share-list">
-              {sortedInventoryValueShareRows.map((row) => (
-                <button
-                  key={row.category}
-                  type="button"
-                  className={`inventory-analytics-share-row${analyticsCategoryFilter === row.category ? " is-active" : ""}`}
-                  aria-pressed={analyticsCategoryFilter === row.category}
-                  onClick={() =>
-                    setAnalyticsCategoryFilter(analyticsCategoryFilter === row.category ? "全部" : row.category)
-                  }
-                >
-                  <span className="inventory-analytics-share-row__label">
-                    <i style={{ background: row.color }} />
-                    <span>{row.category}</span>
-                  </span>
-                  <span className="inventory-analytics-share-row__value">
-                    <strong>{formatCurrency(row.amount)}</strong>
-                    <Text type="secondary">{row.amount > 0 ? formatPercent(row.share) : "—"}</Text>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </Card>
-
-        <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--top">
-          <div className="inventory-analytics-card__head">
-            <div>
-              <strong>本月消耗金额 Top 物料</strong>
-            </div>
-          </div>
-          <div className="inventory-top-spend-list">
-            {windowTopSpendRows.length ? (
-              windowTopSpendRows.map((row, index) => (
-                <div key={row.id} className="inventory-top-spend-row">
-                  <span className="inventory-top-spend-row__rank">{index + 1}</span>
-                  <div className="inventory-top-spend-row__content">
-                    <div className="inventory-top-spend-row__head">
-                      <div>
-                        <strong>{row.materialName}</strong>
-                        <Text type="secondary">{row.isCategorySummary ? "物料类型" : row.category}</Text>
-                      </div>
-                      <strong>{formatCurrency(row.amount)}</strong>
-                    </div>
-                    <div className="inventory-top-spend-row__track">
-                      <span
-                        className="inventory-top-spend-row__bar"
-                        style={{ width: `${Math.max(row.share * 100, 10)}%`, background: row.color }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="inventory-empty-panel">该时间段暂无消耗记录</div>
-            )}
-          </div>
-        </Card>
-
-        <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--risk">
-          <div className="inventory-analytics-card__head">
-            <div>
-              <strong>库存风险</strong>
-            </div>
-          </div>
-          <div className="inventory-risk-filter-tags" aria-label="库存风险筛选">
-            {homeActionItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`inventory-action-filter${activeHomeRiskType === item.key ? " is-active" : ""}`}
-                onClick={() => setActiveHomeRiskType(activeHomeRiskType === item.key ? "全部" : item.key)}
-              >
-                <span>{item.label}</span>
-                <strong>{item.count}</strong>
-              </button>
-            ))}
-          </div>
-          <div className="inventory-risk-list">
-            {filteredHomeRiskRows.length ? (
-              filteredHomeRiskRows.map((item) => (
-                <div
-                  key={item.id}
-                  className={`inventory-risk-row inventory-risk-row--${item.type}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openMaterialDetail(item.materialId)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openMaterialDetail(item.materialId);
-                    }
-                  }}
-                >
-                  <span className="inventory-risk-row__type">{item.type}</span>
-                  <div className="inventory-risk-row__main">
-                    <div className="inventory-risk-row__title">
-                      <strong>{item.materialName}</strong>
-                      <span>{item.brand}</span>
-                    </div>
-                    <Text type="secondary">{item.adviceText}</Text>
-                  </div>
-                  <div className="inventory-risk-row__side">
-                    <span className="inventory-risk-row__value">
-                      <strong>{item.valueText}</strong>
-                      {item.dateText ? <em>{item.dateText}</em> : null}
-                    </span>
-                    {item.actionText || item.auxiliaryActionText ? (
-                      <span className="inventory-risk-row__actions">
-                        {item.actionText ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleRiskAction(item.actionText, item);
-                          }}
-                        >
-                          {item.actionText}
-                        </button>
-                        ) : null}
-                        {item.auxiliaryActionText ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleRiskAction(item.auxiliaryActionText, item);
-                          }}
-                        >
-                          {item.auxiliaryActionText}
-                        </button>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="inventory-empty-panel">暂无待处理物料</div>
-            )}
-          </div>
-        </Card>
-
-        <Card className="inventory-console-card inventory-analytics-card inventory-analytics-card--trend">
-          <div className="inventory-analytics-card__head inventory-analytics-card__head--trend">
-            <div>
-              <strong>库存消耗趋势</strong>
-            </div>
-            <div className="inventory-trend-filters">
-              <div className="inventory-analytics-filter-tags" aria-label="库存消耗趋势时间范围筛选">
-                {inventoryAnalyticsTimeRangeOptions.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className={`inventory-action-filter${analyticsTimeRange === item ? " is-active" : ""}`}
-                    onClick={() => setAnalyticsTimeRange(item)}
-                  >
-                    <span>{item}</span>
-                  </button>
-                ))}
-              </div>
-              {analyticsTimeRange === "自定义" ? (
-                <DatePicker.RangePicker
-                  size="small"
-                  allowClear
-                  placeholder={["开始日期", "结束日期"]}
-                  onChange={(_, dateStrings) =>
-                    setAnalyticsCustomRange(
-                      dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null
-                    )
-                  }
-                />
-              ) : null}
-            </div>
-          </div>
-          <div className="inventory-analytics-filter-tags inventory-trend-filters__category" aria-label="库存消耗趋势分类筛选">
-            {inventoryAnalyticsCategoryFilterOptions.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`inventory-action-filter${analyticsCategoryFilter === item ? " is-active" : ""}`}
-                onClick={() => setAnalyticsCategoryFilter(item)}
-              >
-                <span>{item}</span>
-              </button>
-            ))}
-          </div>
-          <div className="inventory-analytics-trend-meta">
-            <span>
-              <Text type="secondary">{analyticsRangeLabel}累计</Text>
-              <strong>{formatCurrency(consumptionTrendTotal)}</strong>
-            </span>
-            <span>
-              <Text type="secondary">日均消耗</Text>
-              <strong>{formatCurrency(Math.round(consumptionTrendAverage))}</strong>
-            </span>
-            <span>
-              <Text type="secondary">峰值日</Text>
-              <strong>
-                {consumptionTrendPeak && consumptionTrendPeak.amount > 0
-                  ? `${formatMonthDay(consumptionTrendPeak.date)} · ${formatCurrency(consumptionTrendPeak.amount)}`
-                  : "暂无"}
-              </strong>
-            </span>
-            <span>
-              <Text type="secondary">饲料消耗重量</Text>
-              <strong>{formatInventoryQty(Math.abs(feedConsumptionWeight), "kg")}</strong>
-            </span>
-          </div>
-          <InventoryTrendChart
-            points={consumptionTrendPoints}
-            rangeLabel={analyticsRangeLabel}
-            categoryLabel={analyticsFilterSummaryLabel}
-          />
-        </Card>
+      <div className="inventory-home-health-grid">
+        {renderFeedStockTrendCard()}
+        {renderInventoryRiskCard()}
       </div>
 
       <Card className="inventory-console-card">
@@ -4072,267 +6194,6 @@ export function ConsoleInventoryPage({ initialView = "home" }: ConsoleInventoryP
       </Card>
 
       {renderMaterialEditModal()}
-
-      <Modal
-        title="发起盘点"
-        open={stocktakeStartOpen}
-        okText="下一步"
-        cancelText="取消"
-        onOk={() => openStocktakeScope(stocktakeMode)}
-        onCancel={() => setStocktakeStartOpen(false)}
-      >
-        <Alert
-          showIcon
-          type="info"
-          className="inventory-stocktake-alert"
-          message="盘点用于核对账面库存与实际库存差异，确认后将生成库存调整记录并更新当前库存。"
-        />
-        <div className="inventory-stocktake-mode-list">
-          {([
-            ["异常盘点", "自动选择当前负库存、低库存、临期、过期等风险物料，适合快速修复库存异常。"],
-            ["指定物料盘点", "从全部物料候选中筛选并勾选盘点目标。"],
-            ["分类盘点", "按饲料、兽药、疫苗、消毒用品、工具等分类发起盘点。"],
-            ["全部盘点", "盘点全部启用物料。"]
-          ] as Array<[InventoryStocktakeMode, string]>).map(([mode, description]) => (
-            <button
-              key={mode}
-              type="button"
-              className={`inventory-stocktake-mode${stocktakeMode === mode ? " is-active" : ""}`}
-              onClick={() => setStocktakeMode(mode)}
-            >
-              <strong>{mode}</strong>
-              <Text type="secondary">{description}</Text>
-            </button>
-          ))}
-        </div>
-      </Modal>
-
-      <Modal
-        title="出库"
-        open={outboundOpen}
-        okText="确认出库"
-        cancelText="取消"
-        onOk={submitOutbound}
-        onCancel={() => {
-          resetOutboundFormState();
-          setOutboundOpen(false);
-        }}
-      >
-        <Form layout="vertical" form={outboundForm}>
-          <section className="inventory-receive-section">
-            <strong>出库物品</strong>
-            <Form.Item label="物料名称" name="materialId" rules={[{ required: true, message: "请选择出库物料" }]}>
-              <Select
-                showSearch
-                placeholder="请选择出库物料"
-                options={outboundMaterialOptions}
-                optionFilterProp="label"
-                onChange={(value) => {
-                  const material = activeOutboundMaterials.find((item) => item.id === value);
-                  outboundForm.setFieldsValue({ unit: material?.baseUnit, outboundQuantity: undefined });
-                }}
-              />
-            </Form.Item>
-            <div className="inventory-receive-quantity-row">
-              <Form.Item label="出库数量" name="outboundQuantity" rules={[{ required: true, message: "请输入出库数量" }]}>
-                <InputNumber min={0.01} placeholder="请输入出库数量" style={{ width: "100%" }} />
-              </Form.Item>
-              <Form.Item label="单位" name="unit" rules={[{ required: true, message: "请选择物料后自动带出单位" }]}>
-                <Input disabled placeholder="自动带出" />
-              </Form.Item>
-            </div>
-            {selectedOutboundMaterial && selectedOutboundSummary ? (
-              <Alert
-                showIcon
-                type={selectedOutboundSummary.currentStockBase < 0 ? "warning" : "info"}
-                message={`当前库存 ${formatInventoryQty(
-                  selectedOutboundSummary.currentStockBase,
-                  selectedOutboundMaterial.baseUnit
-                )}，提交后系统按批次自动扣减并记录库存流水。`}
-              />
-            ) : null}
-          </section>
-
-          <section className="inventory-receive-section">
-            <strong>领用信息</strong>
-            <Form.Item label="领用用途" name="purpose" rules={[{ required: true, message: "请填写领用用途" }]}>
-              <Input placeholder="例如：治疗任务领用、栏舍消毒、工具领用" />
-            </Form.Item>
-            <Form.Item label="备注" name="remark" rules={[{ max: 200, message: "备注不能超过 200 字" }]}>
-              <Input.TextArea rows={3} showCount maxLength={200} placeholder="请输入补充说明" />
-            </Form.Item>
-          </section>
-        </Form>
-      </Modal>
-
-      <Modal
-        title="采购入库"
-        open={receiveOpen}
-        width={760}
-        className="inventory-receive-modal"
-        okText="提交入库"
-        cancelText="取消"
-        onOk={submitReceive}
-        onCancel={() => {
-          resetReceiveFormState();
-          setReceiveOpen(false);
-        }}
-      >
-        <Form layout="vertical" form={receiveForm}>
-          <div className="inventory-receive-form-stack">
-              <section className="inventory-receive-section">
-                <strong>入库物料信息</strong>
-                <Form.Item label="入库物料" name="materialName" rules={[{ required: true, message: "请搜索或输入入库物料" }]}>
-                  <AutoComplete
-                    options={receiveMaterialOptions}
-                    placeholder="搜索已有物料；未找到时直接输入新物料名称"
-                    filterOption={(inputValue, option) =>
-                      String(option?.label || "").includes(inputValue) || String(option?.value || "").includes(inputValue)
-                    }
-                    onSelect={(_, option) => {
-                      const material = activeReceiveMaterials.find((item) => item.id === option.materialId);
-                      setReceiveMaterialText(String(option.value));
-                      if (material) applyExistingReceiveMaterial(material);
-                    }}
-                    onChange={(value) => {
-                      setReceiveMaterialText(value);
-                      const matched = activeReceiveMaterials.find((item) => item.materialName === value.trim());
-                      if (matched) {
-                        applyExistingReceiveMaterial(matched);
-                      } else {
-                        setReceiveMaterialId(undefined);
-                        if (!receiveNewMaterialDraft || receiveNewMaterialDraft.materialName !== value.trim()) {
-                          setReceiveNewMaterialDraft(null);
-                        }
-                        receiveForm.setFieldsValue({
-                          brand: undefined,
-                          category: undefined,
-                          baseUnit: undefined,
-                          packageConversions: undefined,
-                          inboundUnit: undefined,
-                          inboundQuantity: undefined
-                        });
-                      }
-                    }}
-                  />
-                </Form.Item>
-                <Form.Item name="baseUnit" hidden>
-                  <Input />
-                </Form.Item>
-                {effectiveReceiveMaterial ? (
-                  <div className="inventory-receive-material-card">
-                    {selectedReceiveMaterial && receiveMaterialSpecLine ? (
-                      <Alert className="inventory-receive-spec-alert" showIcon type="info" message={receiveMaterialSpecLine} />
-                    ) : null}
-                    <div className="inventory-receive-material-card__head">
-                      <span className="inventory-receive-material-card__name">
-                        {effectiveReceiveMaterial.materialName}
-                        <Tag color="blue" style={{ marginLeft: 8 }}>{effectiveReceiveMaterial.category}</Tag>
-                        {activeReceiveNewDraft ? <Tag color="green">新建</Tag> : null}
-                        {activeReceiveNewDraft?.profileIncomplete ? <Tag color="gold">资料待完善</Tag> : null}
-                      </span>
-                      {activeReceiveNewDraft ? (
-                        <Space size={4}>
-                          <Button type="link" size="small" onClick={() => openQuickCreateMaterial()}>
-                            重新编辑
-                          </Button>
-                          <Button type="link" size="small" danger onClick={clearReceiveNewMaterialDraft}>
-                            清除
-                          </Button>
-                        </Space>
-                      ) : null}
-                    </div>
-                    <div className="inventory-receive-material-card__meta">
-                      <span>品牌：{effectiveReceiveMaterial.brand}</span>
-                      <span>核算单位：{effectiveReceiveMaterial.baseUnit}</span>
-                      {effectiveReceiveMaterial.safetyStockBase != null ? (
-                        <span>安全库存：{effectiveReceiveMaterial.safetyStockBase} {effectiveReceiveMaterial.baseUnit}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : receiveMaterialInfoVisible ? (
-                  <div className="inventory-receive-create-hint">
-                    {receiveDuplicateCandidates.length ? (
-                      <div className="inventory-receive-dup">
-                        <Text type="secondary">可能是这些已有物料，点击可直接选用：</Text>
-                        <Space wrap size={6} style={{ marginTop: 6 }}>
-                          {receiveDuplicateCandidates.map((candidate) => (
-                            <Button
-                              key={candidate.id}
-                              size="small"
-                              onClick={() => {
-                                setReceiveMaterialText(candidate.materialName);
-                                receiveForm.setFieldsValue({ materialName: candidate.materialName });
-                                applyExistingReceiveMaterial(candidate);
-                              }}
-                            >
-                              {candidate.materialName} · {candidate.brand}
-                            </Button>
-                          ))}
-                        </Space>
-                      </div>
-                    ) : null}
-                    <Button type="dashed" block icon={<PlusOutlined />} onClick={() => openQuickCreateMaterial()}>
-                      新建物料「{receiveMaterialKeyword}」
-                    </Button>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="inventory-receive-section">
-                <strong>采购信息</strong>
-                <div className="inventory-receive-quantity-row">
-                  <Form.Item label="入库数量" name="inboundQuantity" rules={[{ required: true, message: "请输入入库数量" }]}>
-                    <InputNumber min={0.01} placeholder="请输入入库数量" style={{ width: "100%" }} />
-                  </Form.Item>
-                  <Form.Item label="单位" name="inboundUnit" rules={[{ required: true, message: "请选择入库单位" }]}>
-                    <Select placeholder="请选择单位" options={receiveInboundUnitOptions} />
-                  </Form.Item>
-                </div>
-                {receiveIncreasePreview ? (
-                  <Alert showIcon type="success" message={receiveIncreasePreview} />
-                ) : null}
-                <Form.Item label="到期日期" name="expiryDate" rules={[{ required: true, message: "请填写到期日期" }]}>
-                  <Input placeholder="2026-12-31" />
-                </Form.Item>
-                <Form.Item label="总进货价（元）" name="unitPrice" rules={[{ required: true, message: "请填写总进货价" }]}>
-                  <InputNumber min={0} style={{ width: "100%" }} />
-                </Form.Item>
-                <Form.Item label="供应商" name="supplier" rules={[{ required: true, message: "请填写供应商" }]}>
-                  <Input placeholder="请输入供应商名称" />
-                </Form.Item>
-                <Form.Item label="供应商电话" name="supplierPhone">
-                  <Input placeholder="选填，请输入供应商电话" />
-                </Form.Item>
-                <Form.Item label="存放位置" name="storageLocation" rules={[{ required: true, message: "请输入存放位置" }]}>
-                  <Input placeholder="例如：药房A柜、冷库2层、饲料仓西侧" />
-                </Form.Item>
-                <Form.Item label="备注" name="note">
-                  <Input placeholder="请输入业务补充说明" />
-                </Form.Item>
-              </section>
-
-              {effectiveReceiveMaterial ? (
-                <section className="inventory-receive-section">
-                  <div className="inventory-receive-section-head">
-                    <strong>规格与包装</strong>
-                    <Text type="secondary">使用物料已维护的包装规格，采购入库时只需填写收到的数量。</Text>
-                  </div>
-                  <div className="inventory-package-summary">
-                    {receivePackageSummary.length ? (
-                      receivePackageSummary.map((item) => <Tag key={item}>{item}</Tag>)
-                    ) : (
-                      <Text type="secondary">该物料暂无包装规格，入库数量将按核算单位填写。</Text>
-                    )}
-                  </div>
-                </section>
-              ) : null}
-
-          </div>
-        </Form>
-      </Modal>
-
-      {renderQuickCreateMaterialModal()}
 
       {renderExpiredActionModal()}
     </div>
